@@ -588,53 +588,22 @@ abstract contract Ownable is Context {
     }
 }
 
-contract Operator is Context, Ownable {
-    address private _operator;
-
-    event OperatorTransferred(address indexed previousOperator, address indexed newOperator);
-
-    constructor() {
-        _operator = _msgSender();
-        emit OperatorTransferred(address(0), _operator);
-    }
-
-    function operator() public view returns (address) {
-        return _operator;
-    }
-
-    modifier onlyOperator() {
-        require(_operator == msg.sender, "operator: caller is not the operator");
-        _;
-    }
-
-    function isOperator() public view returns (bool) {
-        return _msgSender() == _operator;
-    }
-
-    function transferOperator(address newOperator_) public onlyOwner {
-        _transferOperator(newOperator_);
-    }
-
-    function _transferOperator(address newOperator_) internal {
-        require(newOperator_ != address(0), "operator: zero address given for new operator");
-        emit OperatorTransferred(address(0), newOperator_);
-        _operator = newOperator_;
-    }
-
-    function _renounceOperator() public onlyOwner {
-        emit OperatorTransferred(_operator, address(0));
-        _operator = address(0);
-    }
-}
-
-contract Esteem is ERC20Burnable, Operator {
+contract Esteem is ERC20Burnable, Ownable {
 
     mapping(address => bool) public isMinter;
 
-    constructor() ERC20("Esteem Token", "Esteem") {}
+    event MinterAdded(address indexed minter);
+    event MinterRemoved(address indexed minter);
 
-    function mint(address recipient_, uint256 amount_) public returns (bool) {
-        require(isMinter[msg.sender], "Not authorized to mint");
+
+    modifier onlyMinter() {
+        require(isMinter[_msgSender()], "OnlyMinter: caller is not a minter");
+        _;
+    }
+
+    constructor() ERC20("Esteem Token", "ESTEEM") {}
+
+    function mint(address recipient_, uint256 amount_) public onlyMinter returns (bool) {
         uint256 balanceBefore = balanceOf(recipient_);
         _mint(recipient_, amount_);
         uint256 balanceAfter = balanceOf(recipient_);
@@ -644,18 +613,15 @@ contract Esteem is ERC20Burnable, Operator {
 
     function addMinter(address account) external onlyOwner {
         isMinter[account] = true;
+        emit MinterAdded(account);
     }
 
     function removeMinter(address account) external onlyOwner {
         isMinter[account] = false;
+        emit MinterRemoved(account);
     }
 
-    function burn(uint256 amount) public override {
-        super.burn(amount);
-    }
-
-    function burnFrom(address account, uint256 amount) public override {
-        require(isMinter[msg.sender], "Not authorized to burn");
+    function burnFrom(address account, uint256 amount) public override onlyMinter {
         super.burnFrom(account, amount);
     }
 
