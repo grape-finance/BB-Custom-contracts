@@ -702,7 +702,7 @@ interface BBToken {
         require(rate > 0, "Invalid Esteem rate");
 
         // Convert USD bonus amount to esteem tokens
-        userBonus = bonusAmount / rate;
+        userBonus = (bonusAmount * 1e18) / rate;
 
         // Treasury bonus as a % of user bonus
         treasuryBonus = (userBonus * treasuryBonusRate) / MULTIPLIER;
