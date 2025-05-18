@@ -610,7 +610,7 @@ interface Minter {
 
     function getFavorPrice(address _favorToken) external view returns (uint256 updatedPrice);
 
-    function latestETHPrice() external view returns (int256);
+    function latestETHPrice() external view returns (uint256);
 
 }
 
@@ -624,21 +624,35 @@ interface BBToken {
 }
  
  contract FavorETH is ERC20, Ownable {
+
     string private constant NAME = "Favor ETH";
     string private constant SYMBOL = "fETH";
     uint256 public constant MULTIPLIER = 10000;
-    uint256 public constant MAX_TAX = 5000;
+    uint256 public constant MAX_TAX = 5000; // 50% MAX Sell Tax
 
-    uint256 public sellTax = 5000;
-    uint256 public bonusRate = 50;
-    address public treasury;
+    uint256 public sellTax = 5000; 
+    uint256 public bonusRate = 5000; // 50% buy bonus to buyer
+    uint256 public treasuryBonusRate = 2500; // 25% buy bonus minted to treasury
+    address public treasury; 
 
     BBToken public esteem; 
-    Minter public esteemMinter;
+    Minter public esteemMinter; // Esteem mint & redeem contract
 
     mapping(address => bool) public isMarketPair;
     mapping(address => bool) public isTaxExempt;
     mapping(address => bool) public isMinter;
+    
+    event MinterAdded(address indexed account);
+    event MinterRemoved(address indexed account);
+    event TreasuryUpdated(address indexed newTreasury);
+    event EsteemMinterUpdated(address indexed newMinter);
+    event EsteemTokenUpdated(address indexed newEsteem);
+    event SellTaxUpdated(uint256 newTax);
+    event BonusRatesUpdated(uint256 newBonusRate, uint256 newtreasuryBonusRate);
+    event TaxExemptStatusUpdated(address indexed account, bool isExempt);
+    event MarketPairUpdated(address indexed pair, bool isPair);
+    event EsteemBonusMinted(address indexed recipient, uint256 amount, uint256 treasuryAmount);
+
 
     constructor(uint256 initialSupply, address _treasury, address _esteem, address _esteemMinter) ERC20(NAME, SYMBOL) {
         require(_esteem != address(0), "Invalid Esteem address");
@@ -662,43 +676,6 @@ interface BBToken {
         return balanceAfter > balanceBefore;
     }
 
-    function addMinter(address account) external onlyOwner {
-        isMinter[account] = true;
-    }
-
-    function removeMinter(address account) external onlyOwner {
-        isMinter[account] = false;
-    }
-
-    function setTreasury(address _treasury) external onlyOwner {
-        treasury = _treasury;
-    }
-
-    function setEsteemMinter(address _esteemMinter) external onlyOwner {
-        esteemMinter = Minter(_esteemMinter);
-    }
-
-    function setEsteem(address _esteem) external onlyOwner {
-        esteem = BBToken(_esteem);
-    }
-
-    function setSellTax(uint256 _sellTax) external onlyOwner {
-        require(_sellTax <= MAX_TAX, "Sell tax too high");
-        sellTax = _sellTax;
-    }
-
-    function setBonusRate(uint256 _bonusRate) external onlyOwner {
-        bonusRate = _bonusRate;
-    }
-
-    function setTaxExempt(address account, bool exempt) external onlyOwner {
-        isTaxExempt[account] = exempt;
-    }
-
-    function setMarketPair(address pair, bool value) external onlyOwner {
-        isMarketPair[pair] = value;
-    }
-
     function _isBuy(address sender, address recipient) internal view returns (bool) {
         return isMarketPair[sender] && recipient != address(this);
     }
@@ -707,19 +684,32 @@ interface BBToken {
         return isMarketPair[recipient] && sender != address(this);
     }
 
-    function _getFavorBonus(uint256 amount) internal view returns (uint256) {
+    function calculateFavorBonuses(uint256 amount) public view returns (uint256 userBonus, uint256 treasuryBonus) {
+        uint256 favorPrice = esteemMinter.getFavorPrice(address(this)); // fETH price in ETH (18 decimals)
+        uint256 ethPrice = esteemMinter.latestETHPrice();               // ETH price in USD (18 decimals)
 
-        uint256 favorPrice = esteemMinter.getFavorPrice(address(this)); // Get Favor Price TWAP of peg
+        // Convert favor price to USD (18 decimals)
+        favorPrice = (favorPrice * ethPrice) / 1e18;
 
-        uint256 ethPrice = uint256(esteemMinter.latestETHPrice()); // ETH Price From Chainlink in USD
-        require(ethPrice > 0, "Invalid ETH price from Chainlink");
+        // Compute USD value of the amount (also 18 decimals)
+        uint256 usdBuyAmount = (amount * favorPrice) / 1e18;
 
-        favorPrice = (favorPrice * (ethPrice * 1e10)) / 1e18; // Favor price in USD
-        uint256 usdBuyAmount = amount * favorPrice;
-        uint256 bonusAmount = (usdBuyAmount * bonusRate) / 100;
+        // Calculate bonus amount in USD value
+        uint256 bonusAmount = (usdBuyAmount * bonusRate) / MULTIPLIER;
 
-        return bonusAmount / esteemMinter.rate();
+        // Get esteem token price in USD (18 decimals)
+        uint256 rate = esteemMinter.rate();
+        require(rate > 0, "Invalid Esteem rate");
+
+        // Convert USD bonus amount to esteem tokens
+        userBonus = bonusAmount / rate;
+
+        // Treasury bonus as a % of user bonus
+        treasuryBonus = (userBonus * treasuryBonusRate) / MULTIPLIER;
+
+        return (userBonus, treasuryBonus);
     }
+
 
     function _transfer(address sender, address recipient, uint256 amount) internal override {
         uint256 taxAmount = 0;
@@ -729,12 +719,19 @@ interface BBToken {
             return;
         }
 
-        if (_isBuy(sender, recipient)) {
+        bool isBuy = _isBuy(sender, recipient);
+        bool isSell = _isSell(sender, recipient);
+        require(!(isBuy && isSell), "Cannot buy and sell in the same transaction");
 
-            uint256 amountToMint = _getFavorBonus(amount);
-            esteem.mint(recipient, amountToMint);
+        if (isBuy && bonusRate > 0) { 
+
+            (uint256 userBonus, uint256 treasuryBonus) = calculateFavorBonuses(amount);
             
-        } else if (_isSell(sender, recipient)) {
+            require(esteem.mint(recipient, userBonus), "Mint failed");   // Safe external call to Esteem contract to mint bonus for user
+            require(esteem.mint(treasury, treasuryBonus), "Mint failed"); // Mint treasury bonus of user's bonus 
+            emit EsteemBonusMinted(recipient, userBonus, treasuryBonus);
+            
+        } else if (isSell) {
             taxAmount = (amount * sellTax) / MULTIPLIER;
         }
 
@@ -744,5 +741,55 @@ interface BBToken {
         }
 
         super._transfer(sender, recipient, amount);
+    }
+
+    function addMinter(address account) external onlyOwner {
+        isMinter[account] = true;
+        emit MinterAdded(account);
+    }
+
+    function removeMinter(address account) external onlyOwner {
+        isMinter[account] = false;
+        emit MinterRemoved(account);
+    }
+
+    function setTreasury(address _treasury) external onlyOwner {
+        require(_treasury != address(0), "Invalid Treasury address");
+        treasury = _treasury;
+        emit TreasuryUpdated(_treasury);
+    }
+
+    function setEsteemMinter(address _esteemMinter) external onlyOwner {
+        require(_esteemMinter != address(0), "Invalid Esteem Minter address");
+        esteemMinter = Minter(_esteemMinter);
+        emit EsteemMinterUpdated(_esteemMinter);
+    }
+
+    function setEsteem(address _esteem) external onlyOwner {
+        require(_esteem != address(0), "Invalid Esteem address");
+        esteem = BBToken(_esteem);
+        emit EsteemTokenUpdated(_esteem);
+    }
+
+    function setSellTax(uint256 _sellTax) external onlyOwner {
+        require(_sellTax <= MAX_TAX, "Sell tax too high");
+        sellTax = _sellTax;
+        emit SellTaxUpdated(_sellTax);
+    }
+
+    function setBonusRates(uint256 _bonusRate, uint256 _treasuryBonusRate) external onlyOwner {
+        bonusRate = _bonusRate;
+        treasuryBonusRate = _treasuryBonusRate;
+        emit BonusRatesUpdated(_bonusRate, _treasuryBonusRate);
+    }
+
+    function setTaxExempt(address account, bool exempt) external onlyOwner {
+        isTaxExempt[account] = exempt;
+        emit TaxExemptStatusUpdated(account, exempt);
+    }
+
+    function setMarketPair(address pair, bool value) external onlyOwner {
+        isMarketPair[pair] = value;
+        emit MarketPairUpdated(pair, value);
     }
 }

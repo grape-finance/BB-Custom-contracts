@@ -621,8 +621,4 @@ contract Esteem is ERC20Burnable, Ownable {
         emit MinterRemoved(account);
     }
 
-    function burnFrom(address account, uint256 amount) public override onlyMinter {
-        super.burnFrom(account, amount);
-    }
-
 }
