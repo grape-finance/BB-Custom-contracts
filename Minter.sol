@@ -765,7 +765,7 @@ contract MintRedeemer is Ownable, ReentrancyGuard, Pausable {
     address public oracleUSDT;
     address public treasury; 
 
-    uint256 public rate = 10 * 1e18;       // $10 per Esteem start price
+    uint256 public esteemRate = 16 * 1e18;       // $16 per Esteem start price
     uint256 public redeemRate = 7000;      // 70% in favor for Esteem redeemptions
     uint256 public treasuryBonusRate = 2500; // 25% bonus minted to treasury
 
@@ -799,60 +799,68 @@ contract MintRedeemer is Ownable, ReentrancyGuard, Pausable {
         priceFeed = IPriceFeed(0xd30e2101a97dcbAeBCBC04F14C3f624E67A35165); // Chainlink ETH price feed sepolia
     }
 
-    function mint(uint256 _amount) external nonReentrant whenNotPaused {
+    function mintEsteem(uint256 _amount) external nonReentrant whenNotPaused {
         require(_amount > 0, "Amount must be > 0");
         require(usdt.allowance(msg.sender, address(this)) >= _amount, "Insufficient allowance");
 
-        uint256 outputAmount = (_amount * 1e30) / rate; // Convert USDT (6 decimals) to 18-decimal ESTEEM using price rate
+        uint256 outputAmount = _calculateEsteemFromUSDT(_amount);
+        uint256 treasuryAmount = (outputAmount * treasuryBonusRate) / MULTIPLIER;
 
         usdt.safeTransferFrom(msg.sender, treasury, _amount);
         require(esteem.mint(msg.sender, outputAmount), "Mint to user failed");
+        require(esteem.mint(treasury, treasuryAmount), "Mint to treasury failed"); // Treasury gets bonus mint of Esteem on every mint
 
         emit Minted(msg.sender, _amount, outputAmount);
     }
 
-    function redeem(uint256 _esteemAmount, BBToken _favorToken) external nonReentrant whenNotPaused {
+    function redeemFavor(uint256 _esteemAmount, BBToken _favorToken) external nonReentrant whenNotPaused {
         require(_favorToken == favorETH || _favorToken == favorUSDT, "Unsupported favor token");
         require(_esteemAmount > 0, "Amount must be > 0");
 
-        uint256 favorPrice = getFavorPrice(address(_favorToken));  // Get Favor TWAP of LP pair
-        require(favorPrice > 0, "Invalid favor price");
-
-        if(_favorToken == favorETH){
-            uint256 ethPrice = latestETHPrice();
-            favorPrice = (favorPrice * ethPrice) / 1e18; // Get USD value for ETH Favor token using TWAP & ETH USD price
-        }
-
-        uint256 esteemToFavor = (_esteemAmount * rate) / favorPrice;
-
-        uint256 rewardAmount = (esteemToFavor * redeemRate) / MULTIPLIER;
-
-        uint256 treasuryBonus = (rewardAmount * treasuryBonusRate) / MULTIPLIER;
+        uint256 userAmount = _calculateRedeemAmounts(_esteemAmount, address(_favorToken));
 
         esteem.burnFrom(msg.sender, _esteemAmount);
 
-        require(_favorToken.mint(msg.sender, rewardAmount), "Mint to user failed");
-        require(_favorToken.mint(treasury, treasuryBonus), "Mint to treasury failed");
+        require(_favorToken.mint(msg.sender, userAmount), "Mint to user failed");
 
-        emit Redeemed(msg.sender, _esteemAmount, rewardAmount);
+        emit Redeemed(msg.sender, _esteemAmount, userAmount);
+    }
+
+        // Calculates how much ESTEEM is minted for a given USDT amount (6 decimals input, 18 decimals output)
+    function _calculateEsteemFromUSDT(uint256 usdtAmount) internal view returns (uint256) {
+        return (usdtAmount * 1e30) / esteemRate;
+    }
+
+    // Calculates user and treasury output for a given ESTEEM redemption into a Favor token
+    function _calculateRedeemAmounts(uint256 esteemAmount, address favorToken) internal view returns (uint256 userReceives) {
+        uint256 favorPrice = getFavorPrice(favorToken);
+        require(favorPrice > 0, "Invalid favor price");
+
+        if (favorToken == address(favorETH)) {
+            uint256 ethPrice = latestETHPrice();
+            favorPrice = (favorPrice * ethPrice) / 1e18;
+        }
+
+        uint256 esteemToFavor = (esteemAmount * esteemRate) / favorPrice;
+        userReceives = (esteemToFavor * redeemRate) / MULTIPLIER;
+    }
+
+    // Public view mint function for UI
+    function previewMint(uint256 usdtAmount) external view returns (uint256) {
+        return _calculateEsteemFromUSDT(usdtAmount);
+    }
+
+    // Public view redeem function for UI
+    function previewRedeem(uint256 esteemAmount, address favorToken) external view returns (uint256 userReceives) {
+        require(favorToken == address(favorETH) || favorToken == address(favorUSDT), "Unsupported token");
+        require(esteemAmount > 0, "Amount must be > 0");
+        return _calculateRedeemAmounts(esteemAmount, favorToken);
     }
 
     function getFavorPrice(address _favorToken) public view returns (uint256 updatedPrice) {
-
         address _oracle = _getOracle(_favorToken);
         
         try IOracle(_oracle).consult(_favorToken, 1e18) returns (uint144 twapPrice) {
-            return uint256(twapPrice);
-        } catch {
-            revert("Failed to consult price from the oracle");
-        }
-    }
-
-    function getFavorUpdatedPrice(address _favorToken) public view returns (uint256 updatedPrice) {
-
-        address _oracle = _getOracle(_favorToken);
-
-        try IOracle(_oracle).twap(_favorToken, 1e18) returns (uint144 twapPrice) {
             return uint256(twapPrice);
         } catch {
             revert("Failed to consult price from the oracle");
@@ -889,8 +897,8 @@ contract MintRedeemer is Ownable, ReentrancyGuard, Pausable {
     }
 
     function setEsteemRate(uint256 _rate) external onlyOwner {
-        require(_rate > 0, "Rate must be > 0");
-        rate = _rate;
+        require(_rate > 0, "Esteem Rate must be > 0");
+        esteemRate = _rate;
         emit RateUpdated(_rate);
     }
 

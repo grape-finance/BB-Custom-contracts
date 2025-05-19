@@ -635,16 +635,14 @@ interface BBToken {
     event TaxExemptStatusUpdated(address indexed account, bool isExempt);
     event MarketPairUpdated(address indexed pair, bool isPair);
     event EsteemBonusMinted(address indexed recipient, uint256 amount, uint256 treasuryAmount);
+   
 
-
-    constructor(uint256 initialSupply, address _treasury, address _esteem, address _esteemMinter) ERC20(NAME, SYMBOL) {
+    constructor(uint256 initialSupply, address _treasury, address _esteem) ERC20(NAME, SYMBOL) {
         require(_esteem != address(0), "Invalid Esteem address");
         require(_treasury != address(0), "Invalid Treasury address");
-        require(_esteemMinter != address(0), "Invalid Esteem Minter address");
 
         treasury = _treasury;
         esteem = BBToken(_esteem);
-        esteemMinter = Minter(_esteemMinter);
 
         _mint(msg.sender, initialSupply * 10 ** decimals());
     }
