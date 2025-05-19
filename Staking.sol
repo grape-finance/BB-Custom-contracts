@@ -849,45 +849,6 @@ abstract contract Ownable is Context {
     }
 }
 
-contract Operator is Context, Ownable {
-    address private _operator;
-
-    event OperatorTransferred(address indexed previousOperator, address indexed newOperator);
-
-    constructor() {
-        _operator = _msgSender();
-        emit OperatorTransferred(address(0), _operator);
-    }
-
-    function operator() public view returns (address) {
-        return _operator;
-    }
-
-    modifier onlyOperator() {
-        require(_operator == msg.sender, "operator: caller is not the operator");
-        _;
-    }
-
-    function isOperator() public view returns (bool) {
-        return _msgSender() == _operator;
-    }
-
-    function transferOperator(address newOperator_) public onlyOwner {
-        _transferOperator(newOperator_);
-    }
-
-    function _transferOperator(address newOperator_) internal {
-        require(newOperator_ != address(0), "operator: zero address given for new operator");
-        emit OperatorTransferred(address(0), newOperator_);
-        _operator = newOperator_;
-    }
-
-    function _renounceOperator() public onlyOwner {
-        emit OperatorTransferred(_operator, address(0));
-        _operator = address(0);
-    }
-}
-
 interface ITreasury {
     function epoch() external view returns (uint256);
 
@@ -950,7 +911,7 @@ contract ShareWrapper {
     }
 }
 
-contract Staking is ShareWrapper, ContractGuard, Operator {
+contract Staking is ShareWrapper, ContractGuard, Ownable {
     using SafeERC20 for IERC20;
     using Address for address;
     using SafeMath for uint256;
@@ -978,11 +939,16 @@ contract Staking is ShareWrapper, ContractGuard, Operator {
     uint256 public withdrawLockupEpochs;
     uint256 public rewardLockupEpochs;
 
+    address public treasuryOperator;
+
     event Initialized(address indexed executor, uint256 at);
     event Staked(address indexed user, uint256 amount);
     event Withdrawn(address indexed user, uint256 amount);
     event RewardPaid(address indexed user, uint256 reward);
     event RewardAdded(address indexed user, uint256 reward);
+    event LockUpParametersUpdated(uint256 withdrawLockupEpochs, uint256 rewardLockupEpochs);
+    event TreasuryOperatorUpdated(address indexed newOperator);
+    event RecoveredUnsupportedToken(address indexed token, address indexed to, uint256 amount);
 
     modifier groveUserExists {
         require(balanceOf(msg.sender) > 0, "Grove: The user does not exist");
@@ -1008,10 +974,15 @@ contract Staking is ShareWrapper, ContractGuard, Operator {
         IERC20 _favor,
         IERC20 _esteem,
         ITreasury _treasury
-    ) public notInitialized onlyOperator {
+    ) public notInitialized onlyOwner {
+        require(address(_favor) != address(0), "Invalid Favor address");
+        require(address(_esteem) != address(0), "Invalid Esteem address");
+        require(address(_treasury) != address(0), "Invalid Treasury address");
+
         favor = _favor;
         esteem = _esteem;
         treasury = _treasury;
+        treasuryOperator = address(_treasury);
 
         GroveSnapshot memory genesisSnapshot = GroveSnapshot({time : block.number, rewardReceived : 0, rewardPerShare : 0});
         groveHistory.push(genesisSnapshot);
@@ -1027,6 +998,7 @@ contract Staking is ShareWrapper, ContractGuard, Operator {
         require(_withdrawLockupEpochs >= _rewardLockupEpochs && _withdrawLockupEpochs <= 72, "lockupEpochs out of range");   
         withdrawLockupEpochs = _withdrawLockupEpochs;
         rewardLockupEpochs = _rewardLockupEpochs;
+        emit LockUpParametersUpdated(_withdrawLockupEpochs, _rewardLockupEpochs);
     }
 
     function latestSnapshotIndex() public view returns (uint256) {
@@ -1109,7 +1081,8 @@ contract Staking is ShareWrapper, ContractGuard, Operator {
         }
     }
 
-    function allocateSeigniorage(uint256 amount) external onlyOneBlock onlyOperator {
+    function allocateSeigniorage(uint256 amount) external onlyOneBlock {
+        require(msg.sender == owner() || msg.sender == treasuryOperator, "Not authorized");
         require(amount > 0, "Grove: Cannot allocate 0");
         require(totalSupply() > 0, "Grove: Cannot allocate when totalSupply is 0");
 
@@ -1128,9 +1101,16 @@ contract Staking is ShareWrapper, ContractGuard, Operator {
         emit RewardAdded(msg.sender, amount);
     }
 
+    function setTreasuryOperator(address _treasuryOperator) external onlyOwner {
+        require(_treasuryOperator != address(0), "Grove: zero address");
+        treasuryOperator = _treasuryOperator;
+        emit TreasuryOperatorUpdated(_treasuryOperator);
+    }
+
     function governanceRecoverUnsupported(IERC20 _token, uint256 _amount, address _to) external onlyOwner {
         require(address(_token) != address(favor), "Cannot remove FAVOR tokens");
         require(address(_token) != address(esteem), "Cannot remove ESTEEM tokens");
         _token.safeTransfer(_to, _amount);
+        emit RecoveredUnsupportedToken(address(_token), _to, _amount);
     }
 }

@@ -1290,45 +1290,6 @@ library Babylonian {
     }
 }
 
-contract Operator is Context, Ownable {
-    address private _operator;
-
-    event OperatorTransferred(address indexed previousOperator, address indexed newOperator);
-
-    constructor() {
-        _operator = _msgSender();
-        emit OperatorTransferred(address(0), _operator);
-    }
-
-    function operator() public view returns (address) {
-        return _operator;
-    }
-
-    modifier onlyOperator() {
-        require(_operator == msg.sender, "operator: caller is not the operator");
-        _;
-    }
-
-    function isOperator() public view returns (bool) {
-        return _msgSender() == _operator;
-    }
-
-    function transferOperator(address newOperator_) public onlyOwner {
-        _transferOperator(newOperator_);
-    }
-
-    function _transferOperator(address newOperator_) internal {
-        require(newOperator_ != address(0), "operator: zero address given for new operator");
-        emit OperatorTransferred(address(0), newOperator_);
-        _operator = newOperator_;
-    }
-
-    function _renounceOperator() public onlyOwner {
-        emit OperatorTransferred(_operator, address(0));
-        _operator = address(0);
-    }
-}
-
 contract ContractGuard {
     mapping(uint256 => mapping(address => bool)) private _status;
 
@@ -1351,7 +1312,7 @@ contract ContractGuard {
     }
 }
 
-contract Treasury is ContractGuard, Operator {
+contract Treasury is ContractGuard, Ownable {
     using SafeERC20 for IERC20;
     using Address for address;
     using SafeMath for uint256;
@@ -1373,9 +1334,7 @@ contract Treasury is ContractGuard, Operator {
     address public favorOracle;
 
     uint256 public maxSupplyExpansionPercent = 3000; // 3%
-    uint256 public minSupplyExpansionPercent = 200; // 0.2%
-
-    uint256 public previousEpochFavorPrice;
+    uint256 public minSupplyExpansionPercent = 20; // 0.02%
 
     address public daoFund;
     uint256 public daoFundSharedPercent;
@@ -1384,40 +1343,34 @@ contract Treasury is ContractGuard, Operator {
     event TreasuryFunded(uint256 timestamp, uint256 seigniorage);
     event GroveFunded(uint256 timestamp, uint256 seigniorage);
     event DaoFundFunded(uint256 timestamp, uint256 seigniorage);
+    event GroveUpdated(address indexed newGrove);
+    event FavorOracleUpdated(address indexed newOracle);
+    event MaxSupplyExpansionPercentUpdated(uint256 newMaxExpansionPercent);
+    event MinSupplyExpansionPercentUpdated(uint256 newMinExpansionPercent);
+    event DaoFundUpdated(address indexed daoFund, uint256 daoFundSharedPercent);
+    event ExcludedAddressAdded(address indexed excludedAddress);
+    event RecoveredUnsupportedToken(address indexed token, address indexed to, uint256 amount);
 
     modifier checkCondition {
         require(block.timestamp >= startTime, "Treasury: not started yet");
-
         _;
     }
 
     modifier checkEpoch {
         require(block.timestamp >= nextEpochPoint(), "Treasury: not opened yet");
-
         _;
 
         epoch = epoch.add(1);
     }
 
-    modifier checkOperator {
-        require(
-                Operator(grove).operator() == address(this),
-            "Treasury: need more permission"
-        );
-
-        _;
-    }
-
     modifier notInitialized {
         require(!initialized, "Treasury: already initialized");
-
         _;
     }
 
     function isInitialized() public view returns (bool) {
         return initialized;
     }
-
   
     function nextEpochPoint() public view returns (uint256) {
         return startTime.add(epoch.mul(PERIOD));
@@ -1445,7 +1398,12 @@ contract Treasury is ContractGuard, Operator {
         address _favorOracle,
         address _grove,
         uint256 _startTime
-    ) public notInitialized onlyOperator {
+    ) public notInitialized onlyOwner {
+        require(_favor != address(0), "Invalid Favor address");
+        require(_esteem != address(0), "Invalid Esteem address");
+        require(_favorOracle != address(0), "Invalid Oracle address");
+        require(_grove != address(0), "Invalid Grove address");
+
         favor = _favor;
         esteem = _esteem;
         favorOracle = _favorOracle;
@@ -1456,36 +1414,45 @@ contract Treasury is ContractGuard, Operator {
         emit Initialized(msg.sender, block.number);
     }
 
-    function setGrove(address _grove) external onlyOperator {
+    function setGrove(address _grove) external onlyOwner {
+        require(_grove != address(0), "Invalid Grove address");
         grove = _grove;
+        emit GroveUpdated(_grove);
     }
 
-    function setFavorOracle(address _favorOracle) external onlyOperator {
+    function setFavorOracle(address _favorOracle) external onlyOwner {
+        require(_favorOracle != address(0), "Invalid Oracle address");
         favorOracle = _favorOracle;
+        emit FavorOracleUpdated(_favorOracle);
     }
 
-    function setMaxSupplyExpansionPercents(uint256 _maxSupplyExpansionPercent) external onlyOperator {
-        require(_maxSupplyExpansionPercent >= 10 && _maxSupplyExpansionPercent <= 10000, "_maxSupplyExpansionPercent: out of range"); // [0.01%, 10%]
+    function setMaxSupplyExpansionPercents(uint256 _maxSupplyExpansionPercent) external onlyOwner {
+        require(_maxSupplyExpansionPercent >= 1 && _maxSupplyExpansionPercent <= 10000, "_maxSupplyExpansionPercent: out of range"); // [0.001%, 10%]
         maxSupplyExpansionPercent = _maxSupplyExpansionPercent;
+        emit MaxSupplyExpansionPercentUpdated(_maxSupplyExpansionPercent);
     }
 
-    function setMinSupplyExpansionPercents(uint256 _minSupplyExpansionPercent) external onlyOperator {
-        require(_minSupplyExpansionPercent >= 10 && _minSupplyExpansionPercent <= 10000, "_minSupplyExpansionPercent: out of range"); // [0.01%, 10%]
+    function setMinSupplyExpansionPercents(uint256 _minSupplyExpansionPercent) external onlyOwner {
+        require(_minSupplyExpansionPercent >= 1 && _minSupplyExpansionPercent <= 10000, "_minSupplyExpansionPercent: out of range"); // [0.001%, 10%]
         minSupplyExpansionPercent = _minSupplyExpansionPercent;
+        emit MinSupplyExpansionPercentUpdated(_minSupplyExpansionPercent);
     }
 
-    function addExcludedAddress(address _addr) external onlyOperator {
+    function addExcludedAddress(address _addr) external onlyOwner {
         excludedFromTotalSupply.push(_addr);
+        emit ExcludedAddressAdded(_addr);
     }
 
     function setExtraFunds(
         address _daoFund,
         uint256 _daoFundSharedPercent
 
-    ) external onlyOperator {
+    ) external onlyOwner {
         require(_daoFund != address(0), "zero");
-        require(_daoFundSharedPercent <= 20000, "out of range");
+        require(_daoFundSharedPercent <= 30000, "Dao fund share out of range");
         daoFund = _daoFund;
+        daoFundSharedPercent = _daoFundSharedPercent;
+        emit DaoFundUpdated(_daoFund, _daoFundSharedPercent);
     }
 
     function _updateFavorPrice() internal {
@@ -1496,7 +1463,7 @@ contract Treasury is ContractGuard, Operator {
         IERC20 favorErc20 = IERC20(favor);
         uint256 totalSupply = favorErc20.totalSupply();
         uint256 balanceExcluded = 0;
-        for (uint8 entryId = 0; entryId < excludedFromTotalSupply.length; ++entryId) {
+        for (uint256 entryId = 0; entryId < excludedFromTotalSupply.length; ++entryId) {
             balanceExcluded = balanceExcluded.add(favorErc20.balanceOf(excludedFromTotalSupply[entryId]));
         }
         return totalSupply.sub(balanceExcluded);
@@ -1520,21 +1487,23 @@ contract Treasury is ContractGuard, Operator {
         emit GroveFunded(block.timestamp, _amount);
     }
 
-    function allocateSeigniorage() external onlyOneBlock checkCondition checkEpoch checkOperator {
+    function allocateSeigniorage() external onlyOneBlock checkCondition checkEpoch {
         _updateFavorPrice();
 
         uint256 favorSupply = getFavorCirculatingSupply();
         uint256 _percentage = getFavorPrice().div(100);
-        uint256 _savedForGrove;
+        require(_percentage > 0, "Invalid favor price");
 
-        if (_percentage > maxSupplyExpansionPercent) {
-            _percentage = maxSupplyExpansionPercent.mul(1e13);
-         }
-        if (_percentage < minSupplyExpansionPercent) {
-            _percentage = minSupplyExpansionPercent.mul(1e13);
-        }
+        uint256 min = minSupplyExpansionPercent.mul(1e13);
+        uint256 max = maxSupplyExpansionPercent.mul(1e13);
 
-        _savedForGrove = favorSupply.mul(_percentage).div(1e18);
+        if (_percentage > max){
+            _percentage = max;
+        } else if (_percentage < min){ 
+            _percentage = min;
+        }    
+
+        uint256 _savedForGrove = favorSupply.mul(_percentage).div(1e18).div(24); // divide by 24 for each epoch per day
 
         if (_savedForGrove > 0) {
             _sendToGrove(_savedForGrove);
@@ -1546,9 +1515,10 @@ contract Treasury is ContractGuard, Operator {
         IERC20 _token,
         uint256 _amount,
         address _to
-    ) external onlyOperator {
+    ) external onlyOwner {
         require(address(_token) != address(favor), "Cannot withdraw Favor tokens");
         _token.safeTransfer(_to, _amount);
+        emit RecoveredUnsupportedToken(address(_token), _to, _amount);
     }
 
 }
