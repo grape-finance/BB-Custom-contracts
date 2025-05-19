@@ -413,434 +413,6 @@ interface IERC20 {
      */
     function transferFrom(address from, address to, uint256 amount) external returns (bool);
 }
-interface IERC20Permit {
-    /**
-     * @dev Sets `value` as the allowance of `spender` over ``owner``'s tokens,
-     * given ``owner``'s signed approval.
-     *
-     * IMPORTANT: The same issues {IERC20-approve} has related to transaction
-     * ordering also apply here.
-     *
-     * Emits an {Approval} event.
-     *
-     * Requirements:
-     *
-     * - `spender` cannot be the zero address.
-     * - `deadline` must be a timestamp in the future.
-     * - `v`, `r` and `s` must be a valid `secp256k1` signature from `owner`
-     * over the EIP712-formatted function arguments.
-     * - the signature must use ``owner``'s current nonce (see {nonces}).
-     *
-     * For more information on the signature format, see the
-     * https://eips.ethereum.org/EIPS/eip-2612#specification[relevant EIP
-     * section].
-     *
-     * CAUTION: See Security Considerations above.
-     */
-    function permit(
-        address owner,
-        address spender,
-        uint256 value,
-        uint256 deadline,
-        uint8 v,
-        bytes32 r,
-        bytes32 s
-    ) external;
-
-    /**
-     * @dev Returns the current nonce for `owner`. This value must be
-     * included whenever a signature is generated for {permit}.
-     *
-     * Every successful call to {permit} increases ``owner``'s nonce by one. This
-     * prevents a signature from being used multiple times.
-     */
-    function nonces(address owner) external view returns (uint256);
-
-    /**
-     * @dev Returns the domain separator used in the encoding of the signature for {permit}, as defined by {EIP712}.
-     */
-    // solhint-disable-next-line func-name-mixedcase
-    function DOMAIN_SEPARATOR() external view returns (bytes32);
-}
-
-/**
- * @dev Interface for the optional metadata functions from the ERC20 standard.
- *
- * _Available since v4.1._
- */
-interface IERC20Metadata is IERC20 {
-    /**
-     * @dev Returns the name of the token.
-     */
-    function name() external view returns (string memory);
-
-    /**
-     * @dev Returns the symbol of the token.
-     */
-    function symbol() external view returns (string memory);
-
-    /**
-     * @dev Returns the decimals places of the token.
-     */
-    function decimals() external view returns (uint8);
-}
-
-/**
- * @dev Implementation of the {IERC20} interface.
- *
- * This implementation is agnostic to the way tokens are created. This means
- * that a supply mechanism has to be added in a derived contract using {_mint}.
- * For a generic mechanism see {ERC20PresetMinterPauser}.
- *
- * TIP: For a detailed writeup see our guide
- * https://forum.openzeppelin.com/t/how-to-implement-erc20-supply-mechanisms/226[How
- * to implement supply mechanisms].
- *
- * The default value of {decimals} is 18. To change this, you should override
- * this function so it returns a different value.
- *
- * We have followed general OpenZeppelin Contracts guidelines: functions revert
- * instead returning `false` on failure. This behavior is nonetheless
- * conventional and does not conflict with the expectations of ERC20
- * applications.
- *
- * Additionally, an {Approval} event is emitted on calls to {transferFrom}.
- * This allows applications to reconstruct the allowance for all accounts just
- * by listening to said events. Other implementations of the EIP may not emit
- * these events, as it isn't required by the specification.
- *
- * Finally, the non-standard {decreaseAllowance} and {increaseAllowance}
- * functions have been added to mitigate the well-known issues around setting
- * allowances. See {IERC20-approve}.
- */
-contract ERC20 is Context, IERC20, IERC20Metadata {
-    mapping(address => uint256) private _balances;
-
-    mapping(address => mapping(address => uint256)) private _allowances;
-
-    uint256 private _totalSupply;
-
-    string private _name;
-    string private _symbol;
-
-    /**
-     * @dev Sets the values for {name} and {symbol}.
-     *
-     * All two of these values are immutable: they can only be set once during
-     * construction.
-     */
-    constructor(string memory name_, string memory symbol_) {
-        _name = name_;
-        _symbol = symbol_;
-    }
-
-    /**
-     * @dev Returns the name of the token.
-     */
-    function name() public view virtual override returns (string memory) {
-        return _name;
-    }
-
-    /**
-     * @dev Returns the symbol of the token, usually a shorter version of the
-     * name.
-     */
-    function symbol() public view virtual override returns (string memory) {
-        return _symbol;
-    }
-
-    /**
-     * @dev Returns the number of decimals used to get its user representation.
-     * For example, if `decimals` equals `2`, a balance of `505` tokens should
-     * be displayed to a user as `5.05` (`505 / 10 ** 2`).
-     *
-     * Tokens usually opt for a value of 18, imitating the relationship between
-     * Ether and Wei. This is the default value returned by this function, unless
-     * it's overridden.
-     *
-     * NOTE: This information is only used for _display_ purposes: it in
-     * no way affects any of the arithmetic of the contract, including
-     * {IERC20-balanceOf} and {IERC20-transfer}.
-     */
-    function decimals() public view virtual override returns (uint8) {
-        return 18;
-    }
-
-    /**
-     * @dev See {IERC20-totalSupply}.
-     */
-    function totalSupply() public view virtual override returns (uint256) {
-        return _totalSupply;
-    }
-
-    /**
-     * @dev See {IERC20-balanceOf}.
-     */
-    function balanceOf(address account) public view virtual override returns (uint256) {
-        return _balances[account];
-    }
-
-    /**
-     * @dev See {IERC20-transfer}.
-     *
-     * Requirements:
-     *
-     * - `to` cannot be the zero address.
-     * - the caller must have a balance of at least `amount`.
-     */
-    function transfer(address to, uint256 amount) public virtual override returns (bool) {
-        address owner = _msgSender();
-        _transfer(owner, to, amount);
-        return true;
-    }
-
-    /**
-     * @dev See {IERC20-allowance}.
-     */
-    function allowance(address owner, address spender) public view virtual override returns (uint256) {
-        return _allowances[owner][spender];
-    }
-
-    /**
-     * @dev See {IERC20-approve}.
-     *
-     * NOTE: If `amount` is the maximum `uint256`, the allowance is not updated on
-     * `transferFrom`. This is semantically equivalent to an infinite approval.
-     *
-     * Requirements:
-     *
-     * - `spender` cannot be the zero address.
-     */
-    function approve(address spender, uint256 amount) public virtual override returns (bool) {
-        address owner = _msgSender();
-        _approve(owner, spender, amount);
-        return true;
-    }
-
-    /**
-     * @dev See {IERC20-transferFrom}.
-     *
-     * Emits an {Approval} event indicating the updated allowance. This is not
-     * required by the EIP. See the note at the beginning of {ERC20}.
-     *
-     * NOTE: Does not update the allowance if the current allowance
-     * is the maximum `uint256`.
-     *
-     * Requirements:
-     *
-     * - `from` and `to` cannot be the zero address.
-     * - `from` must have a balance of at least `amount`.
-     * - the caller must have allowance for ``from``'s tokens of at least
-     * `amount`.
-     */
-    function transferFrom(address from, address to, uint256 amount) public virtual override returns (bool) {
-        address spender = _msgSender();
-        _spendAllowance(from, spender, amount);
-        _transfer(from, to, amount);
-        return true;
-    }
-
-    /**
-     * @dev Atomically increases the allowance granted to `spender` by the caller.
-     *
-     * This is an alternative to {approve} that can be used as a mitigation for
-     * problems described in {IERC20-approve}.
-     *
-     * Emits an {Approval} event indicating the updated allowance.
-     *
-     * Requirements:
-     *
-     * - `spender` cannot be the zero address.
-     */
-    function increaseAllowance(address spender, uint256 addedValue) public virtual returns (bool) {
-        address owner = _msgSender();
-        _approve(owner, spender, allowance(owner, spender) + addedValue);
-        return true;
-    }
-
-    /**
-     * @dev Atomically decreases the allowance granted to `spender` by the caller.
-     *
-     * This is an alternative to {approve} that can be used as a mitigation for
-     * problems described in {IERC20-approve}.
-     *
-     * Emits an {Approval} event indicating the updated allowance.
-     *
-     * Requirements:
-     *
-     * - `spender` cannot be the zero address.
-     * - `spender` must have allowance for the caller of at least
-     * `subtractedValue`.
-     */
-    function decreaseAllowance(address spender, uint256 subtractedValue) public virtual returns (bool) {
-        address owner = _msgSender();
-        uint256 currentAllowance = allowance(owner, spender);
-        require(currentAllowance >= subtractedValue, "ERC20: decreased allowance below zero");
-        unchecked {
-            _approve(owner, spender, currentAllowance - subtractedValue);
-        }
-
-        return true;
-    }
-
-    /**
-     * @dev Moves `amount` of tokens from `from` to `to`.
-     *
-     * This internal function is equivalent to {transfer}, and can be used to
-     * e.g. implement automatic token fees, slashing mechanisms, etc.
-     *
-     * Emits a {Transfer} event.
-     *
-     * Requirements:
-     *
-     * - `from` cannot be the zero address.
-     * - `to` cannot be the zero address.
-     * - `from` must have a balance of at least `amount`.
-     */
-    function _transfer(address from, address to, uint256 amount) internal virtual {
-        require(from != address(0), "ERC20: transfer from the zero address");
-        require(to != address(0), "ERC20: transfer to the zero address");
-
-        _beforeTokenTransfer(from, to, amount);
-
-        uint256 fromBalance = _balances[from];
-        require(fromBalance >= amount, "ERC20: transfer amount exceeds balance");
-        unchecked {
-            _balances[from] = fromBalance - amount;
-            // Overflow not possible: the sum of all balances is capped by totalSupply, and the sum is preserved by
-            // decrementing then incrementing.
-            _balances[to] += amount;
-        }
-
-        emit Transfer(from, to, amount);
-
-        _afterTokenTransfer(from, to, amount);
-    }
-
-    /** @dev Creates `amount` tokens and assigns them to `account`, increasing
-     * the total supply.
-     *
-     * Emits a {Transfer} event with `from` set to the zero address.
-     *
-     * Requirements:
-     *
-     * - `account` cannot be the zero address.
-     */
-    function _mint(address account, uint256 amount) internal virtual {
-        require(account != address(0), "ERC20: mint to the zero address");
-
-        _beforeTokenTransfer(address(0), account, amount);
-
-        _totalSupply += amount;
-        unchecked {
-            // Overflow not possible: balance + amount is at most totalSupply + amount, which is checked above.
-            _balances[account] += amount;
-        }
-        emit Transfer(address(0), account, amount);
-
-        _afterTokenTransfer(address(0), account, amount);
-    }
-
-    /**
-     * @dev Destroys `amount` tokens from `account`, reducing the
-     * total supply.
-     *
-     * Emits a {Transfer} event with `to` set to the zero address.
-     *
-     * Requirements:
-     *
-     * - `account` cannot be the zero address.
-     * - `account` must have at least `amount` tokens.
-     */
-    function _burn(address account, uint256 amount) internal virtual {
-        require(account != address(0), "ERC20: burn from the zero address");
-
-        _beforeTokenTransfer(account, address(0), amount);
-
-        uint256 accountBalance = _balances[account];
-        require(accountBalance >= amount, "ERC20: burn amount exceeds balance");
-        unchecked {
-            _balances[account] = accountBalance - amount;
-            // Overflow not possible: amount <= accountBalance <= totalSupply.
-            _totalSupply -= amount;
-        }
-
-        emit Transfer(account, address(0), amount);
-
-        _afterTokenTransfer(account, address(0), amount);
-    }
-
-    /**
-     * @dev Sets `amount` as the allowance of `spender` over the `owner` s tokens.
-     *
-     * This internal function is equivalent to `approve`, and can be used to
-     * e.g. set automatic allowances for certain subsystems, etc.
-     *
-     * Emits an {Approval} event.
-     *
-     * Requirements:
-     *
-     * - `owner` cannot be the zero address.
-     * - `spender` cannot be the zero address.
-     */
-    function _approve(address owner, address spender, uint256 amount) internal virtual {
-        require(owner != address(0), "ERC20: approve from the zero address");
-        require(spender != address(0), "ERC20: approve to the zero address");
-
-        _allowances[owner][spender] = amount;
-        emit Approval(owner, spender, amount);
-    }
-
-    /**
-     * @dev Updates `owner` s allowance for `spender` based on spent `amount`.
-     *
-     * Does not update the allowance amount in case of infinite allowance.
-     * Revert if not enough allowance is available.
-     *
-     * Might emit an {Approval} event.
-     */
-    function _spendAllowance(address owner, address spender, uint256 amount) internal virtual {
-        uint256 currentAllowance = allowance(owner, spender);
-        if (currentAllowance != type(uint256).max) {
-            require(currentAllowance >= amount, "ERC20: insufficient allowance");
-            unchecked {
-                _approve(owner, spender, currentAllowance - amount);
-            }
-        }
-    }
-
-    /**
-     * @dev Hook that is called before any transfer of tokens. This includes
-     * minting and burning.
-     *
-     * Calling conditions:
-     *
-     * - when `from` and `to` are both non-zero, `amount` of ``from``'s tokens
-     * will be transferred to `to`.
-     * - when `from` is zero, `amount` tokens will be minted for `to`.
-     * - when `to` is zero, `amount` of ``from``'s tokens will be burned.
-     * - `from` and `to` are never both zero.
-     *
-     * To learn more about hooks, head to xref:ROOT:extending-contracts.adoc#using-hooks[Using Hooks].
-     */
-    function _beforeTokenTransfer(address from, address to, uint256 amount) internal virtual {}
-
-    /**
-     * @dev Hook that is called after any transfer of tokens. This includes
-     * minting and burning.
-     *
-     * Calling conditions:
-     *
-     * - when `from` and `to` are both non-zero, `amount` of ``from``'s tokens
-     * has been transferred to `to`.
-     * - when `from` is zero, `amount` tokens have been minted for `to`.
-     * - when `to` is zero, `amount` of ``from``'s tokens have been burned.
-     * - `from` and `to` are never both zero.
-     *
-     * To learn more about hooks, head to xref:ROOT:extending-contracts.adoc#using-hooks[Using Hooks].
-     */
-    function _afterTokenTransfer(address from, address to, uint256 amount) internal virtual {}
-}
 
 /**
  * @title SafeERC20
@@ -921,26 +493,6 @@ library SafeERC20 {
             _callOptionalReturn(token, abi.encodeWithSelector(token.approve.selector, spender, 0));
             _callOptionalReturn(token, approvalCall);
         }
-    }
-
-    /**
-     * @dev Use a ERC-2612 signature to set the `owner` approval toward `spender` on `token`.
-     * Revert on invalid signature.
-     */
-    function safePermit(
-        IERC20Permit token,
-        address owner,
-        address spender,
-        uint256 value,
-        uint256 deadline,
-        uint8 v,
-        bytes32 r,
-        bytes32 s
-    ) internal {
-        uint256 nonceBefore = token.nonces(owner);
-        token.permit(owner, spender, value, deadline, v, r, s);
-        uint256 nonceAfter = token.nonces(owner);
-        require(nonceAfter == nonceBefore + 1, "SafeERC20: permit did not succeed");
     }
 
     /**
@@ -1200,6 +752,8 @@ interface IPriceFeed {
 contract MintRedeemer is Ownable, ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;
 
+    uint256 public constant MULTIPLIER = 10000;
+
     IERC20 public usdt;   
     BBToken public favorETH; 
     BBToken public favorUSDT; 
@@ -1209,21 +763,31 @@ contract MintRedeemer is Ownable, ReentrancyGuard, Pausable {
 
     address public oracleETH;
     address public oracleUSDT;
-    
+    address public treasury; 
 
     uint256 public rate = 10 * 1e18;       // $10 per Esteem start price
-    uint256 public redeemRate = 70;       // 70% in favor for Esteem redeemptions
+    uint256 public redeemRate = 7000;      // 70% in favor for Esteem redeemptions
+    uint256 public treasuryBonusRate = 2500; // 25% bonus minted to treasury
 
     event Minted(address indexed user, uint256 inputAmount, uint256 esteemAmount);
     event Redeemed(address indexed user, uint256 esteemAmount, uint256 rewardAmount);
     event RateUpdated(uint256 newRate);
     event RedeemRateUpdated(uint256 newRate);
+    event TreasuryBonusUpdated(uint256 newBonus);
+    event USDTOracleUpdated(address indexed newOracle);
+    event ETHOracleUpdated(address indexed newOracle);
+    event ETHPriceFeedUpdated(address indexed newPriceFeed);
+    event TreasuryUpdated(address indexed newTreasury);
+    event AdminWithdraw(address indexed token, address indexed to, uint256 amount);
+    event ContractPaused(address indexed admin);
+    event ContractUnpaused(address indexed admin);
 
-    constructor(address _usdt, address _esteem, address _favorETH, address _favorUSDT, address _oracleETH, address _oracleUSDT) {
+    constructor(address _usdt, address _esteem, address _favorETH, address _favorUSDT, address _oracleETH, address _oracleUSDT, address _treasury) {
         require(_usdt != address(0), "Invalid input token");
         require(_esteem != address(0), "Invalid Esteem address");
         require(_favorETH != address(0), "Invalid favor token");
         require(_favorUSDT != address(0), "Invalid favor token");
+        require(_treasury != address(0), "Invalid treasury address");
 
         usdt = IERC20(_usdt);
         esteem = BBToken(_esteem);
@@ -1231,16 +795,18 @@ contract MintRedeemer is Ownable, ReentrancyGuard, Pausable {
         favorUSDT = BBToken(_favorUSDT);
         oracleETH = _oracleETH;
         oracleUSDT = _oracleUSDT;
+        treasury = _treasury;
         priceFeed = IPriceFeed(0xd30e2101a97dcbAeBCBC04F14C3f624E67A35165); // Chainlink ETH price feed sepolia
     }
 
     function mint(uint256 _amount) external nonReentrant whenNotPaused {
         require(_amount > 0, "Amount must be > 0");
+        require(usdt.allowance(msg.sender, address(this)) >= _amount, "Insufficient allowance");
 
-        uint256 outputAmount = (_amount * 1e30) / rate; // Multiply USDT amount 6 decimals to 18 decimals format and then divide by rate in 18 decimal format to mint amount in Esteem
+        uint256 outputAmount = (_amount * 1e30) / rate; // Convert USDT (6 decimals) to 18-decimal ESTEEM using price rate
 
-        usdt.safeTransferFrom(msg.sender, address(this), _amount);
-        esteem.mint(msg.sender, outputAmount);
+        usdt.safeTransferFrom(msg.sender, treasury, _amount);
+        require(esteem.mint(msg.sender, outputAmount), "Mint to user failed");
 
         emit Minted(msg.sender, _amount, outputAmount);
     }
@@ -1249,21 +815,24 @@ contract MintRedeemer is Ownable, ReentrancyGuard, Pausable {
         require(_favorToken == favorETH || _favorToken == favorUSDT, "Unsupported favor token");
         require(_esteemAmount > 0, "Amount must be > 0");
 
-        uint256 favorPrice = getFavorPrice(address(_favorToken)); 
+        uint256 favorPrice = getFavorPrice(address(_favorToken));  // Get Favor TWAP of LP pair
+        require(favorPrice > 0, "Invalid favor price");
 
         if(_favorToken == favorETH){
-            uint256 ethPrice = uint256(priceFeed.latestAnswer());
-            require(ethPrice > 0, "Invalid ETH price from Chainlink");
-            favorPrice = (favorPrice * (ethPrice * 1e10)) / 1e18;
+            uint256 ethPrice = latestETHPrice();
+            favorPrice = (favorPrice * ethPrice) / 1e18; // Get USD value for ETH Favor token using TWAP & ETH USD price
         }
 
-        uint256 esteemToFavor = (_esteemAmount * 1e18) / favorPrice;
+        uint256 esteemToFavor = (_esteemAmount * rate) / favorPrice;
 
-        uint256 rewardAmount = (esteemToFavor * redeemRate) / 100;
+        uint256 rewardAmount = (esteemToFavor * redeemRate) / MULTIPLIER;
+
+        uint256 treasuryBonus = (rewardAmount * treasuryBonusRate) / MULTIPLIER;
 
         esteem.burnFrom(msg.sender, _esteemAmount);
 
-        _favorToken.mint(msg.sender, rewardAmount);
+        require(_favorToken.mint(msg.sender, rewardAmount), "Mint to user failed");
+        require(_favorToken.mint(treasury, treasuryBonus), "Mint to treasury failed");
 
         emit Redeemed(msg.sender, _esteemAmount, rewardAmount);
     }
@@ -1294,44 +863,69 @@ contract MintRedeemer is Ownable, ReentrancyGuard, Pausable {
         return token == address(favorETH) ? oracleETH : oracleUSDT;
     }
 
-    function latestETHPrice() external view returns (int256) {
-        return priceFeed.latestAnswer();
+    function latestETHPrice() public view returns (uint256) {
+        uint256 ethPrice = uint256(priceFeed.latestAnswer());
+        require(ethPrice > 0, "Invalid ETH price from Chainlink");
+        ethPrice *= 1e10; // Format 8 decimal chainlink feed price to 18
+        return ethPrice;
     }
 
     function setUSDTOracle(address _address) external onlyOwner {
+        require(_address != address(0), "Invalid Oracle address");
         oracleUSDT = _address;
+        emit USDTOracleUpdated(_address);
     }
 
     function setETHOracle(address _address) external onlyOwner {
+        require(_address != address(0), "Invalid Oracle address");
         oracleETH = _address;
+        emit ETHOracleUpdated(_address);
     }
 
     function setETHPriceFeed(IPriceFeed _address) external onlyOwner {
+        require(address(_address) != address(0), "Invalid price feed address");
         priceFeed = _address;
+        emit ETHPriceFeedUpdated(address(_address));
     }
 
-    function setMintRate(uint256 _rate) external onlyOwner {
+    function setEsteemRate(uint256 _rate) external onlyOwner {
         require(_rate > 0, "Rate must be > 0");
         rate = _rate;
         emit RateUpdated(_rate);
     }
 
     function setRedeemRate(uint256 _redeemRate) external onlyOwner {
-        require(_redeemRate <= 100, "Cannot exceed 100%");
+        require(_redeemRate <= MULTIPLIER, "Cannot exceed 100%");
         redeemRate = _redeemRate;
         emit RedeemRateUpdated(_redeemRate);
     }
 
+    function setTreasuryBonus(uint256 _treasuryBonusRate) external onlyOwner {
+        treasuryBonusRate = _treasuryBonusRate;
+        emit TreasuryBonusUpdated(_treasuryBonusRate);
+    }
+
+    function setTreasury(address _treasury) external onlyOwner {
+        require(_treasury != address(0), "Invalid Treasury address");
+        treasury = _treasury;
+        emit TreasuryUpdated(_treasury);
+    }
+
+    // Admin withdraw incase of stuck tokens or migration needed
     function adminWithdraw(IERC20 _token, address _to, uint256 _amount) external onlyOwner {
+        require(_to != address(0), "Invalid address");
         _token.safeTransfer(_to, _amount);
+        emit AdminWithdraw(address(_token), _to, _amount);
     }
 
     function pause() external onlyOwner {
         _pause();
+        emit ContractPaused(msg.sender);
     }
 
     function unpause() external onlyOwner {
         _unpause();
+        emit ContractUnpaused(msg.sender);
     }
 
 }
