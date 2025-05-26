@@ -764,14 +764,19 @@ contract MintRedeemer is Ownable, ReentrancyGuard, Pausable {
     address public oracleETH;
     address public oracleUSDT;
     address public treasury; 
+    address public keeper;
 
     uint256 public esteemRate = 16 * 1e18;       // $16 per Esteem start price
     uint256 public redeemRate = 7000;      // 70% in favor for Esteem redeemptions
     uint256 public treasuryBonusRate = 2500; // 25% bonus minted to treasury
-
+    uint256 public dailyRateIncrease = 0.25 ether;
+    uint256 public lastRateUpdateTimestamp = block.timestamp;
+    
     event Minted(address indexed user, uint256 inputAmount, uint256 esteemAmount);
     event Redeemed(address indexed user, uint256 esteemAmount, uint256 rewardAmount);
+    event keeperUpdated(address indexed newkeeper);
     event RateUpdated(uint256 newRate);
+    event NewDailyRateIncrease(uint256 newRate);
     event RedeemRateUpdated(uint256 newRate);
     event TreasuryBonusUpdated(uint256 newBonus);
     event USDTOracleUpdated(address indexed newOracle);
@@ -781,6 +786,11 @@ contract MintRedeemer is Ownable, ReentrancyGuard, Pausable {
     event AdminWithdraw(address indexed token, address indexed to, uint256 amount);
     event ContractPaused(address indexed admin);
     event ContractUnpaused(address indexed admin);
+
+    modifier onlyKeeper() {
+        require(msg.sender == keeper, "Not keeper");
+        _;
+    }
 
     constructor(address _usdt, address _esteem, address _favorETH, address _favorUSDT, address _oracleETH, address _oracleUSDT, address _treasury) {
         require(_usdt != address(0), "Invalid input token");
@@ -796,6 +806,7 @@ contract MintRedeemer is Ownable, ReentrancyGuard, Pausable {
         oracleETH = _oracleETH;
         oracleUSDT = _oracleUSDT;
         treasury = _treasury;
+        keeper = msg.sender;
         priceFeed = IPriceFeed(0xd30e2101a97dcbAeBCBC04F14C3f624E67A35165); // Chainlink ETH price feed sepolia
     }
 
@@ -876,6 +887,23 @@ contract MintRedeemer is Ownable, ReentrancyGuard, Pausable {
         require(ethPrice > 0, "Invalid ETH price from Chainlink");
         ethPrice *= 1e10; // Format 8 decimal chainlink feed price to 18
         return ethPrice;
+    }
+
+    function updateEsteemRate() external onlyKeeper {
+        require(block.timestamp >= lastRateUpdateTimestamp + 1 days, "Already updated today");
+        esteemRate += dailyRateIncrease;
+        lastRateUpdateTimestamp = block.timestamp;
+        emit RateUpdated(esteemRate);
+    }
+
+    function setKeeper(address _address) external onlyOwner {
+        keeper = _address;
+        emit keeperUpdated(_address);
+    }
+
+    function setDailyRateIncrease(uint256 _newRate) external onlyOwner {
+        dailyRateIncrease = _newRate;
+        emit NewDailyRateIncrease(_newRate);
     }
 
     function setUSDTOracle(address _address) external onlyOwner {
