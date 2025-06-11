@@ -763,12 +763,12 @@ contract MintRedeemer is Ownable, ReentrancyGuard, Pausable {
 
     address public oracleETH;
     address public oracleUSDT;
-    address public treasury; 
+    address public treasury;  // Treasury multisig wallet
     address public keeper;
 
     uint256 public esteemRate = 16 * 1e18;       // $16 per Esteem start price
     uint256 public redeemRate = 7000;      // 70% in favor for Esteem redeemptions
-    uint256 public treasuryBonusRate = 2500; // 25% bonus minted to treasury
+    uint256 public treasuryBonusRate = 2500; // 25% extra bonus minted to protocol treasury multisig on top of users minted amount 
     uint256 public dailyRateIncrease = 0.25 ether;
     uint256 public lastRateUpdateTimestamp = block.timestamp;
     

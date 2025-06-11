@@ -589,7 +589,7 @@ abstract contract Ownable is Context {
 
 interface Minter {
 
-    function rate() external view returns (uint256);
+    function esteemRate() external view returns (uint256);
 
     function getFavorPrice(address _favorToken) external view returns (uint256 updatedPrice);
 
@@ -614,9 +614,9 @@ interface BBToken {
     uint256 public constant MAX_TAX = 5000; // 50% MAX Sell Tax
 
     uint256 public sellTax = 5000; 
-    uint256 public bonusRate = 5000; // 50% buy bonus to buyer
-    uint256 public treasuryBonusRate = 2500; // 25% buy bonus minted to treasury
-    address public treasury; 
+    uint256 public bonusRate = 5000; // 50% buy bonus to buyer in esteem
+    uint256 public treasuryBonusRate = 2500; // 25% extra bonus minted to protocol treasury multisig on top of users minted amount 
+    address public treasury; // Treasury multisig wallet
 
     BBToken public esteem; 
     Minter public esteemMinter; // Esteem mint & redeem contract
@@ -679,7 +679,7 @@ interface BBToken {
         uint256 bonusAmount = (usdBuyAmount * bonusRate) / MULTIPLIER;
 
         // Get esteem token price in USD (18 decimals)
-        uint256 rate = esteemMinter.rate();
+        uint256 rate = esteemMinter.esteemRate();
         require(rate > 0, "Invalid Esteem rate");
 
         // Convert USD bonus amount to esteem tokens
