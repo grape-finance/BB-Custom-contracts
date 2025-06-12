@@ -720,7 +720,7 @@ abstract contract Ownable is Context {
 }
 
 interface BBToken {
-    function mint(address recipient, uint256 amount) external returns (bool);
+    function mint(address recipient, uint256 amount) external;
 
     function burn(uint256 amount) external;
 
@@ -818,8 +818,8 @@ contract MintRedeemer is Ownable, ReentrancyGuard, Pausable {
         uint256 treasuryAmount = (outputAmount * treasuryBonusRate) / MULTIPLIER;
 
         usdt.safeTransferFrom(msg.sender, treasury, _amount);
-        require(esteem.mint(msg.sender, outputAmount), "Mint to user failed");
-        require(esteem.mint(treasury, treasuryAmount), "Mint to treasury failed"); // Treasury gets bonus mint of Esteem on every mint
+        esteem.mint(msg.sender, outputAmount);
+        esteem.mint(treasury, treasuryAmount); // Treasury gets bonus mint of Esteem on every mint
 
         emit Minted(msg.sender, _amount, outputAmount);
     }
@@ -832,7 +832,7 @@ contract MintRedeemer is Ownable, ReentrancyGuard, Pausable {
 
         esteem.burnFrom(msg.sender, _esteemAmount);
 
-        require(_favorToken.mint(msg.sender, userAmount), "Mint to user failed");
+        _favorToken.mint(msg.sender, userAmount);
 
         emit Redeemed(msg.sender, _esteemAmount, userAmount);
     }

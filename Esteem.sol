@@ -603,12 +603,8 @@ contract Esteem is ERC20Burnable, Ownable {
 
     constructor() ERC20("Esteem Token", "ESTEEM") {}
 
-    function mint(address recipient_, uint256 amount_) public onlyMinter returns (bool) {
-        uint256 balanceBefore = balanceOf(recipient_);
+    function mint(address recipient_, uint256 amount_) public onlyMinter {
         _mint(recipient_, amount_);
-        uint256 balanceAfter = balanceOf(recipient_);
-
-        return balanceAfter > balanceBefore;
     }
 
     function addMinter(address account) external onlyOwner {

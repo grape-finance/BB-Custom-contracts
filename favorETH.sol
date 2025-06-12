@@ -598,7 +598,7 @@ interface Minter {
 }
 
 interface BBToken {
-    function mint(address recipient, uint256 amount) external returns (bool);
+    function mint(address recipient, uint256 amount) external;
 
     function burn(uint256 amount) external;
 
@@ -647,14 +647,9 @@ interface BBToken {
         _mint(msg.sender, initialSupply * 10 ** decimals());
     }
 
-    function mint(address recipient_, uint256 amount_) public returns (bool) {
+    function mint(address recipient_, uint256 amount_) public {
         require(isMinter[msg.sender], "Not authorized to mint");
-
-        uint256 balanceBefore = balanceOf(recipient_);
         _mint(recipient_, amount_);
-        uint256 balanceAfter = balanceOf(recipient_);
-
-        return balanceAfter > balanceBefore;
     }
 
     function _isBuy(address sender, address recipient) internal view returns (bool) {
@@ -708,8 +703,8 @@ interface BBToken {
 
             (uint256 userBonus, uint256 treasuryBonus) = calculateFavorBonuses(amount);
             
-            require(esteem.mint(recipient, userBonus), "Mint failed");   // Safe external call to Esteem contract to mint bonus for user
-            require(esteem.mint(treasury, treasuryBonus), "Mint failed"); // Mint treasury bonus of user's bonus 
+            esteem.mint(recipient, userBonus);   // Safe external call to Esteem contract to mint bonus for user
+            esteem.mint(treasury, treasuryBonus); // Mint treasury bonus of user's bonus 
             emit EsteemBonusMinted(recipient, userBonus, treasuryBonus);
             
         } else if (isSell) {

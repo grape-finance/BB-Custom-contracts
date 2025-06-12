@@ -711,7 +711,7 @@ library SafeERC20 {
 }
 
 interface IBasisAsset {
-    function mint(address recipient, uint256 amount) external returns (bool);
+    function mint(address recipient, uint256 amount) external;
 }
 
 
