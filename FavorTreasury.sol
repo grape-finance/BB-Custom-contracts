@@ -764,7 +764,6 @@ contract FavorTreasury is ContractGuard, Ownable, ReentrancyGuard {
     address[] public excludedFromTotalSupply; // Add addresses to exclude from supply calculation
 
     address public favor;
-    address public esteem;
 
     address public grove;
     address public favorOracle;
@@ -829,18 +828,15 @@ contract FavorTreasury is ContractGuard, Ownable, ReentrancyGuard {
 
     function initialize(
         address _favor,
-        address _esteem,
         address _favorOracle,
         address _grove,
         uint256 _startTime
     ) public notInitialized onlyOwner {
         require(_favor != address(0), "Invalid Favor address");
-        require(_esteem != address(0), "Invalid Esteem address");
         require(_favorOracle != address(0), "Invalid Oracle address");
         require(_grove != address(0), "Invalid Grove address");
 
         favor = _favor;
-        esteem = _esteem;
         favorOracle = _favorOracle;
         grove = _grove;
         startTime = _startTime;
