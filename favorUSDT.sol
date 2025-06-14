@@ -606,10 +606,10 @@ interface BBToken {
 
 }
  
- contract FavorETH is ERC20Burnable, Ownable {
+ contract FavorUSDT is ERC20Burnable, Ownable {
 
-    string private constant NAME = "Favor ETH";
-    string private constant SYMBOL = "fETH";
+    string private constant NAME = "Favor USDT";
+    string private constant SYMBOL = "fUSDT";
     uint256 public constant MULTIPLIER = 10000;
     uint256 public constant MAX_TAX = 5000; // 50% MAX Sell Tax
 
@@ -626,7 +626,7 @@ interface BBToken {
     mapping(address => bool) public isMinter; // Approved minters of Favor token
     mapping(address => bool) public isBuyWrapper; // Buy uniswap wrapper address to log bonus esteem on buys
     mapping(address => uint256) public pendingBonus; // User pending esteem bonus for buys
-    
+
     event MinterAdded(address indexed account);
     event MinterRemoved(address indexed account);
     event TreasuryUpdated(address indexed newTreasury);
@@ -639,7 +639,6 @@ interface BBToken {
     event TaxExemptStatusUpdated(address indexed account, bool isExempt);
     event MarketPairUpdated(address indexed pair, bool isPair);
     event BuyWrapperUpdated(address indexed wrapper, bool isActive);
-   
 
     constructor(uint256 initialSupply, address _treasury, address _esteem) ERC20(NAME, SYMBOL) {
         require(_esteem != address(0), "Invalid Esteem address");
@@ -661,11 +660,7 @@ interface BBToken {
     }
 
     function calculateFavorBonuses(uint256 amount) public view returns (uint256 userBonus, uint256 treasuryBonus) {
-        uint256 favorPrice = esteemMinter.getFavorPrice(address(this)); // fETH price in ETH (18 decimals)
-        uint256 ethPrice = esteemMinter.latestETHPrice();               // ETH price in USD (18 decimals)
-
-        // Convert favor price to USD (18 decimals)
-        favorPrice = (favorPrice * ethPrice) / 1e18;
+        uint256 favorPrice = esteemMinter.getFavorPrice(address(this)); // fUSDT price in USDT (18 decimals)
 
         // Compute USD value of the amount (also 18 decimals)
         uint256 usdBuyAmount = (amount * favorPrice) / 1e18;
