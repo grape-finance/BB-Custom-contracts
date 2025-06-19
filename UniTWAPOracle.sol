@@ -570,14 +570,14 @@ contract Epoch is Operator {
     /* ========== Modifier ========== */
 
     modifier checkStartTime {
-        require(now >= startTime, 'Epoch: not started yet');
+        require(block.timestamp >= startTime, 'Epoch: not started yet');
 
         _;
     }
 
     modifier checkEpoch {
         uint256 _nextEpochPoint = nextEpochPoint();
-        if (now < _nextEpochPoint) {
+        if (block.timestamp < _nextEpochPoint) {
             require(msg.sender == operator(), 'Epoch: only operator allowed for pre-epoch');
             _;
         } else {
@@ -587,7 +587,7 @@ contract Epoch is Operator {
                 lastEpochTime = _nextEpochPoint;
                 ++epoch;
                 _nextEpochPoint = nextEpochPoint();
-                if (now < _nextEpochPoint) break;
+                if (block.timestamp < _nextEpochPoint) break;
             }
         }
     }
@@ -644,6 +644,7 @@ contract Oracle is Epoch {
     uint32 public blockTimestampLast;
     uint256 public price0CumulativeLast;
     uint256 public price1CumulativeLast;
+    uint256 public maxPriceCap;
     FixedPoint.uq112x112 public price0Average;
     FixedPoint.uq112x112 public price1Average;
 
@@ -652,11 +653,13 @@ contract Oracle is Epoch {
     constructor(
         IUniswapV2Pair _pair,
         uint256 _period,
-        uint256 _startTime
+        uint256 _startTime,
+        uint256 _priceCap
     ) public Epoch(_period, _startTime, 0) {
         pair = _pair;
         token0 = pair.token0();
         token1 = pair.token1();
+        maxPriceCap = _priceCap;
         price0CumulativeLast = pair.price0CumulativeLast(); // fetch the current accumulated price value (1 / 0)
         price1CumulativeLast = pair.price1CumulativeLast(); // fetch the current accumulated price value (0 / 1)
         uint112 reserve0;
@@ -697,6 +700,10 @@ contract Oracle is Epoch {
             require(_token == token1, "Oracle: INVALID_TOKEN");
             amountOut = price1Average.mul(_amountIn).decode144();
         }
+
+        if (maxPriceCap > 0 && amountOut > maxPriceCap) {
+            amountOut = uint144(maxPriceCap);
+        }
     }
 
     function twap(address _token, uint256 _amountIn) external view returns (uint144 _amountOut) {
@@ -707,7 +714,18 @@ contract Oracle is Epoch {
         } else if (_token == token1) {
             _amountOut = FixedPoint.uq112x112(uint224((price1Cumulative - price1CumulativeLast) / timeElapsed)).mul(_amountIn).decode144();
         }
+
+        if (maxPriceCap > 0 && _amountOut > maxPriceCap) {
+            _amountOut = uint144(maxPriceCap);
+        }
+    }
+
+    function setMaxPriceCap(uint256 _cap) external onlyOperator {
+        require(_cap > 0, "Cap must be positive");
+        maxPriceCap = _cap;
+        emit MaxPriceCapSet(_cap);
     }
 
     event Updated(uint256 price0CumulativeLast, uint256 price1CumulativeLast);
+    event MaxPriceCapSet(uint256 cap);
 }
