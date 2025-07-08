@@ -1,6 +1,31 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity >=0.6.0 <0.8.0;
+pragma solidity 0.8.20;
+
+
+/**
+ * @dev Provides information about the current execution context, including the
+ * sender of the transaction and its data. While these are generally available
+ * via msg.sender and msg.data, they should not be accessed in such a direct
+ * manner, since when dealing with meta-transactions the account sending and
+ * paying for execution may not be the actual sender (as far as an application
+ * is concerned).
+ *
+ * This contract is only required for intermediate, library-like contracts.
+ */
+abstract contract Context {
+    function _msgSender() internal view virtual returns (address) {
+        return msg.sender;
+    }
+
+    function _msgData() internal view virtual returns (bytes calldata) {
+        return msg.data;
+    }
+
+    function _contextSuffixLength() internal view virtual returns (uint256) {
+        return 0;
+    }
+}
 
 /**
  * @dev Wrappers over Solidity's arithmetic operations with added overflow
@@ -426,27 +451,6 @@ library UniswapV2OracleLibrary {
     }
 }
 
-/*
- * @dev Provides information about the current execution context, including the
- * sender of the transaction and its data. While these are generally available
- * via msg.sender and msg.data, they should not be accessed in such a direct
- * manner, since when dealing with GSN meta-transactions the account sending and
- * paying for execution may not be the actual sender (as far as an application
- * is concerned).
- *
- * This contract is only required for intermediate, library-like contracts.
- */
-abstract contract Context {
-    function _msgSender() internal view virtual returns (address payable) {
-        return msg.sender;
-    }
-
-    function _msgData() internal view virtual returns (bytes memory) {
-        this; // silence state mutability warning without generating bytecode - see https://github.com/ethereum/solidity/issues/2691
-        return msg.data;
-    }
-}
-
 
 /**
  * @dev Contract module which provides a basic access control mechanism, where
@@ -468,7 +472,7 @@ abstract contract Ownable is Context {
     /**
      * @dev Initializes the contract setting the deployer as the initial owner.
      */
-    constructor () internal {
+    constructor () {
         address msgSender = _msgSender();
         _owner = msgSender;
         emit OwnershipTransferred(address(0), msgSender);
@@ -517,7 +521,7 @@ contract Operator is Context, Ownable {
 
     event OperatorTransferred(address indexed previousOperator, address indexed newOperator);
 
-    constructor() internal {
+    constructor() {
         _operator = _msgSender();
         emit OperatorTransferred(address(0), _operator);
     }
@@ -560,7 +564,7 @@ contract Epoch is Operator {
         uint256 _period,
         uint256 _startTime,
         uint256 _startEpoch
-    ) public {
+    ) {
         period = _period;
         startTime = _startTime;
         epoch = _startEpoch;
@@ -655,7 +659,8 @@ contract Oracle is Epoch {
         uint256 _period,
         uint256 _startTime,
         uint256 _priceCap
-    ) public Epoch(_period, _startTime, 0) {
+    ) Epoch(_period, _startTime, 0) {
+        require(_period >= 1 hours && _period <= 48 hours, '_period: out of range');
         pair = _pair;
         token0 = pair.token0();
         token1 = pair.token1();
@@ -671,7 +676,7 @@ contract Oracle is Epoch {
     /* ========== MUTABLE FUNCTIONS ========== */
 
     /** @dev Updates 1-day EMA price from Uniswap.  */
-    function update() external checkEpoch {
+    function update() public checkEpoch {
         (uint256 price0Cumulative, uint256 price1Cumulative, uint32 blockTimestamp) = UniswapV2OracleLibrary.currentCumulativePrices(address(pair));
         uint32 timeElapsed = blockTimestamp - blockTimestampLast; // overflow is desired
 
@@ -694,6 +699,7 @@ contract Oracle is Epoch {
 
     // note this will always return 0 before update has been called successfully for the first time.
     function consult(address _token, uint256 _amountIn) external view returns (uint144 amountOut) {
+
         if (_token == token0) {
             amountOut = price0Average.mul(_amountIn).decode144();
         } else {
@@ -706,6 +712,7 @@ contract Oracle is Epoch {
         }
     }
 
+    // Returns rolling TWAP price which is more likely to be prone to short term price fluctuations
     function twap(address _token, uint256 _amountIn) external view returns (uint144 _amountOut) {
         (uint256 price0Cumulative, uint256 price1Cumulative, uint32 blockTimestamp) = UniswapV2OracleLibrary.currentCumulativePrices(address(pair));
         uint32 timeElapsed = blockTimestamp - blockTimestampLast; // overflow is desired

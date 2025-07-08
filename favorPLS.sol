@@ -748,6 +748,8 @@ interface BBToken {
     }
 
     function setBonusRates(uint256 _bonusRate, uint256 _treasuryBonusRate) external onlyOwner {
+        require(_bonusRate <= MULTIPLIER, "User bonus cannot be larger than max multiplier");
+        require(_treasuryBonusRate <= MULTIPLIER, "Tresury bonus cannot be larger than max multiplier");
         bonusRate = _bonusRate;
         treasuryBonusRate = _treasuryBonusRate;
         emit BonusRatesUpdated(_bonusRate, _treasuryBonusRate);

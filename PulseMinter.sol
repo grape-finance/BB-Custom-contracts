@@ -743,10 +743,12 @@ contract MintRedeemer is Ownable, ReentrancyGuard, Pausable {
     uint256 public treasuryBonusRate = 2500; // 25% extra bonus minted to protocol treasury multisig on top of users minted amount 
     uint256 public dailyRateIncrease = 0.25 ether;
     uint256 public lastRateUpdateTimestamp;
+    uint256 public redemptionLockDuration = 6 hours;
 
     mapping(address => bool) public allowedMintTokens; // Tokens that can be used to mint Esteem
     mapping(address => bool) public favorTokens;
     mapping(address => address) public priceOracles;
+    mapping(address => uint256) public userUnlockTime; // Time upon which user can redeem esteem after minting it
 
     event Minted(address indexed user, uint256 inputAmount, uint256 esteemAmount);
     event Redeemed(address indexed user, uint256 esteemAmount, uint256 rewardAmount);
@@ -762,6 +764,7 @@ contract MintRedeemer is Ownable, ReentrancyGuard, Pausable {
     event OracleUpdated(address indexed token, address indexed oracle);
     event AllowedMintTokenSet(address indexed token, bool allowed);
     event ActiveFavorTokenSet(address indexed token, bool allowed);
+    event redemptionLockDurationUpdated(uint256 duration);
 
     modifier onlyKeeper() {
         require(msg.sender == keeper, "Not keeper");
@@ -778,10 +781,13 @@ contract MintRedeemer is Ownable, ReentrancyGuard, Pausable {
         lastRateUpdateTimestamp = block.timestamp;
     }
 
-    function mintEsteemWithPLS() external payable nonReentrant whenNotPaused {
+    function mintEsteemWithPLS(uint256 minOutputAmount) external payable nonReentrant whenNotPaused {
         require(msg.value > 0, "Amount must be > 0");
 
         uint256 outputAmount = _calculateEsteemMint(msg.value, address(0));
+        require(outputAmount > 0, "Increase your amount");
+        require(outputAmount >= minOutputAmount, "Mint: slippage limit exceeded");
+
         uint256 treasuryAmount = (outputAmount * treasuryBonusRate) / MULTIPLIER;
 
         (bool success, ) = treasury.call{value: msg.value}("");
@@ -789,21 +795,28 @@ contract MintRedeemer is Ownable, ReentrancyGuard, Pausable {
 
         esteem.mint(msg.sender, outputAmount);
         esteem.mint(treasury, treasuryAmount);
+        
+        userUnlockTime[msg.sender] = block.timestamp + redemptionLockDuration;
 
         emit Minted(msg.sender, msg.value, outputAmount);
     }
 
-    function mintEsteemWithToken(uint256 amount, address token) external nonReentrant whenNotPaused {
+    function mintEsteemWithToken(uint256 amount, address token, uint256 minOutputAmount) external nonReentrant whenNotPaused {
         require(allowedMintTokens[token], "Token not accepted");
         require(amount > 0, "Amount must be > 0");
 
         IERC20(token).safeTransferFrom(msg.sender, treasury, amount);
 
         uint256 outputAmount = _calculateEsteemMint(amount, token);
+        require(outputAmount > 0, "Increase your amount");
+        require(outputAmount >= minOutputAmount, "Mint: slippage limit exceeded");
+
         uint256 treasuryAmount = (outputAmount * treasuryBonusRate) / MULTIPLIER;
 
         esteem.mint(msg.sender, outputAmount);
         esteem.mint(treasury, treasuryAmount);
+
+        userUnlockTime[msg.sender] = block.timestamp + redemptionLockDuration;
 
         emit Minted(msg.sender, amount, outputAmount);
     }
@@ -811,6 +824,7 @@ contract MintRedeemer is Ownable, ReentrancyGuard, Pausable {
     function redeemFavor(uint256 _esteemAmount, BBToken _favorToken) external nonReentrant whenNotPaused {
         require(favorTokens[address(_favorToken)], "Unsupported favor token");
         require(_esteemAmount > 0, "Amount must be > 0");
+        require(block.timestamp >= userUnlockTime[msg.sender], "Must wait min redemption time before redeeming");
 
         uint256 userAmount = _calculateRedeemAmounts(_esteemAmount, address(_favorToken));
 
@@ -886,6 +900,7 @@ contract MintRedeemer is Ownable, ReentrancyGuard, Pausable {
     }
 
     function setTreasuryBonus(uint256 _treasuryBonusRate) external onlyOwner {
+        require(_treasuryBonusRate <= MULTIPLIER, "Cannot exceed 100%");
         treasuryBonusRate = _treasuryBonusRate;
         emit TreasuryBonusUpdated(_treasuryBonusRate);
     }
@@ -914,7 +929,12 @@ contract MintRedeemer is Ownable, ReentrancyGuard, Pausable {
         emit ActiveFavorTokenSet(token, allowed);
     }
 
-    // Admin withdraw incase of stuck tokens or migration needed
+    function setRedemptionLockDuration(uint256 _seconds) external onlyOwner {
+        redemptionLockDuration = _seconds;
+        emit redemptionLockDurationUpdated(_seconds);
+    }
+
+    // Admin withdraw incase of stuck or mistakenly sent tokens, no user tokens are stored in this contract
     function adminWithdraw(IERC20 _token, address _to, uint256 _amount) external onlyOwner {
         require(_to != address(0), "Invalid address");
         _token.safeTransfer(_to, _amount);

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity 0.8.26;
+pragma solidity 0.8.20;
 
 /**
  * @dev Provides information about the current execution context, including the
@@ -712,34 +712,125 @@ abstract contract Ownable is Context {
     }
 }
 
+/**
+ * @dev Contract module which allows children to implement an emergency stop
+ * mechanism that can be triggered by an authorized account.
+ *
+ * This module is used through inheritance. It will make available the
+ * modifiers `whenNotPaused` and `whenPaused`, which can be applied to
+ * the functions of your contract. Note that they will not be pausable by
+ * simply including this module, only once the modifiers are put in place.
+ */
+abstract contract Pausable is Context {
+    bool private _paused;
+
+    /**
+     * @dev Emitted when the pause is triggered by `account`.
+     */
+    event Paused(address account);
+
+    /**
+     * @dev Emitted when the pause is lifted by `account`.
+     */
+    event Unpaused(address account);
+
+    /**
+     * @dev The operation failed because the contract is paused.
+     */
+    error EnforcedPause();
+
+    /**
+     * @dev The operation failed because the contract is not paused.
+     */
+    error ExpectedPause();
+
+    /**
+     * @dev Initializes the contract in unpaused state.
+     */
+    constructor() {
+        _paused = false;
+    }
+
+    /**
+     * @dev Modifier to make a function callable only when the contract is not paused.
+     *
+     * Requirements:
+     *
+     * - The contract must not be paused.
+     */
+    modifier whenNotPaused() {
+        _requireNotPaused();
+        _;
+    }
+
+    /**
+     * @dev Modifier to make a function callable only when the contract is paused.
+     *
+     * Requirements:
+     *
+     * - The contract must be paused.
+     */
+    modifier whenPaused() {
+        _requirePaused();
+        _;
+    }
+
+    /**
+     * @dev Returns true if the contract is paused, and false otherwise.
+     */
+    function paused() public view virtual returns (bool) {
+        return _paused;
+    }
+
+    /**
+     * @dev Throws if the contract is paused.
+     */
+    function _requireNotPaused() internal view virtual {
+        if (paused()) {
+            revert EnforcedPause();
+        }
+    }
+
+    /**
+     * @dev Throws if the contract is not paused.
+     */
+    function _requirePaused() internal view virtual {
+        if (!paused()) {
+            revert ExpectedPause();
+        }
+    }
+
+    /**
+     * @dev Triggers stopped state.
+     *
+     * Requirements:
+     *
+     * - The contract must not be paused.
+     */
+    function _pause() internal virtual whenNotPaused {
+        _paused = true;
+        emit Paused(_msgSender());
+    }
+
+    /**
+     * @dev Returns to normal state.
+     *
+     * Requirements:
+     *
+     * - The contract must be paused.
+     */
+    function _unpause() internal virtual whenPaused {
+        _paused = false;
+        emit Unpaused(_msgSender());
+    }
+}
+
 interface ITreasury {
     function epoch() external view returns (uint256);
 
     function nextEpochPoint() external view returns (uint256);
 
     function getFavorPrice() external view returns (uint256);
-}
-
-contract ContractGuard {
-    mapping(uint256 => mapping(address => bool)) private _status;
-
-    function checkSameOriginReentranted() internal view returns (bool) {
-        return _status[block.number][tx.origin];
-    }
-
-    function checkSameSenderReentranted() internal view returns (bool) {
-        return _status[block.number][msg.sender];
-    }
-
-    modifier onlyOneBlock() {
-        require(!checkSameOriginReentranted(), "ContractGuard: one block, one function");
-        require(!checkSameSenderReentranted(), "ContractGuard: one block, one function");
-
-        _;
-
-        _status[block.number][tx.origin] = true;
-        _status[block.number][msg.sender] = true;
-    }
 }
 
 contract ShareWrapper {
@@ -773,13 +864,12 @@ contract ShareWrapper {
     }
 }
 
-contract Staking is ShareWrapper, ContractGuard, Ownable, ReentrancyGuard {
+contract Staking is ShareWrapper, Ownable, ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;
 
     struct GroveSeat {
         uint256 lastSnapshotIndex;
         uint256 rewardEarned;
-        uint256 epochTimerStart;
     }
 
     struct GroveSnapshot {
@@ -796,9 +886,6 @@ contract Staking is ShareWrapper, ContractGuard, Ownable, ReentrancyGuard {
     mapping(address => GroveSeat) public grovers;
     GroveSnapshot[] public groveHistory;
 
-    uint256 public withdrawLockupEpochs;
-    uint256 public rewardLockupEpochs;
-
     address public treasuryOperator;
 
     event Initialized(address indexed executor, uint256 at);
@@ -806,9 +893,10 @@ contract Staking is ShareWrapper, ContractGuard, Ownable, ReentrancyGuard {
     event Withdrawn(address indexed user, uint256 amount);
     event RewardPaid(address indexed user, uint256 reward);
     event RewardAdded(address indexed user, uint256 reward);
-    event LockUpParametersUpdated(uint256 withdrawLockupEpochs, uint256 rewardLockupEpochs);
     event TreasuryOperatorUpdated(address indexed newOperator);
     event RecoveredUnsupportedToken(address indexed token, address indexed to, uint256 amount);
+    event ContractPaused(address indexed admin);
+    event ContractUnpaused(address indexed admin);
 
     modifier groveUserExists {
         require(balanceOf(msg.sender) > 0, "Grove: The user does not exist");
@@ -844,21 +932,11 @@ contract Staking is ShareWrapper, ContractGuard, Ownable, ReentrancyGuard {
         treasury = _treasury;
         treasuryOperator = address(_treasury);
 
-        GroveSnapshot memory genesisSnapshot = GroveSnapshot({time : block.number, rewardReceived : 0, rewardPerShare : 0});
+        GroveSnapshot memory genesisSnapshot = GroveSnapshot({time : block.timestamp, rewardReceived : 0, rewardPerShare : 0});
         groveHistory.push(genesisSnapshot);
 
-        withdrawLockupEpochs = 0; 
-        rewardLockupEpochs = 0; 
-
         initialized = true;
-        emit Initialized(msg.sender, block.number);
-    }
-
-    function setLockUp(uint256 _withdrawLockupEpochs, uint256 _rewardLockupEpochs) external onlyOwner {
-        require(_withdrawLockupEpochs >= _rewardLockupEpochs && _withdrawLockupEpochs <= 72, "lockupEpochs out of range");   
-        withdrawLockupEpochs = _withdrawLockupEpochs;
-        rewardLockupEpochs = _rewardLockupEpochs;
-        emit LockUpParametersUpdated(_withdrawLockupEpochs, _rewardLockupEpochs);
+        emit Initialized(msg.sender, block.timestamp);
     }
 
     function latestSnapshotIndex() public view returns (uint256) {
@@ -875,14 +953,6 @@ contract Staking is ShareWrapper, ContractGuard, Ownable, ReentrancyGuard {
 
     function getLastSnapshotOf(address groveUser) internal view returns (GroveSnapshot memory) {
         return groveHistory[getLastSnapshotIndexOf(groveUser)];
-    }
-
-    function canWithdraw(address groveUser) external view returns (bool) {
-        return grovers[groveUser].epochTimerStart + withdrawLockupEpochs <= treasury.epoch();
-    }
-
-    function canClaimReward(address groveUser) external view returns (bool) {
-        return grovers[groveUser].epochTimerStart + rewardLockupEpochs <= treasury.epoch();
     }
 
     function epoch() external view returns (uint256) {
@@ -908,16 +978,14 @@ contract Staking is ShareWrapper, ContractGuard, Ownable, ReentrancyGuard {
         return (balanceOf(groveUser) * (latestRPS - storedRPS)) / 1e18 + grovers[groveUser].rewardEarned;
     }
 
-    function stake(uint256 amount) public override onlyOneBlock nonReentrant updateReward(msg.sender) {
+    function stake(uint256 amount) public override nonReentrant updateReward(msg.sender) whenNotPaused {
         require(amount > 0, "Grove: Cannot stake 0");
         super.stake(amount);
-        grovers[msg.sender].epochTimerStart = treasury.epoch(); 
         emit Staked(msg.sender, amount);
     }
 
-    function withdraw(uint256 amount) public override onlyOneBlock nonReentrant groveUserExists updateReward(msg.sender) {
+    function withdraw(uint256 amount) public override nonReentrant groveUserExists updateReward(msg.sender) whenNotPaused {
         require(amount > 0, "Grove: Cannot withdraw 0");
-        require(grovers[msg.sender].epochTimerStart + withdrawLockupEpochs <= treasury.epoch(), "Grove: still in withdraw lockup");
         claimReward();
         super.withdraw(amount);
         emit Withdrawn(msg.sender, amount);
@@ -930,18 +998,13 @@ contract Staking is ShareWrapper, ContractGuard, Ownable, ReentrancyGuard {
     function claimReward() public updateReward(msg.sender) {
         uint256 reward = grovers[msg.sender].rewardEarned;
         if (reward > 0) {
-            require(grovers[msg.sender].epochTimerStart + rewardLockupEpochs <= treasury.epoch(), "Grove: still in reward lockup");
-
-            grovers[msg.sender].epochTimerStart = treasury.epoch(); // reset timer
             grovers[msg.sender].rewardEarned = 0;
-
             favor.safeTransfer(msg.sender, reward);
             emit RewardPaid(msg.sender, reward);
-            
         }
     }
 
-    function allocateSeigniorage(uint256 amount) external onlyOneBlock nonReentrant {
+    function allocateSeigniorage(uint256 amount) external nonReentrant whenNotPaused {
         require(msg.sender == owner() || msg.sender == treasuryOperator, "Not authorized");
         require(amount > 0, "Grove: Cannot allocate 0");
         require(totalSupply() > 0, "Grove: Cannot allocate when totalSupply is 0");
@@ -951,7 +1014,7 @@ contract Staking is ShareWrapper, ContractGuard, Ownable, ReentrancyGuard {
         uint256 nextRPS = prevRPS + ((amount * 1e18) / totalSupply());
 
         GroveSnapshot memory newSnapshot = GroveSnapshot({
-            time: block.number,
+            time: block.timestamp,
             rewardReceived: amount,
             rewardPerShare: nextRPS
         });
@@ -972,5 +1035,15 @@ contract Staking is ShareWrapper, ContractGuard, Ownable, ReentrancyGuard {
         require(address(_token) != address(esteem), "Cannot remove ESTEEM tokens");
         _token.safeTransfer(_to, _amount);
         emit RecoveredUnsupportedToken(address(_token), _to, _amount);
+    }
+
+    function pause() external onlyOwner {
+        _pause();
+        emit ContractPaused(msg.sender);
+    }
+
+    function unpause() external onlyOwner {
+        _unpause();
+        emit ContractUnpaused(msg.sender);
     }
 }
