@@ -721,32 +721,22 @@ abstract contract Ownable is Context {
 
 interface BBToken {
     function mint(address recipient, uint256 amount) external;
-
-    function burn(uint256 amount) external;
-
     function burnFrom(address from, uint256 amount) external;
-
 }
 
 interface IOracle {
-    function update() external;
-
     function consult(address _token, uint256 _amountIn) external view returns (uint144 amountOut);
-
-    function twap(address _token, uint256 _amountIn) external view returns (uint144 _amountOut);
-
 }
 
 interface IPriceFeed {
-    function latestAnswer() external view returns (int256);
     function latestRoundData() external view
-    returns (
-      uint80 roundId,
-      int256 answer,
-      uint256 startedAt,
-      uint256 updatedAt,
-      uint80 answeredInRound
-    );
+        returns (
+        uint80 roundId,
+        int256 answer,
+        uint256 startedAt,
+        uint256 updatedAt,
+        uint80 answeredInRound
+        );
 }
 
 contract MintRedeemer is Ownable, ReentrancyGuard, Pausable {
@@ -883,10 +873,16 @@ contract MintRedeemer is Ownable, ReentrancyGuard, Pausable {
     }
 
     function latestETHPrice() public view returns (uint256) {
-        uint256 ethPrice = uint256(priceFeed.latestAnswer());
-        require(ethPrice > 0, "Invalid ETH price from Chainlink");
-        ethPrice *= 1e10; // Format 8 decimal chainlink feed price to 18
-        return ethPrice;
+        (
+            ,               // uint80 roundID
+            int256 answer,  // this is the price
+            ,               // uint256 startedAt
+            ,               // uint256 updatedAt
+            // uint80 answeredInRound
+        ) = priceFeed.latestRoundData();
+
+        require(answer > 0, "Invalid ETH price from Chainlink");
+        return uint256(answer) * 10**10;
     }
 
     function updateEsteemRate() external onlyKeeper {
