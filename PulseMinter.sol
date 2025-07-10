@@ -803,12 +803,12 @@ contract MintRedeemer is Ownable, ReentrancyGuard, Pausable {
         lastRateUpdateTimestamp = block.timestamp;
     }
 
-    function mintEsteemWithPLS(uint256 minOutputAmount) external payable nonReentrant whenNotPaused {
+    function mintEsteemWithPLS(uint256 deadline) external payable nonReentrant whenNotPaused {
+        require(block.timestamp <= deadline, "Mint: deadline passed");
         require(msg.value > 0, "Amount must be > 0");
 
         uint256 outputAmount = _calculateEsteemMint(msg.value, address(0));
         require(outputAmount > 0, "Increase your amount");
-        require(outputAmount >= minOutputAmount, "Mint: slippage limit exceeded");
 
         uint256 treasuryAmount = (outputAmount * treasuryBonusRate) / MULTIPLIER;
 
@@ -823,7 +823,8 @@ contract MintRedeemer is Ownable, ReentrancyGuard, Pausable {
         emit Minted(msg.sender, msg.value, outputAmount);
     }
 
-    function mintEsteemWithToken(uint256 amount, address token, uint256 minOutputAmount) external nonReentrant whenNotPaused {
+    function mintEsteemWithToken(uint256 amount, address token, uint256 deadline) external nonReentrant whenNotPaused {
+        require(block.timestamp <= deadline, "Mint: deadline passed");
         require(allowedMintTokens[token], "Token not accepted");
         require(amount > 0, "Amount must be > 0");
 
@@ -831,7 +832,6 @@ contract MintRedeemer is Ownable, ReentrancyGuard, Pausable {
 
         uint256 outputAmount = _calculateEsteemMint(amount, token);
         require(outputAmount > 0, "Increase your amount");
-        require(outputAmount >= minOutputAmount, "Mint: slippage limit exceeded");
 
         uint256 treasuryAmount = (outputAmount * treasuryBonusRate) / MULTIPLIER;
 

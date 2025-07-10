@@ -889,7 +889,6 @@ contract Staking is ShareWrapper, Ownable, ReentrancyGuard, Pausable {
 
     mapping(uint256 => GroveSnapshot) public groveHistory;
     mapping(address => GroveSeat) public grovers;
-    //GroveSnapshot[] public groveHistory;
 
     address public treasuryOperator;
 
@@ -940,7 +939,6 @@ contract Staking is ShareWrapper, Ownable, ReentrancyGuard, Pausable {
         groveHistory[0] = genesis;
         historyStart = 0;
         historyEnd = 0;
-        //groveHistory.push(genesisSnapshot);
 
         initialized = true;
         emit Initialized(msg.sender, block.timestamp);
