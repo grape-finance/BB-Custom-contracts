@@ -604,7 +604,7 @@ interface BBToken {
     uint256 public constant MAX_TAX = 5000; // 50% MAX Sell Tax
 
     uint256 public sellTax = 5000; 
-    uint256 public bonusRate = 5000; // 50% buy bonus to buyer in esteem
+    uint256 public bonusRate = 4400; // 44% buy bonus to buyer in esteem
     uint256 public treasuryBonusRate = 2500; // 25% extra bonus minted to protocol treasury multisig on top of users minted amount 
     address public treasury; // Treasury multisig wallet
 
