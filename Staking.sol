@@ -867,6 +867,10 @@ contract ShareWrapper {
 contract Staking is ShareWrapper, Ownable, ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;
 
+    uint256 public constant MAX_HISTORY = 10000;
+    uint256 public historyStart;
+    uint256 public historyEnd;
+
     struct GroveSeat {
         uint256 lastSnapshotIndex;
         uint256 rewardEarned;
@@ -883,8 +887,9 @@ contract Staking is ShareWrapper, Ownable, ReentrancyGuard, Pausable {
     IERC20 public favor;
     ITreasury public treasury;
 
+    mapping(uint256 => GroveSnapshot) public groveHistory;
     mapping(address => GroveSeat) public grovers;
-    GroveSnapshot[] public groveHistory;
+    //GroveSnapshot[] public groveHistory;
 
     address public treasuryOperator;
 
@@ -905,10 +910,9 @@ contract Staking is ShareWrapper, Ownable, ReentrancyGuard, Pausable {
 
     modifier updateReward(address groveUser) {
         if (groveUser != address(0)) {
-            GroveSeat memory seat = grovers[groveUser];
+            GroveSeat storage seat = grovers[groveUser];
             seat.rewardEarned = earned(groveUser);
-            seat.lastSnapshotIndex = latestSnapshotIndex();
-            grovers[groveUser] = seat;
+            seat.lastSnapshotIndex  = latestSnapshotIndex();
         }
         _;
     }
@@ -932,27 +936,28 @@ contract Staking is ShareWrapper, Ownable, ReentrancyGuard, Pausable {
         treasury = _treasury;
         treasuryOperator = address(_treasury);
 
-        GroveSnapshot memory genesisSnapshot = GroveSnapshot({time : block.timestamp, rewardReceived : 0, rewardPerShare : 0});
-        groveHistory.push(genesisSnapshot);
+        GroveSnapshot memory genesis = GroveSnapshot({ time: block.timestamp, rewardReceived: 0, rewardPerShare: 0 });
+        groveHistory[0] = genesis;
+        historyStart = 0;
+        historyEnd = 0;
+        //groveHistory.push(genesisSnapshot);
 
         initialized = true;
         emit Initialized(msg.sender, block.timestamp);
     }
 
     function latestSnapshotIndex() public view returns (uint256) {
-        return groveHistory.length - 1;
+        return historyEnd;
     }
 
     function getLatestSnapshot() internal view returns (GroveSnapshot memory) {
-        return groveHistory[latestSnapshotIndex()];
+        return groveHistory[historyEnd];
     }
 
-    function getLastSnapshotIndexOf(address groveUser) public view returns (uint256) {
-        return grovers[groveUser].lastSnapshotIndex;
-    }
-
-    function getLastSnapshotOf(address groveUser) internal view returns (GroveSnapshot memory) {
-        return groveHistory[getLastSnapshotIndexOf(groveUser)];
+    function getLastSnapshotOf(address user) internal view returns (GroveSnapshot storage) {
+        uint256 idx = grovers[user].lastSnapshotIndex;
+        if (idx < historyStart) { idx = historyStart; }
+        return groveHistory[idx];
     }
 
     function epoch() external view returns (uint256) {
@@ -1013,12 +1018,13 @@ contract Staking is ShareWrapper, Ownable, ReentrancyGuard, Pausable {
         uint256 prevRPS = getLatestSnapshot().rewardPerShare;
         uint256 nextRPS = prevRPS + ((amount * 1e18) / totalSupply());
 
-        GroveSnapshot memory newSnapshot = GroveSnapshot({
-            time: block.timestamp,
-            rewardReceived: amount,
-            rewardPerShare: nextRPS
-        });
-        groveHistory.push(newSnapshot);
+        historyEnd += 1;
+        groveHistory[historyEnd] = GroveSnapshot({ time: block.timestamp, rewardReceived: amount, rewardPerShare: nextRPS });
+
+        if (historyEnd - historyStart + 1 > MAX_HISTORY) {
+            delete groveHistory[historyStart];
+            historyStart += 1;
+        }
 
         favor.safeTransferFrom(msg.sender, address(this), amount);
         emit RewardAdded(msg.sender, amount);

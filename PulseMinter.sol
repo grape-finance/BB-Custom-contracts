@@ -415,6 +415,28 @@ interface IERC20 {
 }
 
 /**
+ * @dev Interface for the optional metadata functions from the ERC20 standard.
+ *
+ * _Available since v4.1._
+ */
+interface IERC20Metadata is IERC20 {
+    /**
+     * @dev Returns the name of the token.
+     */
+    function name() external view returns (string memory);
+
+    /**
+     * @dev Returns the symbol of the token.
+     */
+    function symbol() external view returns (string memory);
+
+    /**
+     * @dev Returns the decimals places of the token.
+     */
+    function decimals() external view returns (uint8);
+}
+
+/**
  * @title SafeERC20
  * @dev Wrappers around ERC20 operations that throw on failure (when the token
  * contract returns false). Tokens that return no value (and instead revert or
@@ -835,11 +857,26 @@ contract MintRedeemer is Ownable, ReentrancyGuard, Pausable {
         emit Redeemed(msg.sender, _esteemAmount, userAmount);
     }
 
+    // Standardize all tokens to 18 decimals
+    function _normalizeTokenAmount(uint256 amount, address token) internal view returns (uint256) {
+
+        uint8 tokenDecimals = token == address(0)
+                ? 18
+                : IERC20Metadata(token).decimals();
+
+        if (tokenDecimals == 18) {
+            return amount;
+        } else {
+            // e.g. USDT: 6 → bump 10**(18-6)
+            return amount * (10 ** (18 - tokenDecimals));
+        } 
+     }
+
     // Calculates user output for minting Esteem based on the token input
     function _calculateEsteemMint(uint256 amount, address token) internal view returns (uint256) {
         uint256 price = getLatestTokenPrice(token); 
-        uint256 usdAmount = (amount * price);
-        return usdAmount / esteemRate;
+        uint256 normalized = _normalizeTokenAmount(amount, token);
+        return (normalized * price) / esteemRate;
     }
 
     // Calculates user output for a given ESTEEM redemption into a Favor token

@@ -853,7 +853,7 @@ contract FavorTreasury is Ownable, ReentrancyGuard, Pausable {
 
     uint256 public startTime;
     uint256 public epoch = 0;
-    uint256 public excludedBalance;
+    uint256 public totalExcludedAmount; // Total tokens excluded from circ supply calculation
 
     address[] public excludedFromTotalSupply; // Add addresses to exclude from supply calculation
     mapping(address => bool) public _isExcluded; 
@@ -879,8 +879,8 @@ contract FavorTreasury is Ownable, ReentrancyGuard, Pausable {
     event DaoFundUpdated(address indexed daoFund, uint256 daoFundSharedPercent);
     event ContractPaused(address indexed admin);
     event ContractUnpaused(address indexed admin);
-    event ExcludedAddressAdded(address indexed excludedAddress);
-    event ExcludedAddressRemoved(address indexed excludedAddress);
+    event ExcludedAddressAdded(address indexed excludedAddress, uint256 amount);
+    event ExcludedAddressRemoved(address indexed excludedAddress, uint256 amount);
     event RecoveredUnsupportedToken(address indexed token, address indexed to, uint256 amount);
 
     modifier checkCondition {
@@ -915,7 +915,7 @@ contract FavorTreasury is Ownable, ReentrancyGuard, Pausable {
             revert("Treasury: failed to consult FAVOR price from the oracle");
         }
     }
-    // Returns rolling TWAP price which is more likely to be prone to short term price fluctuations
+    // Returns rolling TWAP price for UI which is more likely to be prone to short term price fluctuations
     function getFavorUpdatedPrice() public view returns (uint256 _favorPrice) {
         try IOracle(favorOracle).twap(favor, 1e18) returns (uint256 price) {
             return uint256(price);
@@ -974,13 +974,19 @@ contract FavorTreasury is Ownable, ReentrancyGuard, Pausable {
         require(excludedFromTotalSupply.length <= MAX_EXCLUDED, "Treasury: too many excluded");
         require(!_isExcluded[_addr], "Address already excluded");
         _isExcluded[_addr] = true;
+        IERC20 favorErc20 = IERC20(favor);
+        uint256 bal = favorErc20.balanceOf(_addr);
+        totalExcludedAmount += bal;
         excludedFromTotalSupply.push(_addr);
-        emit ExcludedAddressAdded(_addr);
+        emit ExcludedAddressAdded(_addr, bal) ;
     }
 
     function removeExcludedAddress(address _addr) external onlyOwner {
         require(_isExcluded[_addr], "Address must be excluded");
         _isExcluded[_addr] = false;
+        IERC20 favorErc20 = IERC20(favor);
+        uint256 bal = favorErc20.balanceOf(_addr);
+        totalExcludedAmount -= bal;
         uint256 len = excludedFromTotalSupply.length;
         for (uint256 i = 0; i < len; i++) {
             if (excludedFromTotalSupply[i] == _addr) {
@@ -990,7 +996,7 @@ contract FavorTreasury is Ownable, ReentrancyGuard, Pausable {
             }
         }
 
-        emit ExcludedAddressRemoved(_addr);
+        emit ExcludedAddressRemoved(_addr, bal);
     }
 
     function pause() external onlyOwner {
@@ -1023,13 +1029,10 @@ contract FavorTreasury is Ownable, ReentrancyGuard, Pausable {
     }
 
     function getFavorCirculatingSupply() public view returns (uint256) {
-        IERC20 favorErc20 = IERC20(favor);
-        uint256 totalSupply = favorErc20.totalSupply();
-        uint256 balanceExcluded = 0;
-        for (uint256 entryId = 0; entryId < excludedFromTotalSupply.length; ++entryId) {
-            balanceExcluded += favorErc20.balanceOf(excludedFromTotalSupply[entryId]);
-        }
-        return totalSupply - balanceExcluded;
+        uint256 totalSupply = IERC20(favor).totalSupply();
+        return totalSupply <= totalExcludedAmount
+            ? 0
+            : totalSupply - totalExcludedAmount;
     }
 
     function _sendToGrove(uint256 _amount) internal {
