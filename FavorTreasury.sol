@@ -847,7 +847,6 @@ contract FavorTreasury is Ownable, ReentrancyGuard, Pausable {
 
     uint256 public constant PERIOD = 1 hours;
     uint256 public constant BASIS_DIVISOR = 100000; // 100%
-    uint256 public constant MAX_EXCLUDED = 100;
 
     bool public initialized = false;
 
@@ -855,8 +854,7 @@ contract FavorTreasury is Ownable, ReentrancyGuard, Pausable {
     uint256 public epoch = 0;
     uint256 public totalExcludedAmount; // Total tokens excluded from circ supply calculation
 
-    address[] public excludedFromTotalSupply; // Add addresses to exclude from supply calculation
-    mapping(address => bool) public _isExcluded; 
+    mapping(address => bool) public _isExcluded; // Excluded addresses mapping from circulating supply
 
     address public favor;
 
@@ -971,13 +969,12 @@ contract FavorTreasury is Ownable, ReentrancyGuard, Pausable {
     }
 
     function addExcludedAddress(address _addr) external onlyOwner {
-        require(excludedFromTotalSupply.length <= MAX_EXCLUDED, "Treasury: too many excluded");
         require(!_isExcluded[_addr], "Address already excluded");
         _isExcluded[_addr] = true;
         IERC20 favorErc20 = IERC20(favor);
         uint256 bal = favorErc20.balanceOf(_addr);
         totalExcludedAmount += bal;
-        excludedFromTotalSupply.push(_addr);
+
         emit ExcludedAddressAdded(_addr, bal) ;
     }
 
@@ -987,14 +984,6 @@ contract FavorTreasury is Ownable, ReentrancyGuard, Pausable {
         IERC20 favorErc20 = IERC20(favor);
         uint256 bal = favorErc20.balanceOf(_addr);
         totalExcludedAmount -= bal;
-        uint256 len = excludedFromTotalSupply.length;
-        for (uint256 i = 0; i < len; i++) {
-            if (excludedFromTotalSupply[i] == _addr) {
-                excludedFromTotalSupply[i] = excludedFromTotalSupply[len - 1];
-                excludedFromTotalSupply.pop();
-                break;
-            }
-        }
 
         emit ExcludedAddressRemoved(_addr, bal);
     }
