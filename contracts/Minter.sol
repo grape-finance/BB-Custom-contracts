@@ -1,30 +1,6 @@
 // SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
 
-pragma solidity 0.8.20;
-
-/**
- * @dev Provides information about the current execution context, including the
- * sender of the transaction and its data. While these are generally available
- * via msg.sender and msg.data, they should not be accessed in such a direct
- * manner, since when dealing with meta-transactions the account sending and
- * paying for execution may not be the actual sender (as far as an application
- * is concerned).
- *
- * This contract is only required for intermediate, library-like contracts.
- */
-abstract contract Context {
-    function _msgSender() internal view virtual returns (address) {
-        return msg.sender;
-    }
-
-    function _msgData() internal view virtual returns (bytes calldata) {
-        return msg.data;
-    }
-
-    function _contextSuffixLength() internal view virtual returns (uint256) {
-        return 0;
-    }
-}
 
 /**
  * @dev Contract module that helps prevent reentrant calls to a function.
@@ -99,166 +75,30 @@ abstract contract ReentrancyGuard {
     }
 }
 
-/**
- * @dev Interface of the ERC20 standard as defined in the EIP.
- */
-interface IERC20 {
-    /**
-     * @dev Emitted when `value` tokens are moved from one account (`from`) to
-     * another (`to`).
-     *
-     * Note that `value` may be zero.
-     */
-    event Transfer(address indexed from, address indexed to, uint256 value);
-
-    /**
-     * @dev Emitted when the allowance of a `spender` for an `owner` is set by
-     * a call to {approve}. `value` is the new allowance.
-     */
-    event Approval(address indexed owner, address indexed spender, uint256 value);
-
-    /**
-     * @dev Returns the amount of tokens in existence.
-     */
-    function totalSupply() external view returns (uint256);
-
-    /**
-     * @dev Returns the amount of tokens owned by `account`.
-     */
-    function balanceOf(address account) external view returns (uint256);
-
-    /**
-     * @dev Moves `amount` tokens from the caller's account to `to`.
-     *
-     * Returns a boolean value indicating whether the operation succeeded.
-     *
-     * Emits a {Transfer} event.
-     */
-    function transfer(address to, uint256 amount) external returns (bool);
-
-    /**
-     * @dev Returns the remaining number of tokens that `spender` will be
-     * allowed to spend on behalf of `owner` through {transferFrom}. This is
-     * zero by default.
-     *
-     * This value changes when {approve} or {transferFrom} are called.
-     */
-    function allowance(address owner, address spender) external view returns (uint256);
-
-    /**
-     * @dev Sets `amount` as the allowance of `spender` over the caller's tokens.
-     *
-     * Returns a boolean value indicating whether the operation succeeded.
-     *
-     * IMPORTANT: Beware that changing an allowance with this method brings the risk
-     * that someone may use both the old and the new allowance by unfortunate
-     * transaction ordering. One possible solution to mitigate this race
-     * condition is to first reduce the spender's allowance to 0 and set the
-     * desired value afterwards:
-     * https://github.com/ethereum/EIPs/issues/20#issuecomment-263524729
-     *
-     * Emits an {Approval} event.
-     */
-    function approve(address spender, uint256 amount) external returns (bool);
-
-    /**
-     * @dev Moves `amount` tokens from `from` to `to` using the
-     * allowance mechanism. `amount` is then deducted from the caller's
-     * allowance.
-     *
-     * Returns a boolean value indicating whether the operation succeeded.
-     *
-     * Emits a {Transfer} event.
-     */
-    function transferFrom(address from, address to, uint256 amount) external returns (bool);
-}
 
 /**
- * @dev Interface of the ERC20 Permit extension allowing approvals to be made via signatures, as defined in
- * https://eips.ethereum.org/EIPS/eip-2612[EIP-2612].
+ * @dev Provides information about the current execution context, including the
+ * sender of the transaction and its data. While these are generally available
+ * via msg.sender and msg.data, they should not be accessed in such a direct
+ * manner, since when dealing with meta-transactions the account sending and
+ * paying for execution may not be the actual sender (as far as an application
+ * is concerned).
  *
- * Adds the {permit} method, which can be used to change an account's ERC20 allowance (see {IERC20-allowance}) by
- * presenting a message signed by the account. By not relying on {IERC20-approve}, the token holder account doesn't
- * need to send a transaction, and thus is not required to hold Ether at all.
- *
- * ==== Security Considerations
- *
- * There are two important considerations concerning the use of `permit`. The first is that a valid permit signature
- * expresses an allowance, and it should not be assumed to convey additional meaning. In particular, it should not be
- * considered as an intention to spend the allowance in any specific way. The second is that because permits have
- * built-in replay protection and can be submitted by anyone, they can be frontrun. A protocol that uses permits should
- * take this into consideration and allow a `permit` call to fail. Combining these two aspects, a pattern that may be
- * generally recommended is:
- *
- * ```solidity
- * function doThingWithPermit(..., uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s) public {
- *     try token.permit(msg.sender, address(this), value, deadline, v, r, s) {} catch {}
- *     doThing(..., value);
- * }
- *
- * function doThing(..., uint256 value) public {
- *     token.safeTransferFrom(msg.sender, address(this), value);
- *     ...
- * }
- * ```
- *
- * Observe that: 1) `msg.sender` is used as the owner, leaving no ambiguity as to the signer intent, and 2) the use of
- * `try/catch` allows the permit to fail and makes the code tolerant to frontrunning. (See also
- * {SafeERC20-safeTransferFrom}).
- *
- * Additionally, note that smart contract wallets (such as Argent or Safe) are not able to produce permit signatures, so
- * contracts should have entry points that don't rely on permit.
+ * This contract is only required for intermediate, library-like contracts.
  */
-interface IERC20Permit {
-    /**
-     * @dev Sets `value` as the allowance of `spender` over ``owner``'s tokens,
-     * given ``owner``'s signed approval.
-     *
-     * IMPORTANT: The same issues {IERC20-approve} has related to transaction
-     * ordering also apply here.
-     *
-     * Emits an {Approval} event.
-     *
-     * Requirements:
-     *
-     * - `spender` cannot be the zero address.
-     * - `deadline` must be a timestamp in the future.
-     * - `v`, `r` and `s` must be a valid `secp256k1` signature from `owner`
-     * over the EIP712-formatted function arguments.
-     * - the signature must use ``owner``'s current nonce (see {nonces}).
-     *
-     * For more information on the signature format, see the
-     * https://eips.ethereum.org/EIPS/eip-2612#specification[relevant EIP
-     * section].
-     *
-     * CAUTION: See Security Considerations above.
-     */
-    function permit(
-        address owner,
-        address spender,
-        uint256 value,
-        uint256 deadline,
-        uint8 v,
-        bytes32 r,
-        bytes32 s
-    ) external;
+abstract contract Context {
+    function _msgSender() internal view virtual returns (address) {
+        return msg.sender;
+    }
 
-    /**
-     * @dev Returns the current nonce for `owner`. This value must be
-     * included whenever a signature is generated for {permit}.
-     *
-     * Every successful call to {permit} increases ``owner``'s nonce by one. This
-     * prevents a signature from being used multiple times.
-     */
-    function nonces(address owner) external view returns (uint256);
+    function _msgData() internal view virtual returns (bytes calldata) {
+        return msg.data;
+    }
 
-    /**
-     * @dev Returns the domain separator used in the encoding of the signature for {permit}, as defined by {EIP712}.
-     */
-    // solhint-disable-next-line func-name-mixedcase
-    function DOMAIN_SEPARATOR() external view returns (bytes32);
+    function _contextSuffixLength() internal view virtual returns (uint256) {
+        return 0;
+    }
 }
-
 
 /**
  * @dev Collection of functions related to the address type
@@ -501,6 +341,80 @@ library Address {
 }
 
 /**
+ * @dev Interface of the ERC20 standard as defined in the EIP.
+ */
+interface IERC20 {
+    /**
+     * @dev Emitted when `value` tokens are moved from one account (`from`) to
+     * another (`to`).
+     *
+     * Note that `value` may be zero.
+     */
+    event Transfer(address indexed from, address indexed to, uint256 value);
+
+    /**
+     * @dev Emitted when the allowance of a `spender` for an `owner` is set by
+     * a call to {approve}. `value` is the new allowance.
+     */
+    event Approval(address indexed owner, address indexed spender, uint256 value);
+
+    /**
+     * @dev Returns the amount of tokens in existence.
+     */
+    function totalSupply() external view returns (uint256);
+
+    /**
+     * @dev Returns the amount of tokens owned by `account`.
+     */
+    function balanceOf(address account) external view returns (uint256);
+
+    /**
+     * @dev Moves `amount` tokens from the caller's account to `to`.
+     *
+     * Returns a boolean value indicating whether the operation succeeded.
+     *
+     * Emits a {Transfer} event.
+     */
+    function transfer(address to, uint256 amount) external returns (bool);
+
+    /**
+     * @dev Returns the remaining number of tokens that `spender` will be
+     * allowed to spend on behalf of `owner` through {transferFrom}. This is
+     * zero by default.
+     *
+     * This value changes when {approve} or {transferFrom} are called.
+     */
+    function allowance(address owner, address spender) external view returns (uint256);
+
+    /**
+     * @dev Sets `amount` as the allowance of `spender` over the caller's tokens.
+     *
+     * Returns a boolean value indicating whether the operation succeeded.
+     *
+     * IMPORTANT: Beware that changing an allowance with this method brings the risk
+     * that someone may use both the old and the new allowance by unfortunate
+     * transaction ordering. One possible solution to mitigate this race
+     * condition is to first reduce the spender's allowance to 0 and set the
+     * desired value afterwards:
+     * https://github.com/ethereum/EIPs/issues/20#issuecomment-263524729
+     *
+     * Emits an {Approval} event.
+     */
+    function approve(address spender, uint256 amount) external returns (bool);
+
+    /**
+     * @dev Moves `amount` tokens from `from` to `to` using the
+     * allowance mechanism. `amount` is then deducted from the caller's
+     * allowance.
+     *
+     * Returns a boolean value indicating whether the operation succeeded.
+     *
+     * Emits a {Transfer} event.
+     */
+    function transferFrom(address from, address to, uint256 amount) external returns (bool);
+}
+
+/**
  * @title SafeERC20
  * @dev Wrappers around ERC20 operations that throw on failure (when the token
  * contract returns false). Tokens that return no value (and instead revert or
@@ -582,26 +496,6 @@ library SafeERC20 {
     }
 
     /**
-     * @dev Use a ERC-2612 signature to set the `owner` approval toward `spender` on `token`.
-     * Revert on invalid signature.
-     */
-    function safePermit(
-        IERC20Permit token,
-        address owner,
-        address spender,
-        uint256 value,
-        uint256 deadline,
-        uint8 v,
-        bytes32 r,
-        bytes32 s
-    ) internal {
-        uint256 nonceBefore = token.nonces(owner);
-        token.permit(owner, spender, value, deadline, v, r, s);
-        uint256 nonceAfter = token.nonces(owner);
-        require(nonceAfter == nonceBefore + 1, "SafeERC20: permit did not succeed");
-    }
-
-    /**
      * @dev Imitates a Solidity high-level call (i.e. a regular function call to a contract), relaxing the requirement
      * on the return value: the return value is optional (but if data is returned, it must not be false).
      * @param token The token targeted by the call.
@@ -632,83 +526,6 @@ library SafeERC20 {
         (bool success, bytes memory returndata) = address(token).call(data);
         return
             success && (returndata.length == 0 || abi.decode(returndata, (bool))) && Address.isContract(address(token));
-    }
-}
-
-/**
- * @dev Contract module which provides a basic access control mechanism, where
- * there is an account (an owner) that can be granted exclusive access to
- * specific functions.
- *
- * By default, the owner account will be the one that deploys the contract. This
- * can later be changed with {transferOwnership}.
- *
- * This module is used through inheritance. It will make available the modifier
- * `onlyOwner`, which can be applied to your functions to restrict their use to
- * the owner.
- */
-abstract contract Ownable is Context {
-    address private _owner;
-
-    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
-
-    /**
-     * @dev Initializes the contract setting the deployer as the initial owner.
-     */
-    constructor() {
-        _transferOwnership(_msgSender());
-    }
-
-    /**
-     * @dev Throws if called by any account other than the owner.
-     */
-    modifier onlyOwner() {
-        _checkOwner();
-        _;
-    }
-
-    /**
-     * @dev Returns the address of the current owner.
-     */
-    function owner() public view virtual returns (address) {
-        return _owner;
-    }
-
-    /**
-     * @dev Throws if the sender is not the owner.
-     */
-    function _checkOwner() internal view virtual {
-        require(owner() == _msgSender(), "Ownable: caller is not the owner");
-    }
-
-    /**
-     * @dev Leaves the contract without owner. It will not be possible to call
-     * `onlyOwner` functions. Can only be called by the current owner.
-     *
-     * NOTE: Renouncing ownership will leave the contract without an owner,
-     * thereby disabling any functionality that is only available to the owner.
-     */
-    function renounceOwnership() public virtual onlyOwner {
-        _transferOwnership(address(0));
-    }
-
-    /**
-     * @dev Transfers ownership of the contract to a new account (`newOwner`).
-     * Can only be called by the current owner.
-     */
-    function transferOwnership(address newOwner) public virtual onlyOwner {
-        require(newOwner != address(0), "Ownable: new owner is the zero address");
-        _transferOwnership(newOwner);
-    }
-
-    /**
-     * @dev Transfers ownership of the contract to a new account (`newOwner`).
-     * Internal function without access restriction.
-     */
-    function _transferOwnership(address newOwner) internal virtual {
-        address oldOwner = _owner;
-        _owner = newOwner;
-        emit OwnershipTransferred(oldOwner, newOwner);
     }
 }
 
@@ -825,220 +642,312 @@ abstract contract Pausable is Context {
     }
 }
 
-interface ITreasury {
-    function epoch() external view returns (uint256);
+/**
+ * @dev Contract module which provides a basic access control mechanism, where
+ * there is an account (an owner) that can be granted exclusive access to
+ * specific functions.
+ *
+ * By default, the owner account will be the one that deploys the contract. This
+ * can later be changed with {transferOwnership}.
+ *
+ * This module is used through inheritance. It will make available the modifier
+ * `onlyOwner`, which can be applied to your functions to restrict their use to
+ * the owner.
+ */
+abstract contract Ownable is Context {
+    address private _owner;
 
-    function nextEpochPoint() external view returns (uint256);
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
-    function getFavorPrice() external view returns (uint256);
+    /**
+     * @dev Initializes the contract setting the deployer as the initial owner.
+     */
+    constructor() {
+        _transferOwnership(_msgSender());
+    }
+
+    /**
+     * @dev Throws if called by any account other than the owner.
+     */
+    modifier onlyOwner() {
+        _checkOwner();
+        _;
+    }
+
+    /**
+     * @dev Returns the address of the current owner.
+     */
+    function owner() public view virtual returns (address) {
+        return _owner;
+    }
+
+    /**
+     * @dev Throws if the sender is not the owner.
+     */
+    function _checkOwner() internal view virtual {
+        require(owner() == _msgSender(), "Ownable: caller is not the owner");
+    }
+
+    /**
+     * @dev Leaves the contract without owner. It will not be possible to call
+     * `onlyOwner` functions. Can only be called by the current owner.
+     *
+     * NOTE: Renouncing ownership will leave the contract without an owner,
+     * thereby disabling any functionality that is only available to the owner.
+     */
+    function renounceOwnership() public virtual onlyOwner {
+        _transferOwnership(address(0));
+    }
+
+    /**
+     * @dev Transfers ownership of the contract to a new account (`newOwner`).
+     * Can only be called by the current owner.
+     */
+    function transferOwnership(address newOwner) public virtual onlyOwner {
+        require(newOwner != address(0), "Ownable: new owner is the zero address");
+        _transferOwnership(newOwner);
+    }
+
+    /**
+     * @dev Transfers ownership of the contract to a new account (`newOwner`).
+     * Internal function without access restriction.
+     */
+    function _transferOwnership(address newOwner) internal virtual {
+        address oldOwner = _owner;
+        _owner = newOwner;
+        emit OwnershipTransferred(oldOwner, newOwner);
+    }
 }
 
-contract ShareWrapper {
-    using SafeERC20 for IERC20;
-
-    IERC20 public esteem;
-
-    uint256 private _totalSupply;
-    mapping(address => uint256) private _balances;
-
-    function totalSupply() public view returns (uint256) {
-        return _totalSupply;
-    }
-
-    function balanceOf(address account) public view returns (uint256) {
-        return _balances[account];
-    }
-
-    function stake(uint256 amount) public virtual {
-        _totalSupply += amount;
-        _balances[msg.sender] += amount;
-        esteem.safeTransferFrom(msg.sender, address(this), amount);
-    }
-
-    function withdraw(uint256 amount) public virtual {
-        uint256 groveUserEsteem = _balances[msg.sender];
-        require(groveUserEsteem >= amount, "Grove: withdraw request greater than staked amount");
-        _totalSupply -= amount;
-        _balances[msg.sender] = groveUserEsteem - amount;
-        esteem.safeTransfer(msg.sender, amount);
-    }
+interface BBToken {
+    function mint(address recipient, uint256 amount) external;
+    function burnFrom(address from, uint256 amount) external;
 }
 
-contract Staking is ShareWrapper, Ownable, ReentrancyGuard, Pausable {
+interface IOracle {
+    function consult(address _token, uint256 _amountIn) external view returns (uint144 amountOut);
+}
+
+interface IPriceFeed {
+    function latestRoundData() external view
+        returns (
+        uint80 roundId,
+        int256 answer,
+        uint256 startedAt,
+        uint256 updatedAt,
+        uint80 answeredInRound
+        );
+}
+
+contract MintRedeemer is Ownable, ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;
 
-    uint256 public constant MAX_HISTORY = 10000;
-    uint256 public historyStart;
-    uint256 public historyEnd;
+    uint256 public constant MULTIPLIER = 10000;
 
-    struct GroveSeat {
-        uint256 lastSnapshotIndex;
-        uint256 rewardEarned;
-    }
+    IERC20 public usdt;   
+    BBToken public favorETH; 
+    BBToken public favorUSDT; 
+    BBToken public esteem; 
 
-    struct GroveSnapshot {
-        uint256 time;
-        uint256 rewardReceived;
-        uint256 rewardPerShare;
-    }
+    IPriceFeed public priceFeed; 
 
-    bool public initialized = false;
+    address public oracleETH;
+    address public oracleUSDT;
+    address public treasury;  // Treasury multisig wallet
+    address public keeper;
 
-    IERC20 public favor;
-    ITreasury public treasury;
-
-    mapping(uint256 => GroveSnapshot) public groveHistory;
-    mapping(address => GroveSeat) public grovers;
-
-    address public treasuryOperator;
-
-    event Initialized(address indexed executor, uint256 at);
-    event Staked(address indexed user, uint256 amount);
-    event Withdrawn(address indexed user, uint256 amount);
-    event RewardPaid(address indexed user, uint256 reward);
-    event RewardAdded(address indexed user, uint256 reward);
-    event TreasuryOperatorUpdated(address indexed newOperator);
-    event RecoveredUnsupportedToken(address indexed token, address indexed to, uint256 amount);
+    uint256 public esteemRate = 16 * 1e18;       // $16 per Esteem start price
+    uint256 public redeemRate = 7000;      // 70% in favor for Esteem redeemptions
+    uint256 public treasuryBonusRate = 2500; // 25% extra bonus minted to protocol treasury multisig on top of users minted amount 
+    uint256 public dailyRateIncrease = 0.25 ether;
+    uint256 public lastRateUpdateTimestamp = block.timestamp;
+    
+    event Minted(address indexed user, uint256 inputAmount, uint256 esteemAmount);
+    event Redeemed(address indexed user, uint256 esteemAmount, uint256 rewardAmount);
+    event keeperUpdated(address indexed newkeeper);
+    event RateUpdated(uint256 newRate);
+    event NewDailyRateIncrease(uint256 newRate);
+    event RedeemRateUpdated(uint256 newRate);
+    event TreasuryBonusUpdated(uint256 newBonus);
+    event USDTOracleUpdated(address indexed newOracle);
+    event ETHOracleUpdated(address indexed newOracle);
+    event ETHPriceFeedUpdated(address indexed newPriceFeed);
+    event TreasuryUpdated(address indexed newTreasury);
+    event AdminWithdraw(address indexed token, address indexed to, uint256 amount);
     event ContractPaused(address indexed admin);
     event ContractUnpaused(address indexed admin);
 
-    modifier groveUserExists {
-        require(balanceOf(msg.sender) > 0, "Grove: The user does not exist");
+    modifier onlyKeeper() {
+        require(msg.sender == keeper, "Not keeper");
         _;
     }
 
-    modifier updateReward(address groveUser) {
-        if (groveUser != address(0)) {
-            GroveSeat storage seat = grovers[groveUser];
-            seat.rewardEarned = earned(groveUser);
-            seat.lastSnapshotIndex  = latestSnapshotIndex();
-        }
-        _;
-    }
+    constructor(address _usdt, address _esteem, address _favorETH, address _favorUSDT, address _oracleETH, address _oracleUSDT, address _treasury) {
+        require(_usdt != address(0), "Invalid input token");
+        require(_esteem != address(0), "Invalid Esteem address");
+        require(_favorETH != address(0), "Invalid favor token");
+        require(_favorUSDT != address(0), "Invalid favor token");
+        require(_treasury != address(0), "Invalid treasury address");
 
-    modifier notInitialized {
-        require(!initialized, "Grove: already initialized");
-        _;
-    }
-
-    function initialize(
-        IERC20 _favor,
-        IERC20 _esteem,
-        ITreasury _treasury
-    ) public notInitialized onlyOwner {
-        require(address(_favor) != address(0), "Invalid Favor address");
-        require(address(_esteem) != address(0), "Invalid Esteem address");
-        require(address(_treasury) != address(0), "Invalid Treasury address");
-
-        favor = _favor;
-        esteem = _esteem;
+        usdt = IERC20(_usdt);
+        esteem = BBToken(_esteem);
+        favorETH = BBToken(_favorETH);
+        favorUSDT = BBToken(_favorUSDT);
+        oracleETH = _oracleETH;
+        oracleUSDT = _oracleUSDT;
         treasury = _treasury;
-        treasuryOperator = address(_treasury);
-
-        GroveSnapshot memory genesis = GroveSnapshot({ time: block.timestamp, rewardReceived: 0, rewardPerShare: 0 });
-        groveHistory[0] = genesis;
-        historyStart = 0;
-        historyEnd = 0;
-
-        initialized = true;
-        emit Initialized(msg.sender, block.timestamp);
+        keeper = msg.sender;
+        priceFeed = IPriceFeed(0xd30e2101a97dcbAeBCBC04F14C3f624E67A35165); // Chainlink ETH price feed sepolia
     }
 
-    function latestSnapshotIndex() public view returns (uint256) {
-        return historyEnd;
+    function mintEsteem(uint256 _amount) external nonReentrant whenNotPaused {
+        require(_amount > 0, "Amount must be > 0");
+        require(usdt.allowance(msg.sender, address(this)) >= _amount, "Insufficient allowance");
+
+        uint256 outputAmount = _calculateEsteemFromUSDT(_amount);
+        uint256 treasuryAmount = (outputAmount * treasuryBonusRate) / MULTIPLIER;
+
+        usdt.safeTransferFrom(msg.sender, treasury, _amount);
+        esteem.mint(msg.sender, outputAmount);
+        esteem.mint(treasury, treasuryAmount); // Treasury gets bonus mint of Esteem on every mint
+
+        emit Minted(msg.sender, _amount, outputAmount);
     }
 
-    function getLatestSnapshot() internal view returns (GroveSnapshot memory) {
-        return groveHistory[historyEnd];
+    function redeemFavor(uint256 _esteemAmount, BBToken _favorToken) external nonReentrant whenNotPaused {
+        require(_favorToken == favorETH || _favorToken == favorUSDT, "Unsupported favor token");
+        require(_esteemAmount > 0, "Amount must be > 0");
+
+        uint256 userAmount = _calculateRedeemAmounts(_esteemAmount, address(_favorToken));
+
+        esteem.burnFrom(msg.sender, _esteemAmount);
+
+        _favorToken.mint(msg.sender, userAmount);
+
+        emit Redeemed(msg.sender, _esteemAmount, userAmount);
     }
 
-    function getLastSnapshotOf(address user) internal view returns (GroveSnapshot storage) {
-        uint256 idx = grovers[user].lastSnapshotIndex;
-        if (idx < historyStart) { idx = historyStart; }
-        return groveHistory[idx];
+        // Calculates how much ESTEEM is minted for a given USDT amount (6 decimals input, 18 decimals output)
+    function _calculateEsteemFromUSDT(uint256 usdtAmount) internal view returns (uint256) {
+        return (usdtAmount * 1e30) / esteemRate;
     }
 
-    function epoch() external view returns (uint256) {
-        return treasury.epoch();
+    // Calculates user and treasury output for a given ESTEEM redemption into a Favor token
+    function _calculateRedeemAmounts(uint256 esteemAmount, address favorToken) internal view returns (uint256 userReceives) {
+        uint256 favorPrice = getFavorPrice(favorToken);
+        require(favorPrice > 0, "Invalid favor price");
+
+        if (favorToken == address(favorETH)) {
+            uint256 ethPrice = latestETHPrice();
+            favorPrice = (favorPrice * ethPrice) / 1e18;
+        }
+
+        uint256 esteemToFavor = (esteemAmount * esteemRate) / favorPrice;
+        userReceives = (esteemToFavor * redeemRate) / MULTIPLIER;
     }
 
-    function nextEpochPoint() external view returns (uint256) {
-        return treasury.nextEpochPoint();
+    // Public view mint function for UI
+    function previewMint(uint256 usdtAmount) external view returns (uint256) {
+        return _calculateEsteemFromUSDT(usdtAmount);
     }
 
-    function getFavorPrice() external view returns (uint256) {
-        return treasury.getFavorPrice();
+    // Public view redeem function for UI
+    function previewRedeem(uint256 esteemAmount, address favorToken) external view returns (uint256 userReceives) {
+        require(favorToken == address(favorETH) || favorToken == address(favorUSDT), "Unsupported token");
+        require(esteemAmount > 0, "Amount must be > 0");
+        return _calculateRedeemAmounts(esteemAmount, favorToken);
     }
 
-    function rewardPerShare() public view returns (uint256) {
-        return getLatestSnapshot().rewardPerShare;
-    }
-
-    function earned(address groveUser) public view returns (uint256) {
-        uint256 latestRPS = getLatestSnapshot().rewardPerShare;
-        uint256 storedRPS = getLastSnapshotOf(groveUser).rewardPerShare;
-
-        return (balanceOf(groveUser) * (latestRPS - storedRPS)) / 1e18 + grovers[groveUser].rewardEarned;
-    }
-
-    function stake(uint256 amount) public override nonReentrant updateReward(msg.sender) whenNotPaused {
-        require(amount > 0, "Grove: Cannot stake 0");
-        super.stake(amount);
-        emit Staked(msg.sender, amount);
-    }
-
-    function withdraw(uint256 amount) public override nonReentrant groveUserExists updateReward(msg.sender) whenNotPaused {
-        require(amount > 0, "Grove: Cannot withdraw 0");
-        claimReward();
-        super.withdraw(amount);
-        emit Withdrawn(msg.sender, amount);
-    }
-
-    function exit() external {
-        withdraw(balanceOf(msg.sender));
-    }
-
-    function claimReward() public updateReward(msg.sender) {
-        uint256 reward = grovers[msg.sender].rewardEarned;
-        if (reward > 0) {
-            grovers[msg.sender].rewardEarned = 0;
-            favor.safeTransfer(msg.sender, reward);
-            emit RewardPaid(msg.sender, reward);
+    function getFavorPrice(address _favorToken) public view returns (uint256 updatedPrice) {
+        address _oracle = _getOracle(_favorToken);
+        
+        try IOracle(_oracle).consult(_favorToken, 1e18) returns (uint144 twapPrice) {
+            return uint256(twapPrice);
+        } catch {
+            revert("Failed to consult price from the oracle");
         }
     }
 
-    function allocateSeigniorage(uint256 amount) external nonReentrant whenNotPaused {
-        require(msg.sender == owner() || msg.sender == treasuryOperator, "Not authorized");
-        require(amount > 0, "Grove: Cannot allocate 0");
-        require(totalSupply() > 0, "Grove: Cannot allocate when totalSupply is 0");
-
-        // Create & add new snapshot
-        uint256 prevRPS = getLatestSnapshot().rewardPerShare;
-        uint256 nextRPS = prevRPS + ((amount * 1e18) / totalSupply());
-
-        historyEnd += 1;
-        groveHistory[historyEnd] = GroveSnapshot({ time: block.timestamp, rewardReceived: amount, rewardPerShare: nextRPS });
-
-        if (historyEnd - historyStart + 1 > MAX_HISTORY) {
-            delete groveHistory[historyStart];
-            historyStart += 1;
-        }
-
-        favor.safeTransferFrom(msg.sender, address(this), amount);
-        emit RewardAdded(msg.sender, amount);
+    function _getOracle(address token) internal view returns (address) {
+        return token == address(favorETH) ? oracleETH : oracleUSDT;
     }
 
-    function setTreasuryOperator(address _treasuryOperator) external onlyOwner {
-        require(_treasuryOperator != address(0), "Grove: zero address");
-        treasuryOperator = _treasuryOperator;
-        emit TreasuryOperatorUpdated(_treasuryOperator);
+    function latestETHPrice() public view returns (uint256) {
+        (
+            ,               // uint80 roundID
+            int256 answer,  // this is the price
+            ,               // uint256 startedAt
+            ,               // uint256 updatedAt
+            // uint80 answeredInRound
+        ) = priceFeed.latestRoundData();
+
+        require(answer > 0, "Invalid ETH price from Chainlink");
+        return uint256(answer) * 10**10;
     }
 
-    function governanceRecoverUnsupported(IERC20 _token, uint256 _amount, address _to) external onlyOwner {
-        require(address(_token) != address(favor), "Cannot remove FAVOR tokens");
-        require(address(_token) != address(esteem), "Cannot remove ESTEEM tokens");
+    function updateEsteemRate() external onlyKeeper {
+        require(block.timestamp >= lastRateUpdateTimestamp + 1 days, "Already updated today");
+        esteemRate += dailyRateIncrease;
+        lastRateUpdateTimestamp = block.timestamp;
+        emit RateUpdated(esteemRate);
+    }
+
+    function setKeeper(address _address) external onlyOwner {
+        keeper = _address;
+        emit keeperUpdated(_address);
+    }
+
+    function setDailyRateIncrease(uint256 _newRate) external onlyOwner {
+        dailyRateIncrease = _newRate;
+        emit NewDailyRateIncrease(_newRate);
+    }
+
+    function setUSDTOracle(address _address) external onlyOwner {
+        require(_address != address(0), "Invalid Oracle address");
+        oracleUSDT = _address;
+        emit USDTOracleUpdated(_address);
+    }
+
+    function setETHOracle(address _address) external onlyOwner {
+        require(_address != address(0), "Invalid Oracle address");
+        oracleETH = _address;
+        emit ETHOracleUpdated(_address);
+    }
+
+    function setETHPriceFeed(IPriceFeed _address) external onlyOwner {
+        require(address(_address) != address(0), "Invalid price feed address");
+        priceFeed = _address;
+        emit ETHPriceFeedUpdated(address(_address));
+    }
+
+    function setEsteemRate(uint256 _rate) external onlyOwner {
+        require(_rate > 0, "Esteem Rate must be > 0");
+        esteemRate = _rate;
+        emit RateUpdated(_rate);
+    }
+
+    function setRedeemRate(uint256 _redeemRate) external onlyOwner {
+        require(_redeemRate <= MULTIPLIER, "Cannot exceed 100%");
+        redeemRate = _redeemRate;
+        emit RedeemRateUpdated(_redeemRate);
+    }
+
+    function setTreasuryBonus(uint256 _treasuryBonusRate) external onlyOwner {
+        treasuryBonusRate = _treasuryBonusRate;
+        emit TreasuryBonusUpdated(_treasuryBonusRate);
+    }
+
+    function setTreasury(address _treasury) external onlyOwner {
+        require(_treasury != address(0), "Invalid Treasury address");
+        treasury = _treasury;
+        emit TreasuryUpdated(_treasury);
+    }
+
+    // Admin withdraw incase of stuck tokens or migration needed
+    function adminWithdraw(IERC20 _token, address _to, uint256 _amount) external onlyOwner {
+        require(_to != address(0), "Invalid address");
         _token.safeTransfer(_to, _amount);
-        emit RecoveredUnsupportedToken(address(_token), _to, _amount);
+        emit AdminWithdraw(address(_token), _to, _amount);
     }
 
     function pause() external onlyOwner {
@@ -1050,4 +959,5 @@ contract Staking is ShareWrapper, Ownable, ReentrancyGuard, Pausable {
         _unpause();
         emit ContractUnpaused(msg.sender);
     }
+
 }

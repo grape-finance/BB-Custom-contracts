@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity 0.8.20;
+pragma solidity ^0.8.20;
 
 /**
  * @dev Provides information about the current execution context, including the
@@ -98,82 +98,167 @@ abstract contract ReentrancyGuard {
         return _status == _ENTERED;
     }
 }
+
 /**
- * @dev Contract module which provides a basic access control mechanism, where
- * there is an account (an owner) that can be granted exclusive access to
- * specific functions.
- *
- * By default, the owner account will be the one that deploys the contract. This
- * can later be changed with {transferOwnership}.
- *
- * This module is used through inheritance. It will make available the modifier
- * `onlyOwner`, which can be applied to your functions to restrict their use to
- * the owner.
+ * @dev Interface of the ERC20 standard as defined in the EIP.
  */
-abstract contract Ownable is Context {
-    address private _owner;
-
-    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
-
+interface IERC20 {
     /**
-     * @dev Initializes the contract setting the deployer as the initial owner.
-     */
-    constructor() {
-        _transferOwnership(_msgSender());
-    }
-
-    /**
-     * @dev Throws if called by any account other than the owner.
-     */
-    modifier onlyOwner() {
-        _checkOwner();
-        _;
-    }
-
-    /**
-     * @dev Returns the address of the current owner.
-     */
-    function owner() public view virtual returns (address) {
-        return _owner;
-    }
-
-    /**
-     * @dev Throws if the sender is not the owner.
-     */
-    function _checkOwner() internal view virtual {
-        require(owner() == _msgSender(), "Ownable: caller is not the owner");
-    }
-
-    /**
-     * @dev Leaves the contract without owner. It will not be possible to call
-     * `onlyOwner` functions. Can only be called by the current owner.
+     * @dev Emitted when `value` tokens are moved from one account (`from`) to
+     * another (`to`).
      *
-     * NOTE: Renouncing ownership will leave the contract without an owner,
-     * thereby disabling any functionality that is only available to the owner.
+     * Note that `value` may be zero.
      */
-    function renounceOwnership() public virtual onlyOwner {
-        _transferOwnership(address(0));
-    }
+    event Transfer(address indexed from, address indexed to, uint256 value);
 
     /**
-     * @dev Transfers ownership of the contract to a new account (`newOwner`).
-     * Can only be called by the current owner.
+     * @dev Emitted when the allowance of a `spender` for an `owner` is set by
+     * a call to {approve}. `value` is the new allowance.
      */
-    function transferOwnership(address newOwner) public virtual onlyOwner {
-        require(newOwner != address(0), "Ownable: new owner is the zero address");
-        _transferOwnership(newOwner);
-    }
+    event Approval(address indexed owner, address indexed spender, uint256 value);
 
     /**
-     * @dev Transfers ownership of the contract to a new account (`newOwner`).
-     * Internal function without access restriction.
+     * @dev Returns the amount of tokens in existence.
      */
-    function _transferOwnership(address newOwner) internal virtual {
-        address oldOwner = _owner;
-        _owner = newOwner;
-        emit OwnershipTransferred(oldOwner, newOwner);
-    }
+    function totalSupply() external view returns (uint256);
+
+    /**
+     * @dev Returns the amount of tokens owned by `account`.
+     */
+    function balanceOf(address account) external view returns (uint256);
+
+    /**
+     * @dev Moves `amount` tokens from the caller's account to `to`.
+     *
+     * Returns a boolean value indicating whether the operation succeeded.
+     *
+     * Emits a {Transfer} event.
+     */
+    function transfer(address to, uint256 amount) external returns (bool);
+
+    /**
+     * @dev Returns the remaining number of tokens that `spender` will be
+     * allowed to spend on behalf of `owner` through {transferFrom}. This is
+     * zero by default.
+     *
+     * This value changes when {approve} or {transferFrom} are called.
+     */
+    function allowance(address owner, address spender) external view returns (uint256);
+
+    /**
+     * @dev Sets `amount` as the allowance of `spender` over the caller's tokens.
+     *
+     * Returns a boolean value indicating whether the operation succeeded.
+     *
+     * IMPORTANT: Beware that changing an allowance with this method brings the risk
+     * that someone may use both the old and the new allowance by unfortunate
+     * transaction ordering. One possible solution to mitigate this race
+     * condition is to first reduce the spender's allowance to 0 and set the
+     * desired value afterwards:
+     * https://github.com/ethereum/EIPs/issues/20#issuecomment-263524729
+     *
+     * Emits an {Approval} event.
+     */
+    function approve(address spender, uint256 amount) external returns (bool);
+
+    /**
+     * @dev Moves `amount` tokens from `from` to `to` using the
+     * allowance mechanism. `amount` is then deducted from the caller's
+     * allowance.
+     *
+     * Returns a boolean value indicating whether the operation succeeded.
+     *
+     * Emits a {Transfer} event.
+     */
+    function transferFrom(address from, address to, uint256 amount) external returns (bool);
 }
+
+/**
+ * @dev Interface of the ERC20 Permit extension allowing approvals to be made via signatures, as defined in
+ * https://eips.ethereum.org/EIPS/eip-2612[EIP-2612].
+ *
+ * Adds the {permit} method, which can be used to change an account's ERC20 allowance (see {IERC20-allowance}) by
+ * presenting a message signed by the account. By not relying on {IERC20-approve}, the token holder account doesn't
+ * need to send a transaction, and thus is not required to hold Ether at all.
+ *
+ * ==== Security Considerations
+ *
+ * There are two important considerations concerning the use of `permit`. The first is that a valid permit signature
+ * expresses an allowance, and it should not be assumed to convey additional meaning. In particular, it should not be
+ * considered as an intention to spend the allowance in any specific way. The second is that because permits have
+ * built-in replay protection and can be submitted by anyone, they can be frontrun. A protocol that uses permits should
+ * take this into consideration and allow a `permit` call to fail. Combining these two aspects, a pattern that may be
+ * generally recommended is:
+ *
+ * ```solidity
+ * function doThingWithPermit(..., uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s) public {
+ *     try token.permit(msg.sender, address(this), value, deadline, v, r, s) {} catch {}
+ *     doThing(..., value);
+ * }
+ *
+ * function doThing(..., uint256 value) public {
+ *     token.safeTransferFrom(msg.sender, address(this), value);
+ *     ...
+ * }
+ * ```
+ *
+ * Observe that: 1) `msg.sender` is used as the owner, leaving no ambiguity as to the signer intent, and 2) the use of
+ * `try/catch` allows the permit to fail and makes the code tolerant to frontrunning. (See also
+ * {SafeERC20-safeTransferFrom}).
+ *
+ * Additionally, note that smart contract wallets (such as Argent or Safe) are not able to produce permit signatures, so
+ * contracts should have entry points that don't rely on permit.
+ */
+interface IERC20Permit {
+    /**
+     * @dev Sets `value` as the allowance of `spender` over ``owner``'s tokens,
+     * given ``owner``'s signed approval.
+     *
+     * IMPORTANT: The same issues {IERC20-approve} has related to transaction
+     * ordering also apply here.
+     *
+     * Emits an {Approval} event.
+     *
+     * Requirements:
+     *
+     * - `spender` cannot be the zero address.
+     * - `deadline` must be a timestamp in the future.
+     * - `v`, `r` and `s` must be a valid `secp256k1` signature from `owner`
+     * over the EIP712-formatted function arguments.
+     * - the signature must use ``owner``'s current nonce (see {nonces}).
+     *
+     * For more information on the signature format, see the
+     * https://eips.ethereum.org/EIPS/eip-2612#specification[relevant EIP
+     * section].
+     *
+     * CAUTION: See Security Considerations above.
+     */
+    function permit(
+        address owner,
+        address spender,
+        uint256 value,
+        uint256 deadline,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) external;
+
+    /**
+     * @dev Returns the current nonce for `owner`. This value must be
+     * included whenever a signature is generated for {permit}.
+     *
+     * Every successful call to {permit} increases ``owner``'s nonce by one. This
+     * prevents a signature from being used multiple times.
+     */
+    function nonces(address owner) external view returns (uint256);
+
+    /**
+     * @dev Returns the domain separator used in the encoding of the signature for {permit}, as defined by {EIP712}.
+     */
+    // solhint-disable-next-line func-name-mixedcase
+    function DOMAIN_SEPARATOR() external view returns (bytes32);
+}
+
 
 /**
  * @dev Collection of functions related to the address type
@@ -416,166 +501,6 @@ library Address {
 }
 
 /**
- * @dev Interface of the ERC20 standard as defined in the EIP.
- */
-interface IERC20 {
-    /**
-     * @dev Emitted when `value` tokens are moved from one account (`from`) to
-     * another (`to`).
-     *
-     * Note that `value` may be zero.
-     */
-    event Transfer(address indexed from, address indexed to, uint256 value);
-
-    /**
-     * @dev Emitted when the allowance of a `spender` for an `owner` is set by
-     * a call to {approve}. `value` is the new allowance.
-     */
-    event Approval(address indexed owner, address indexed spender, uint256 value);
-
-    /**
-     * @dev Returns the amount of tokens in existence.
-     */
-    function totalSupply() external view returns (uint256);
-
-    /**
-     * @dev Returns the amount of tokens owned by `account`.
-     */
-    function balanceOf(address account) external view returns (uint256);
-
-    /**
-     * @dev Moves `amount` tokens from the caller's account to `to`.
-     *
-     * Returns a boolean value indicating whether the operation succeeded.
-     *
-     * Emits a {Transfer} event.
-     */
-    function transfer(address to, uint256 amount) external returns (bool);
-
-    /**
-     * @dev Returns the remaining number of tokens that `spender` will be
-     * allowed to spend on behalf of `owner` through {transferFrom}. This is
-     * zero by default.
-     *
-     * This value changes when {approve} or {transferFrom} are called.
-     */
-    function allowance(address owner, address spender) external view returns (uint256);
-
-    /**
-     * @dev Sets `amount` as the allowance of `spender` over the caller's tokens.
-     *
-     * Returns a boolean value indicating whether the operation succeeded.
-     *
-     * IMPORTANT: Beware that changing an allowance with this method brings the risk
-     * that someone may use both the old and the new allowance by unfortunate
-     * transaction ordering. One possible solution to mitigate this race
-     * condition is to first reduce the spender's allowance to 0 and set the
-     * desired value afterwards:
-     * https://github.com/ethereum/EIPs/issues/20#issuecomment-263524729
-     *
-     * Emits an {Approval} event.
-     */
-    function approve(address spender, uint256 amount) external returns (bool);
-
-    /**
-     * @dev Moves `amount` tokens from `from` to `to` using the
-     * allowance mechanism. `amount` is then deducted from the caller's
-     * allowance.
-     *
-     * Returns a boolean value indicating whether the operation succeeded.
-     *
-     * Emits a {Transfer} event.
-     */
-    function transferFrom(address from, address to, uint256 amount) external returns (bool);
-}
-
-/**
- * @dev Interface of the ERC20 Permit extension allowing approvals to be made via signatures, as defined in
- * https://eips.ethereum.org/EIPS/eip-2612[EIP-2612].
- *
- * Adds the {permit} method, which can be used to change an account's ERC20 allowance (see {IERC20-allowance}) by
- * presenting a message signed by the account. By not relying on {IERC20-approve}, the token holder account doesn't
- * need to send a transaction, and thus is not required to hold Ether at all.
- *
- * ==== Security Considerations
- *
- * There are two important considerations concerning the use of `permit`. The first is that a valid permit signature
- * expresses an allowance, and it should not be assumed to convey additional meaning. In particular, it should not be
- * considered as an intention to spend the allowance in any specific way. The second is that because permits have
- * built-in replay protection and can be submitted by anyone, they can be frontrun. A protocol that uses permits should
- * take this into consideration and allow a `permit` call to fail. Combining these two aspects, a pattern that may be
- * generally recommended is:
- *
- * ```solidity
- * function doThingWithPermit(..., uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s) public {
- *     try token.permit(msg.sender, address(this), value, deadline, v, r, s) {} catch {}
- *     doThing(..., value);
- * }
- *
- * function doThing(..., uint256 value) public {
- *     token.safeTransferFrom(msg.sender, address(this), value);
- *     ...
- * }
- * ```
- *
- * Observe that: 1) `msg.sender` is used as the owner, leaving no ambiguity as to the signer intent, and 2) the use of
- * `try/catch` allows the permit to fail and makes the code tolerant to frontrunning. (See also
- * {SafeERC20-safeTransferFrom}).
- *
- * Additionally, note that smart contract wallets (such as Argent or Safe) are not able to produce permit signatures, so
- * contracts should have entry points that don't rely on permit.
- */
-interface IERC20Permit {
-    /**
-     * @dev Sets `value` as the allowance of `spender` over ``owner``'s tokens,
-     * given ``owner``'s signed approval.
-     *
-     * IMPORTANT: The same issues {IERC20-approve} has related to transaction
-     * ordering also apply here.
-     *
-     * Emits an {Approval} event.
-     *
-     * Requirements:
-     *
-     * - `spender` cannot be the zero address.
-     * - `deadline` must be a timestamp in the future.
-     * - `v`, `r` and `s` must be a valid `secp256k1` signature from `owner`
-     * over the EIP712-formatted function arguments.
-     * - the signature must use ``owner``'s current nonce (see {nonces}).
-     *
-     * For more information on the signature format, see the
-     * https://eips.ethereum.org/EIPS/eip-2612#specification[relevant EIP
-     * section].
-     *
-     * CAUTION: See Security Considerations above.
-     */
-    function permit(
-        address owner,
-        address spender,
-        uint256 value,
-        uint256 deadline,
-        uint8 v,
-        bytes32 r,
-        bytes32 s
-    ) external;
-
-    /**
-     * @dev Returns the current nonce for `owner`. This value must be
-     * included whenever a signature is generated for {permit}.
-     *
-     * Every successful call to {permit} increases ``owner``'s nonce by one. This
-     * prevents a signature from being used multiple times.
-     */
-    function nonces(address owner) external view returns (uint256);
-
-    /**
-     * @dev Returns the domain separator used in the encoding of the signature for {permit}, as defined by {EIP712}.
-     */
-    // solhint-disable-next-line func-name-mixedcase
-    function DOMAIN_SEPARATOR() external view returns (bytes32);
-}
-
-/**
  * @title SafeERC20
  * @dev Wrappers around ERC20 operations that throw on failure (when the token
  * contract returns false). Tokens that return no value (and instead revert or
@@ -710,6 +635,82 @@ library SafeERC20 {
     }
 }
 
+/**
+ * @dev Contract module which provides a basic access control mechanism, where
+ * there is an account (an owner) that can be granted exclusive access to
+ * specific functions.
+ *
+ * By default, the owner account will be the one that deploys the contract. This
+ * can later be changed with {transferOwnership}.
+ *
+ * This module is used through inheritance. It will make available the modifier
+ * `onlyOwner`, which can be applied to your functions to restrict their use to
+ * the owner.
+ */
+abstract contract Ownable is Context {
+    address private _owner;
+
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+
+    /**
+     * @dev Initializes the contract setting the deployer as the initial owner.
+     */
+    constructor() {
+        _transferOwnership(_msgSender());
+    }
+
+    /**
+     * @dev Throws if called by any account other than the owner.
+     */
+    modifier onlyOwner() {
+        _checkOwner();
+        _;
+    }
+
+    /**
+     * @dev Returns the address of the current owner.
+     */
+    function owner() public view virtual returns (address) {
+        return _owner;
+    }
+
+    /**
+     * @dev Throws if the sender is not the owner.
+     */
+    function _checkOwner() internal view virtual {
+        require(owner() == _msgSender(), "Ownable: caller is not the owner");
+    }
+
+    /**
+     * @dev Leaves the contract without owner. It will not be possible to call
+     * `onlyOwner` functions. Can only be called by the current owner.
+     *
+     * NOTE: Renouncing ownership will leave the contract without an owner,
+     * thereby disabling any functionality that is only available to the owner.
+     */
+    function renounceOwnership() public virtual onlyOwner {
+        _transferOwnership(address(0));
+    }
+
+    /**
+     * @dev Transfers ownership of the contract to a new account (`newOwner`).
+     * Can only be called by the current owner.
+     */
+    function transferOwnership(address newOwner) public virtual onlyOwner {
+        require(newOwner != address(0), "Ownable: new owner is the zero address");
+        _transferOwnership(newOwner);
+    }
+
+    /**
+     * @dev Transfers ownership of the contract to a new account (`newOwner`).
+     * Internal function without access restriction.
+     */
+    function _transferOwnership(address newOwner) internal virtual {
+        address oldOwner = _owner;
+        _owner = newOwner;
+        emit OwnershipTransferred(oldOwner, newOwner);
+    }
+}
 
 /**
  * @dev Contract module which allows children to implement an emergency stop
@@ -824,168 +825,220 @@ abstract contract Pausable is Context {
     }
 }
 
-interface IBasisAsset {
-    function mint(address recipient, uint256 amount) external;
+interface ITreasury {
+    function epoch() external view returns (uint256);
+
+    function nextEpochPoint() external view returns (uint256);
+
+    function getFavorPrice() external view returns (uint256);
 }
 
-
-interface IGrove {
-    function allocateSeigniorage(uint256 _amount) external;
-}
-
-interface IOracle {
-    function update() external;
-
-    function consult(address _token, uint256 _amountIn) external view returns (uint256 amountOut);
-
-    function twap(address _token, uint256 _amountIn) external view returns (uint256 _amountOut);
-}
-
-
-contract FavorTreasury is Ownable, ReentrancyGuard, Pausable {
+contract ShareWrapper {
     using SafeERC20 for IERC20;
 
-    uint256 public constant PERIOD = 1 hours;
-    uint256 public constant BASIS_DIVISOR = 100000; // 100%
+    IERC20 public esteem;
+
+    uint256 private _totalSupply;
+    mapping(address => uint256) private _balances;
+
+    function totalSupply() public view returns (uint256) {
+        return _totalSupply;
+    }
+
+    function balanceOf(address account) public view returns (uint256) {
+        return _balances[account];
+    }
+
+    function stake(uint256 amount) public virtual {
+        _totalSupply += amount;
+        _balances[msg.sender] += amount;
+        esteem.safeTransferFrom(msg.sender, address(this), amount);
+    }
+
+    function withdraw(uint256 amount) public virtual {
+        uint256 groveUserEsteem = _balances[msg.sender];
+        require(groveUserEsteem >= amount, "Grove: withdraw request greater than staked amount");
+        _totalSupply -= amount;
+        _balances[msg.sender] = groveUserEsteem - amount;
+        esteem.safeTransfer(msg.sender, amount);
+    }
+}
+
+contract Staking is ShareWrapper, Ownable, ReentrancyGuard, Pausable {
+    using SafeERC20 for IERC20;
+
+    uint256 public constant MAX_HISTORY = 10000;
+    uint256 public historyStart;
+    uint256 public historyEnd;
+
+    struct GroveSeat {
+        uint256 lastSnapshotIndex;
+        uint256 rewardEarned;
+    }
+
+    struct GroveSnapshot {
+        uint256 time;
+        uint256 rewardReceived;
+        uint256 rewardPerShare;
+    }
 
     bool public initialized = false;
 
-    uint256 public startTime;
-    uint256 public epoch = 0;
-    uint256 public totalExcludedAmount; // Total tokens excluded from circ supply calculation
+    IERC20 public favor;
+    ITreasury public treasury;
 
-    mapping(address => bool) public _isExcluded; // Excluded addresses mapping from circulating supply
+    mapping(uint256 => GroveSnapshot) public groveHistory;
+    mapping(address => GroveSeat) public grovers;
 
-    address public favor;
-
-    address public grove;
-    address public favorOracle;
-
-    uint256 public maxSupplyExpansionPercent = 3000; // 3%
-    uint256 public minSupplyExpansionPercent = 20; // 0.02%
-
-    address public daoFund;
-    uint256 public daoFundSharedPercent;
+    address public treasuryOperator;
 
     event Initialized(address indexed executor, uint256 at);
-    event GroveFunded(uint256 timestamp, uint256 seigniorage);
-    event DaoFundFunded(uint256 timestamp, uint256 seigniorage);
-    event GroveUpdated(address indexed newGrove);
-    event FavorOracleUpdated(address indexed newOracle);
-    event MaxSupplyExpansionPercentUpdated(uint256 newMaxExpansionPercent);
-    event MinSupplyExpansionPercentUpdated(uint256 newMinExpansionPercent);
-    event DaoFundUpdated(address indexed daoFund, uint256 daoFundSharedPercent);
+    event Staked(address indexed user, uint256 amount);
+    event Withdrawn(address indexed user, uint256 amount);
+    event RewardPaid(address indexed user, uint256 reward);
+    event RewardAdded(address indexed user, uint256 reward);
+    event TreasuryOperatorUpdated(address indexed newOperator);
+    event RecoveredUnsupportedToken(address indexed token, address indexed to, uint256 amount);
     event ContractPaused(address indexed admin);
     event ContractUnpaused(address indexed admin);
-    event ExcludedAddressAdded(address indexed excludedAddress, uint256 amount);
-    event ExcludedAddressRemoved(address indexed excludedAddress, uint256 amount);
-    event RecoveredUnsupportedToken(address indexed token, address indexed to, uint256 amount);
 
-    modifier checkCondition {
-        require(block.timestamp >= startTime, "Treasury: not started yet");
+    modifier groveUserExists {
+        require(balanceOf(msg.sender) > 0, "Grove: The user does not exist");
         _;
     }
 
-    modifier checkEpoch {
-        require(block.timestamp >= nextEpochPoint(), "Treasury: not opened yet");
+    modifier updateReward(address groveUser) {
+        if (groveUser != address(0)) {
+            GroveSeat storage seat = grovers[groveUser];
+            seat.rewardEarned = earned(groveUser);
+            seat.lastSnapshotIndex  = latestSnapshotIndex();
+        }
         _;
-
-        epoch = epoch + 1;
     }
 
     modifier notInitialized {
-        require(!initialized, "Treasury: already initialized");
+        require(!initialized, "Grove: already initialized");
         _;
     }
 
-    function isInitialized() public view returns (bool) {
-        return initialized;
-    }
-  
-    function nextEpochPoint() public view returns (uint256) {
-        return startTime + (epoch * PERIOD);
-    }
-
-    function getFavorPrice() public view returns (uint256 favorPrice) {
-        try IOracle(favorOracle).consult(favor, 1e18) returns (uint256 price) {
-            return uint256(price);
-        } catch {
-            revert("Treasury: failed to consult FAVOR price from the oracle");
-        }
-    }
-    // Returns rolling TWAP price for UI which is more likely to be prone to short term price fluctuations
-    function getFavorUpdatedPrice() public view returns (uint256 _favorPrice) {
-        try IOracle(favorOracle).twap(favor, 1e18) returns (uint256 price) {
-            return uint256(price);
-        } catch {
-            revert("Treasury: failed to consult FAVOR price from the oracle");
-        }
-    }
-
     function initialize(
-        address _favor,
-        address _favorOracle,
-        address _grove,
-        uint256 _startTime
+        IERC20 _favor,
+        IERC20 _esteem,
+        ITreasury _treasury
     ) public notInitialized onlyOwner {
-        require(_favor != address(0), "Invalid Favor address");
-        require(_favorOracle != address(0), "Invalid Oracle address");
-        require(_grove != address(0), "Invalid Grove address");
-        require(_startTime > block.timestamp, "Must start in future");
+        require(address(_favor) != address(0), "Invalid Favor address");
+        require(address(_esteem) != address(0), "Invalid Esteem address");
+        require(address(_treasury) != address(0), "Invalid Treasury address");
 
         favor = _favor;
-        favorOracle = _favorOracle;
-        grove = _grove;
-        startTime = _startTime;
+        esteem = _esteem;
+        treasury = _treasury;
+        treasuryOperator = address(_treasury);
+
+        GroveSnapshot memory genesis = GroveSnapshot({ time: block.timestamp, rewardReceived: 0, rewardPerShare: 0 });
+        groveHistory[0] = genesis;
+        historyStart = 0;
+        historyEnd = 0;
 
         initialized = true;
         emit Initialized(msg.sender, block.timestamp);
     }
 
-    function setGrove(address _grove) external onlyOwner {
-        require(_grove != address(0), "Invalid Grove address");
-        grove = _grove;
-        emit GroveUpdated(_grove);
+    function latestSnapshotIndex() public view returns (uint256) {
+        return historyEnd;
     }
 
-    function setFavorOracle(address _favorOracle) external onlyOwner {
-        require(_favorOracle != address(0), "Invalid Oracle address");
-        favorOracle = _favorOracle;
-        emit FavorOracleUpdated(_favorOracle);
+    function getLatestSnapshot() internal view returns (GroveSnapshot memory) {
+        return groveHistory[historyEnd];
     }
 
-    function setMaxSupplyExpansionPercents(uint256 _maxSupplyExpansionPercent) external onlyOwner {
-        require(_maxSupplyExpansionPercent >= 1 && _maxSupplyExpansionPercent <= 10000, "_maxSupplyExpansionPercent: out of range"); // [0.001%, 10%]
-        require(_maxSupplyExpansionPercent > minSupplyExpansionPercent, "max must be larger than min"); 
-        maxSupplyExpansionPercent = _maxSupplyExpansionPercent;
-        emit MaxSupplyExpansionPercentUpdated(_maxSupplyExpansionPercent);
+    function getLastSnapshotOf(address user) internal view returns (GroveSnapshot storage) {
+        uint256 idx = grovers[user].lastSnapshotIndex;
+        if (idx < historyStart) { idx = historyStart; }
+        return groveHistory[idx];
     }
 
-    function setMinSupplyExpansionPercents(uint256 _minSupplyExpansionPercent) external onlyOwner {
-        require(_minSupplyExpansionPercent >= 1 && _minSupplyExpansionPercent <= 10000, "_minSupplyExpansionPercent: out of range"); // [0.001%, 10%]
-        require(_minSupplyExpansionPercent < maxSupplyExpansionPercent, "min must be smaller than max"); 
-        minSupplyExpansionPercent = _minSupplyExpansionPercent;
-        emit MinSupplyExpansionPercentUpdated(_minSupplyExpansionPercent);
+    function epoch() external view returns (uint256) {
+        return treasury.epoch();
     }
 
-    function addExcludedAddress(address _addr) external onlyOwner {
-        require(!_isExcluded[_addr], "Address already excluded");
-        _isExcluded[_addr] = true;
-        IERC20 favorErc20 = IERC20(favor);
-        uint256 bal = favorErc20.balanceOf(_addr);
-        totalExcludedAmount += bal;
-
-        emit ExcludedAddressAdded(_addr, bal) ;
+    function nextEpochPoint() external view returns (uint256) {
+        return treasury.nextEpochPoint();
     }
 
-    function removeExcludedAddress(address _addr) external onlyOwner {
-        require(_isExcluded[_addr], "Address must be excluded");
-        _isExcluded[_addr] = false;
-        IERC20 favorErc20 = IERC20(favor);
-        uint256 bal = favorErc20.balanceOf(_addr);
-        totalExcludedAmount -= bal;
+    function getFavorPrice() external view returns (uint256) {
+        return treasury.getFavorPrice();
+    }
 
-        emit ExcludedAddressRemoved(_addr, bal);
+    function rewardPerShare() public view returns (uint256) {
+        return getLatestSnapshot().rewardPerShare;
+    }
+
+    function earned(address groveUser) public view returns (uint256) {
+        uint256 latestRPS = getLatestSnapshot().rewardPerShare;
+        uint256 storedRPS = getLastSnapshotOf(groveUser).rewardPerShare;
+
+        return (balanceOf(groveUser) * (latestRPS - storedRPS)) / 1e18 + grovers[groveUser].rewardEarned;
+    }
+
+    function stake(uint256 amount) public override nonReentrant updateReward(msg.sender) whenNotPaused {
+        require(amount > 0, "Grove: Cannot stake 0");
+        super.stake(amount);
+        emit Staked(msg.sender, amount);
+    }
+
+    function withdraw(uint256 amount) public override nonReentrant groveUserExists updateReward(msg.sender) whenNotPaused {
+        require(amount > 0, "Grove: Cannot withdraw 0");
+        claimReward();
+        super.withdraw(amount);
+        emit Withdrawn(msg.sender, amount);
+    }
+
+    function exit() external {
+        withdraw(balanceOf(msg.sender));
+    }
+
+    function claimReward() public updateReward(msg.sender) {
+        uint256 reward = grovers[msg.sender].rewardEarned;
+        if (reward > 0) {
+            grovers[msg.sender].rewardEarned = 0;
+            favor.safeTransfer(msg.sender, reward);
+            emit RewardPaid(msg.sender, reward);
+        }
+    }
+
+    function allocateSeigniorage(uint256 amount) external nonReentrant whenNotPaused {
+        require(msg.sender == owner() || msg.sender == treasuryOperator, "Not authorized");
+        require(amount > 0, "Grove: Cannot allocate 0");
+        require(totalSupply() > 0, "Grove: Cannot allocate when totalSupply is 0");
+
+        // Create & add new snapshot
+        uint256 prevRPS = getLatestSnapshot().rewardPerShare;
+        uint256 nextRPS = prevRPS + ((amount * 1e18) / totalSupply());
+
+        historyEnd += 1;
+        groveHistory[historyEnd] = GroveSnapshot({ time: block.timestamp, rewardReceived: amount, rewardPerShare: nextRPS });
+
+        if (historyEnd - historyStart + 1 > MAX_HISTORY) {
+            delete groveHistory[historyStart];
+            historyStart += 1;
+        }
+
+        favor.safeTransferFrom(msg.sender, address(this), amount);
+        emit RewardAdded(msg.sender, amount);
+    }
+
+    function setTreasuryOperator(address _treasuryOperator) external onlyOwner {
+        require(_treasuryOperator != address(0), "Grove: zero address");
+        treasuryOperator = _treasuryOperator;
+        emit TreasuryOperatorUpdated(_treasuryOperator);
+    }
+
+    function governanceRecoverUnsupported(IERC20 _token, uint256 _amount, address _to) external onlyOwner {
+        require(address(_token) != address(favor), "Cannot remove FAVOR tokens");
+        require(address(_token) != address(esteem), "Cannot remove ESTEEM tokens");
+        _token.safeTransfer(_to, _amount);
+        emit RecoveredUnsupportedToken(address(_token), _to, _amount);
     }
 
     function pause() external onlyOwner {
@@ -997,83 +1050,4 @@ contract FavorTreasury is Ownable, ReentrancyGuard, Pausable {
         _unpause();
         emit ContractUnpaused(msg.sender);
     }
-
-    function setExtraFunds(
-        address _daoFund,
-        uint256 _daoFundSharedPercent
-
-    ) external onlyOwner {
-        require(_daoFund != address(0), "zero");
-        require(_daoFundSharedPercent <= 30000, "Dao fund share out of range");
-        daoFund = _daoFund;
-        daoFundSharedPercent = _daoFundSharedPercent;
-        emit DaoFundUpdated(_daoFund, _daoFundSharedPercent);
-    }
-
-    function _updateFavorPrice() internal {
-        try IOracle(favorOracle).update(){      
-        } catch {
-                revert("Treasury: failed to update FAVOR price");
-        }
-    }
-
-    function getFavorCirculatingSupply() public view returns (uint256) {
-        uint256 totalSupply = IERC20(favor).totalSupply();
-        return totalSupply <= totalExcludedAmount
-            ? 0
-            : totalSupply - totalExcludedAmount;
-    }
-
-    function _sendToGrove(uint256 _amount) internal {
-        IBasisAsset(favor).mint(address(this), _amount);
-
-        uint256 _daoFundSharedAmount = 0;
-        if (daoFundSharedPercent > 0) {
-            _daoFundSharedAmount = (_amount * daoFundSharedPercent) / BASIS_DIVISOR;
-            IERC20(favor).transfer(daoFund, _daoFundSharedAmount);
-            emit DaoFundFunded(block.timestamp, _daoFundSharedAmount);
-        }
-
-        _amount -= _daoFundSharedAmount;
-
-        IERC20(favor).safeApprove(grove, 0);
-        IERC20(favor).safeApprove(grove, _amount);
-        IGrove(grove).allocateSeigniorage(_amount);
-        emit GroveFunded(block.timestamp, _amount);
-    }
-
-    function allocateSeigniorage() external nonReentrant checkCondition checkEpoch whenNotPaused {
-        _updateFavorPrice();
-
-        uint256 favorSupply = getFavorCirculatingSupply();
-        uint256 _percentage = getFavorPrice() / 100;
-        require(_percentage > 0, "Invalid favor price");
-
-        uint256 min = minSupplyExpansionPercent * 1e13;
-        uint256 max = maxSupplyExpansionPercent * 1e13;
-
-        if (_percentage > max){
-            _percentage = max;
-        } else if (_percentage < min){ 
-            _percentage = min;
-        }    
-
-        uint256 _savedForGrove = (favorSupply * _percentage) / 1e18 / 24; // divide by 24 for each epoch per day
-
-        if (_savedForGrove > 0) {
-            _sendToGrove(_savedForGrove);
-        }        
-        
-    }
-
-    function governanceRecoverUnsupported(
-        IERC20 _token,
-        uint256 _amount,
-        address _to
-    ) external onlyOwner {
-        require(address(_token) != address(favor), "Cannot withdraw Favor tokens");
-        _token.safeTransfer(_to, _amount);
-        emit RecoveredUnsupportedToken(address(_token), _to, _amount);
-    }
-
 }

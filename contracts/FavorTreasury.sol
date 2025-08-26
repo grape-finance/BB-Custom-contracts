@@ -1,6 +1,30 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.26;
 
+pragma solidity ^0.8.20;
+
+/**
+ * @dev Provides information about the current execution context, including the
+ * sender of the transaction and its data. While these are generally available
+ * via msg.sender and msg.data, they should not be accessed in such a direct
+ * manner, since when dealing with meta-transactions the account sending and
+ * paying for execution may not be the actual sender (as far as an application
+ * is concerned).
+ *
+ * This contract is only required for intermediate, library-like contracts.
+ */
+abstract contract Context {
+    function _msgSender() internal view virtual returns (address) {
+        return msg.sender;
+    }
+
+    function _msgData() internal view virtual returns (bytes calldata) {
+        return msg.data;
+    }
+
+    function _contextSuffixLength() internal view virtual returns (uint256) {
+        return 0;
+    }
+}
 
 /**
  * @dev Contract module that helps prevent reentrant calls to a function.
@@ -74,29 +98,80 @@ abstract contract ReentrancyGuard {
         return _status == _ENTERED;
     }
 }
-
-
 /**
- * @dev Provides information about the current execution context, including the
- * sender of the transaction and its data. While these are generally available
- * via msg.sender and msg.data, they should not be accessed in such a direct
- * manner, since when dealing with meta-transactions the account sending and
- * paying for execution may not be the actual sender (as far as an application
- * is concerned).
+ * @dev Contract module which provides a basic access control mechanism, where
+ * there is an account (an owner) that can be granted exclusive access to
+ * specific functions.
  *
- * This contract is only required for intermediate, library-like contracts.
+ * By default, the owner account will be the one that deploys the contract. This
+ * can later be changed with {transferOwnership}.
+ *
+ * This module is used through inheritance. It will make available the modifier
+ * `onlyOwner`, which can be applied to your functions to restrict their use to
+ * the owner.
  */
-abstract contract Context {
-    function _msgSender() internal view virtual returns (address) {
-        return msg.sender;
+abstract contract Ownable is Context {
+    address private _owner;
+
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+
+    /**
+     * @dev Initializes the contract setting the deployer as the initial owner.
+     */
+    constructor() {
+        _transferOwnership(_msgSender());
     }
 
-    function _msgData() internal view virtual returns (bytes calldata) {
-        return msg.data;
+    /**
+     * @dev Throws if called by any account other than the owner.
+     */
+    modifier onlyOwner() {
+        _checkOwner();
+        _;
     }
 
-    function _contextSuffixLength() internal view virtual returns (uint256) {
-        return 0;
+    /**
+     * @dev Returns the address of the current owner.
+     */
+    function owner() public view virtual returns (address) {
+        return _owner;
+    }
+
+    /**
+     * @dev Throws if the sender is not the owner.
+     */
+    function _checkOwner() internal view virtual {
+        require(owner() == _msgSender(), "Ownable: caller is not the owner");
+    }
+
+    /**
+     * @dev Leaves the contract without owner. It will not be possible to call
+     * `onlyOwner` functions. Can only be called by the current owner.
+     *
+     * NOTE: Renouncing ownership will leave the contract without an owner,
+     * thereby disabling any functionality that is only available to the owner.
+     */
+    function renounceOwnership() public virtual onlyOwner {
+        _transferOwnership(address(0));
+    }
+
+    /**
+     * @dev Transfers ownership of the contract to a new account (`newOwner`).
+     * Can only be called by the current owner.
+     */
+    function transferOwnership(address newOwner) public virtual onlyOwner {
+        require(newOwner != address(0), "Ownable: new owner is the zero address");
+        _transferOwnership(newOwner);
+    }
+
+    /**
+     * @dev Transfers ownership of the contract to a new account (`newOwner`).
+     * Internal function without access restriction.
+     */
+    function _transferOwnership(address newOwner) internal virtual {
+        address oldOwner = _owner;
+        _owner = newOwner;
+        emit OwnershipTransferred(oldOwner, newOwner);
     }
 }
 
@@ -415,6 +490,92 @@ interface IERC20 {
 }
 
 /**
+ * @dev Interface of the ERC20 Permit extension allowing approvals to be made via signatures, as defined in
+ * https://eips.ethereum.org/EIPS/eip-2612[EIP-2612].
+ *
+ * Adds the {permit} method, which can be used to change an account's ERC20 allowance (see {IERC20-allowance}) by
+ * presenting a message signed by the account. By not relying on {IERC20-approve}, the token holder account doesn't
+ * need to send a transaction, and thus is not required to hold Ether at all.
+ *
+ * ==== Security Considerations
+ *
+ * There are two important considerations concerning the use of `permit`. The first is that a valid permit signature
+ * expresses an allowance, and it should not be assumed to convey additional meaning. In particular, it should not be
+ * considered as an intention to spend the allowance in any specific way. The second is that because permits have
+ * built-in replay protection and can be submitted by anyone, they can be frontrun. A protocol that uses permits should
+ * take this into consideration and allow a `permit` call to fail. Combining these two aspects, a pattern that may be
+ * generally recommended is:
+ *
+ * ```solidity
+ * function doThingWithPermit(..., uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s) public {
+ *     try token.permit(msg.sender, address(this), value, deadline, v, r, s) {} catch {}
+ *     doThing(..., value);
+ * }
+ *
+ * function doThing(..., uint256 value) public {
+ *     token.safeTransferFrom(msg.sender, address(this), value);
+ *     ...
+ * }
+ * ```
+ *
+ * Observe that: 1) `msg.sender` is used as the owner, leaving no ambiguity as to the signer intent, and 2) the use of
+ * `try/catch` allows the permit to fail and makes the code tolerant to frontrunning. (See also
+ * {SafeERC20-safeTransferFrom}).
+ *
+ * Additionally, note that smart contract wallets (such as Argent or Safe) are not able to produce permit signatures, so
+ * contracts should have entry points that don't rely on permit.
+ */
+interface IERC20Permit {
+    /**
+     * @dev Sets `value` as the allowance of `spender` over ``owner``'s tokens,
+     * given ``owner``'s signed approval.
+     *
+     * IMPORTANT: The same issues {IERC20-approve} has related to transaction
+     * ordering also apply here.
+     *
+     * Emits an {Approval} event.
+     *
+     * Requirements:
+     *
+     * - `spender` cannot be the zero address.
+     * - `deadline` must be a timestamp in the future.
+     * - `v`, `r` and `s` must be a valid `secp256k1` signature from `owner`
+     * over the EIP712-formatted function arguments.
+     * - the signature must use ``owner``'s current nonce (see {nonces}).
+     *
+     * For more information on the signature format, see the
+     * https://eips.ethereum.org/EIPS/eip-2612#specification[relevant EIP
+     * section].
+     *
+     * CAUTION: See Security Considerations above.
+     */
+    function permit(
+        address owner,
+        address spender,
+        uint256 value,
+        uint256 deadline,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) external;
+
+    /**
+     * @dev Returns the current nonce for `owner`. This value must be
+     * included whenever a signature is generated for {permit}.
+     *
+     * Every successful call to {permit} increases ``owner``'s nonce by one. This
+     * prevents a signature from being used multiple times.
+     */
+    function nonces(address owner) external view returns (uint256);
+
+    /**
+     * @dev Returns the domain separator used in the encoding of the signature for {permit}, as defined by {EIP712}.
+     */
+    // solhint-disable-next-line func-name-mixedcase
+    function DOMAIN_SEPARATOR() external view returns (bytes32);
+}
+
+/**
  * @title SafeERC20
  * @dev Wrappers around ERC20 operations that throw on failure (when the token
  * contract returns false). Tokens that return no value (and instead revert or
@@ -496,6 +657,26 @@ library SafeERC20 {
     }
 
     /**
+     * @dev Use a ERC-2612 signature to set the `owner` approval toward `spender` on `token`.
+     * Revert on invalid signature.
+     */
+    function safePermit(
+        IERC20Permit token,
+        address owner,
+        address spender,
+        uint256 value,
+        uint256 deadline,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) internal {
+        uint256 nonceBefore = token.nonces(owner);
+        token.permit(owner, spender, value, deadline, v, r, s);
+        uint256 nonceAfter = token.nonces(owner);
+        require(nonceAfter == nonceBefore + 1, "SafeERC20: permit did not succeed");
+    }
+
+    /**
      * @dev Imitates a Solidity high-level call (i.e. a regular function call to a contract), relaxing the requirement
      * on the return value: the return value is optional (but if data is returned, it must not be false).
      * @param token The token targeted by the call.
@@ -528,6 +709,7 @@ library SafeERC20 {
             success && (returndata.length == 0 || abi.decode(returndata, (bool))) && Address.isContract(address(token));
     }
 }
+
 
 /**
  * @dev Contract module which allows children to implement an emergency stop
@@ -642,312 +824,168 @@ abstract contract Pausable is Context {
     }
 }
 
-/**
- * @dev Contract module which provides a basic access control mechanism, where
- * there is an account (an owner) that can be granted exclusive access to
- * specific functions.
- *
- * By default, the owner account will be the one that deploys the contract. This
- * can later be changed with {transferOwnership}.
- *
- * This module is used through inheritance. It will make available the modifier
- * `onlyOwner`, which can be applied to your functions to restrict their use to
- * the owner.
- */
-abstract contract Ownable is Context {
-    address private _owner;
-
-    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
-
-    /**
-     * @dev Initializes the contract setting the deployer as the initial owner.
-     */
-    constructor() {
-        _transferOwnership(_msgSender());
-    }
-
-    /**
-     * @dev Throws if called by any account other than the owner.
-     */
-    modifier onlyOwner() {
-        _checkOwner();
-        _;
-    }
-
-    /**
-     * @dev Returns the address of the current owner.
-     */
-    function owner() public view virtual returns (address) {
-        return _owner;
-    }
-
-    /**
-     * @dev Throws if the sender is not the owner.
-     */
-    function _checkOwner() internal view virtual {
-        require(owner() == _msgSender(), "Ownable: caller is not the owner");
-    }
-
-    /**
-     * @dev Leaves the contract without owner. It will not be possible to call
-     * `onlyOwner` functions. Can only be called by the current owner.
-     *
-     * NOTE: Renouncing ownership will leave the contract without an owner,
-     * thereby disabling any functionality that is only available to the owner.
-     */
-    function renounceOwnership() public virtual onlyOwner {
-        _transferOwnership(address(0));
-    }
-
-    /**
-     * @dev Transfers ownership of the contract to a new account (`newOwner`).
-     * Can only be called by the current owner.
-     */
-    function transferOwnership(address newOwner) public virtual onlyOwner {
-        require(newOwner != address(0), "Ownable: new owner is the zero address");
-        _transferOwnership(newOwner);
-    }
-
-    /**
-     * @dev Transfers ownership of the contract to a new account (`newOwner`).
-     * Internal function without access restriction.
-     */
-    function _transferOwnership(address newOwner) internal virtual {
-        address oldOwner = _owner;
-        _owner = newOwner;
-        emit OwnershipTransferred(oldOwner, newOwner);
-    }
+interface IBasisAsset {
+    function mint(address recipient, uint256 amount) external;
 }
 
-interface BBToken {
-    function mint(address recipient, uint256 amount) external;
-    function burnFrom(address from, uint256 amount) external;
+
+interface IGrove {
+    function allocateSeigniorage(uint256 _amount) external;
 }
 
 interface IOracle {
-    function consult(address _token, uint256 _amountIn) external view returns (uint144 amountOut);
+    function update() external;
+
+    function consult(address _token, uint256 _amountIn) external view returns (uint256 amountOut);
+
+    function twap(address _token, uint256 _amountIn) external view returns (uint256 _amountOut);
 }
 
-interface IPriceFeed {
-    function latestRoundData() external view
-        returns (
-        uint80 roundId,
-        int256 answer,
-        uint256 startedAt,
-        uint256 updatedAt,
-        uint80 answeredInRound
-        );
-}
 
-contract MintRedeemer is Ownable, ReentrancyGuard, Pausable {
+contract FavorTreasury is Ownable, ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;
 
-    uint256 public constant MULTIPLIER = 10000;
+    uint256 public constant PERIOD = 1 hours;
+    uint256 public constant BASIS_DIVISOR = 100000; // 100%
 
-    IERC20 public usdt;   
-    BBToken public favorETH; 
-    BBToken public favorUSDT; 
-    BBToken public esteem; 
+    bool public initialized = false;
 
-    IPriceFeed public priceFeed; 
+    uint256 public startTime;
+    uint256 public epoch = 0;
+    uint256 public totalExcludedAmount; // Total tokens excluded from circ supply calculation
 
-    address public oracleETH;
-    address public oracleUSDT;
-    address public treasury;  // Treasury multisig wallet
-    address public keeper;
+    mapping(address => bool) public _isExcluded; // Excluded addresses mapping from circulating supply
 
-    uint256 public esteemRate = 16 * 1e18;       // $16 per Esteem start price
-    uint256 public redeemRate = 7000;      // 70% in favor for Esteem redeemptions
-    uint256 public treasuryBonusRate = 2500; // 25% extra bonus minted to protocol treasury multisig on top of users minted amount 
-    uint256 public dailyRateIncrease = 0.25 ether;
-    uint256 public lastRateUpdateTimestamp = block.timestamp;
-    
-    event Minted(address indexed user, uint256 inputAmount, uint256 esteemAmount);
-    event Redeemed(address indexed user, uint256 esteemAmount, uint256 rewardAmount);
-    event keeperUpdated(address indexed newkeeper);
-    event RateUpdated(uint256 newRate);
-    event NewDailyRateIncrease(uint256 newRate);
-    event RedeemRateUpdated(uint256 newRate);
-    event TreasuryBonusUpdated(uint256 newBonus);
-    event USDTOracleUpdated(address indexed newOracle);
-    event ETHOracleUpdated(address indexed newOracle);
-    event ETHPriceFeedUpdated(address indexed newPriceFeed);
-    event TreasuryUpdated(address indexed newTreasury);
-    event AdminWithdraw(address indexed token, address indexed to, uint256 amount);
+    address public favor;
+
+    address public grove;
+    address public favorOracle;
+
+    uint256 public maxSupplyExpansionPercent = 3000; // 3%
+    uint256 public minSupplyExpansionPercent = 20; // 0.02%
+
+    address public daoFund;
+    uint256 public daoFundSharedPercent;
+
+    event Initialized(address indexed executor, uint256 at);
+    event GroveFunded(uint256 timestamp, uint256 seigniorage);
+    event DaoFundFunded(uint256 timestamp, uint256 seigniorage);
+    event GroveUpdated(address indexed newGrove);
+    event FavorOracleUpdated(address indexed newOracle);
+    event MaxSupplyExpansionPercentUpdated(uint256 newMaxExpansionPercent);
+    event MinSupplyExpansionPercentUpdated(uint256 newMinExpansionPercent);
+    event DaoFundUpdated(address indexed daoFund, uint256 daoFundSharedPercent);
     event ContractPaused(address indexed admin);
     event ContractUnpaused(address indexed admin);
+    event ExcludedAddressAdded(address indexed excludedAddress, uint256 amount);
+    event ExcludedAddressRemoved(address indexed excludedAddress, uint256 amount);
+    event RecoveredUnsupportedToken(address indexed token, address indexed to, uint256 amount);
 
-    modifier onlyKeeper() {
-        require(msg.sender == keeper, "Not keeper");
+    modifier checkCondition {
+        require(block.timestamp >= startTime, "Treasury: not started yet");
         _;
     }
 
-    constructor(address _usdt, address _esteem, address _favorETH, address _favorUSDT, address _oracleETH, address _oracleUSDT, address _treasury) {
-        require(_usdt != address(0), "Invalid input token");
-        require(_esteem != address(0), "Invalid Esteem address");
-        require(_favorETH != address(0), "Invalid favor token");
-        require(_favorUSDT != address(0), "Invalid favor token");
-        require(_treasury != address(0), "Invalid treasury address");
+    modifier checkEpoch {
+        require(block.timestamp >= nextEpochPoint(), "Treasury: not opened yet");
+        _;
 
-        usdt = IERC20(_usdt);
-        esteem = BBToken(_esteem);
-        favorETH = BBToken(_favorETH);
-        favorUSDT = BBToken(_favorUSDT);
-        oracleETH = _oracleETH;
-        oracleUSDT = _oracleUSDT;
-        treasury = _treasury;
-        keeper = msg.sender;
-        priceFeed = IPriceFeed(0xd30e2101a97dcbAeBCBC04F14C3f624E67A35165); // Chainlink ETH price feed sepolia
+        epoch = epoch + 1;
     }
 
-    function mintEsteem(uint256 _amount) external nonReentrant whenNotPaused {
-        require(_amount > 0, "Amount must be > 0");
-        require(usdt.allowance(msg.sender, address(this)) >= _amount, "Insufficient allowance");
-
-        uint256 outputAmount = _calculateEsteemFromUSDT(_amount);
-        uint256 treasuryAmount = (outputAmount * treasuryBonusRate) / MULTIPLIER;
-
-        usdt.safeTransferFrom(msg.sender, treasury, _amount);
-        esteem.mint(msg.sender, outputAmount);
-        esteem.mint(treasury, treasuryAmount); // Treasury gets bonus mint of Esteem on every mint
-
-        emit Minted(msg.sender, _amount, outputAmount);
+    modifier notInitialized {
+        require(!initialized, "Treasury: already initialized");
+        _;
     }
 
-    function redeemFavor(uint256 _esteemAmount, BBToken _favorToken) external nonReentrant whenNotPaused {
-        require(_favorToken == favorETH || _favorToken == favorUSDT, "Unsupported favor token");
-        require(_esteemAmount > 0, "Amount must be > 0");
-
-        uint256 userAmount = _calculateRedeemAmounts(_esteemAmount, address(_favorToken));
-
-        esteem.burnFrom(msg.sender, _esteemAmount);
-
-        _favorToken.mint(msg.sender, userAmount);
-
-        emit Redeemed(msg.sender, _esteemAmount, userAmount);
+    function isInitialized() public view returns (bool) {
+        return initialized;
+    }
+  
+    function nextEpochPoint() public view returns (uint256) {
+        return startTime + (epoch * PERIOD);
     }
 
-        // Calculates how much ESTEEM is minted for a given USDT amount (6 decimals input, 18 decimals output)
-    function _calculateEsteemFromUSDT(uint256 usdtAmount) internal view returns (uint256) {
-        return (usdtAmount * 1e30) / esteemRate;
-    }
-
-    // Calculates user and treasury output for a given ESTEEM redemption into a Favor token
-    function _calculateRedeemAmounts(uint256 esteemAmount, address favorToken) internal view returns (uint256 userReceives) {
-        uint256 favorPrice = getFavorPrice(favorToken);
-        require(favorPrice > 0, "Invalid favor price");
-
-        if (favorToken == address(favorETH)) {
-            uint256 ethPrice = latestETHPrice();
-            favorPrice = (favorPrice * ethPrice) / 1e18;
-        }
-
-        uint256 esteemToFavor = (esteemAmount * esteemRate) / favorPrice;
-        userReceives = (esteemToFavor * redeemRate) / MULTIPLIER;
-    }
-
-    // Public view mint function for UI
-    function previewMint(uint256 usdtAmount) external view returns (uint256) {
-        return _calculateEsteemFromUSDT(usdtAmount);
-    }
-
-    // Public view redeem function for UI
-    function previewRedeem(uint256 esteemAmount, address favorToken) external view returns (uint256 userReceives) {
-        require(favorToken == address(favorETH) || favorToken == address(favorUSDT), "Unsupported token");
-        require(esteemAmount > 0, "Amount must be > 0");
-        return _calculateRedeemAmounts(esteemAmount, favorToken);
-    }
-
-    function getFavorPrice(address _favorToken) public view returns (uint256 updatedPrice) {
-        address _oracle = _getOracle(_favorToken);
-        
-        try IOracle(_oracle).consult(_favorToken, 1e18) returns (uint144 twapPrice) {
-            return uint256(twapPrice);
+    function getFavorPrice() public view returns (uint256 favorPrice) {
+        try IOracle(favorOracle).consult(favor, 1e18) returns (uint256 price) {
+            return uint256(price);
         } catch {
-            revert("Failed to consult price from the oracle");
+            revert("Treasury: failed to consult FAVOR price from the oracle");
+        }
+    }
+    // Returns rolling TWAP price for UI which is more likely to be prone to short term price fluctuations
+    function getFavorUpdatedPrice() public view returns (uint256 _favorPrice) {
+        try IOracle(favorOracle).twap(favor, 1e18) returns (uint256 price) {
+            return uint256(price);
+        } catch {
+            revert("Treasury: failed to consult FAVOR price from the oracle");
         }
     }
 
-    function _getOracle(address token) internal view returns (address) {
-        return token == address(favorETH) ? oracleETH : oracleUSDT;
+    function initialize(
+        address _favor,
+        address _favorOracle,
+        address _grove,
+        uint256 _startTime
+    ) public notInitialized onlyOwner {
+        require(_favor != address(0), "Invalid Favor address");
+        require(_favorOracle != address(0), "Invalid Oracle address");
+        require(_grove != address(0), "Invalid Grove address");
+        require(_startTime > block.timestamp, "Must start in future");
+
+        favor = _favor;
+        favorOracle = _favorOracle;
+        grove = _grove;
+        startTime = _startTime;
+
+        initialized = true;
+        emit Initialized(msg.sender, block.timestamp);
     }
 
-    function latestETHPrice() public view returns (uint256) {
-        (
-            ,               // uint80 roundID
-            int256 answer,  // this is the price
-            ,               // uint256 startedAt
-            ,               // uint256 updatedAt
-            // uint80 answeredInRound
-        ) = priceFeed.latestRoundData();
-
-        require(answer > 0, "Invalid ETH price from Chainlink");
-        return uint256(answer) * 10**10;
+    function setGrove(address _grove) external onlyOwner {
+        require(_grove != address(0), "Invalid Grove address");
+        grove = _grove;
+        emit GroveUpdated(_grove);
     }
 
-    function updateEsteemRate() external onlyKeeper {
-        require(block.timestamp >= lastRateUpdateTimestamp + 1 days, "Already updated today");
-        esteemRate += dailyRateIncrease;
-        lastRateUpdateTimestamp = block.timestamp;
-        emit RateUpdated(esteemRate);
+    function setFavorOracle(address _favorOracle) external onlyOwner {
+        require(_favorOracle != address(0), "Invalid Oracle address");
+        favorOracle = _favorOracle;
+        emit FavorOracleUpdated(_favorOracle);
     }
 
-    function setKeeper(address _address) external onlyOwner {
-        keeper = _address;
-        emit keeperUpdated(_address);
+    function setMaxSupplyExpansionPercents(uint256 _maxSupplyExpansionPercent) external onlyOwner {
+        require(_maxSupplyExpansionPercent >= 1 && _maxSupplyExpansionPercent <= 10000, "_maxSupplyExpansionPercent: out of range"); // [0.001%, 10%]
+        require(_maxSupplyExpansionPercent > minSupplyExpansionPercent, "max must be larger than min"); 
+        maxSupplyExpansionPercent = _maxSupplyExpansionPercent;
+        emit MaxSupplyExpansionPercentUpdated(_maxSupplyExpansionPercent);
     }
 
-    function setDailyRateIncrease(uint256 _newRate) external onlyOwner {
-        dailyRateIncrease = _newRate;
-        emit NewDailyRateIncrease(_newRate);
+    function setMinSupplyExpansionPercents(uint256 _minSupplyExpansionPercent) external onlyOwner {
+        require(_minSupplyExpansionPercent >= 1 && _minSupplyExpansionPercent <= 10000, "_minSupplyExpansionPercent: out of range"); // [0.001%, 10%]
+        require(_minSupplyExpansionPercent < maxSupplyExpansionPercent, "min must be smaller than max"); 
+        minSupplyExpansionPercent = _minSupplyExpansionPercent;
+        emit MinSupplyExpansionPercentUpdated(_minSupplyExpansionPercent);
     }
 
-    function setUSDTOracle(address _address) external onlyOwner {
-        require(_address != address(0), "Invalid Oracle address");
-        oracleUSDT = _address;
-        emit USDTOracleUpdated(_address);
+    function addExcludedAddress(address _addr) external onlyOwner {
+        require(!_isExcluded[_addr], "Address already excluded");
+        _isExcluded[_addr] = true;
+        IERC20 favorErc20 = IERC20(favor);
+        uint256 bal = favorErc20.balanceOf(_addr);
+        totalExcludedAmount += bal;
+
+        emit ExcludedAddressAdded(_addr, bal) ;
     }
 
-    function setETHOracle(address _address) external onlyOwner {
-        require(_address != address(0), "Invalid Oracle address");
-        oracleETH = _address;
-        emit ETHOracleUpdated(_address);
-    }
+    function removeExcludedAddress(address _addr) external onlyOwner {
+        require(_isExcluded[_addr], "Address must be excluded");
+        _isExcluded[_addr] = false;
+        IERC20 favorErc20 = IERC20(favor);
+        uint256 bal = favorErc20.balanceOf(_addr);
+        totalExcludedAmount -= bal;
 
-    function setETHPriceFeed(IPriceFeed _address) external onlyOwner {
-        require(address(_address) != address(0), "Invalid price feed address");
-        priceFeed = _address;
-        emit ETHPriceFeedUpdated(address(_address));
-    }
-
-    function setEsteemRate(uint256 _rate) external onlyOwner {
-        require(_rate > 0, "Esteem Rate must be > 0");
-        esteemRate = _rate;
-        emit RateUpdated(_rate);
-    }
-
-    function setRedeemRate(uint256 _redeemRate) external onlyOwner {
-        require(_redeemRate <= MULTIPLIER, "Cannot exceed 100%");
-        redeemRate = _redeemRate;
-        emit RedeemRateUpdated(_redeemRate);
-    }
-
-    function setTreasuryBonus(uint256 _treasuryBonusRate) external onlyOwner {
-        treasuryBonusRate = _treasuryBonusRate;
-        emit TreasuryBonusUpdated(_treasuryBonusRate);
-    }
-
-    function setTreasury(address _treasury) external onlyOwner {
-        require(_treasury != address(0), "Invalid Treasury address");
-        treasury = _treasury;
-        emit TreasuryUpdated(_treasury);
-    }
-
-    // Admin withdraw incase of stuck tokens or migration needed
-    function adminWithdraw(IERC20 _token, address _to, uint256 _amount) external onlyOwner {
-        require(_to != address(0), "Invalid address");
-        _token.safeTransfer(_to, _amount);
-        emit AdminWithdraw(address(_token), _to, _amount);
+        emit ExcludedAddressRemoved(_addr, bal);
     }
 
     function pause() external onlyOwner {
@@ -958,6 +996,84 @@ contract MintRedeemer is Ownable, ReentrancyGuard, Pausable {
     function unpause() external onlyOwner {
         _unpause();
         emit ContractUnpaused(msg.sender);
+    }
+
+    function setExtraFunds(
+        address _daoFund,
+        uint256 _daoFundSharedPercent
+
+    ) external onlyOwner {
+        require(_daoFund != address(0), "zero");
+        require(_daoFundSharedPercent <= 30000, "Dao fund share out of range");
+        daoFund = _daoFund;
+        daoFundSharedPercent = _daoFundSharedPercent;
+        emit DaoFundUpdated(_daoFund, _daoFundSharedPercent);
+    }
+
+    function _updateFavorPrice() internal {
+        try IOracle(favorOracle).update(){      
+        } catch {
+                revert("Treasury: failed to update FAVOR price");
+        }
+    }
+
+    function getFavorCirculatingSupply() public view returns (uint256) {
+        uint256 totalSupply = IERC20(favor).totalSupply();
+        return totalSupply <= totalExcludedAmount
+            ? 0
+            : totalSupply - totalExcludedAmount;
+    }
+
+    function _sendToGrove(uint256 _amount) internal {
+        IBasisAsset(favor).mint(address(this), _amount);
+
+        uint256 _daoFundSharedAmount = 0;
+        if (daoFundSharedPercent > 0) {
+            _daoFundSharedAmount = (_amount * daoFundSharedPercent) / BASIS_DIVISOR;
+            IERC20(favor).transfer(daoFund, _daoFundSharedAmount);
+            emit DaoFundFunded(block.timestamp, _daoFundSharedAmount);
+        }
+
+        _amount -= _daoFundSharedAmount;
+
+        IERC20(favor).safeApprove(grove, 0);
+        IERC20(favor).safeApprove(grove, _amount);
+        IGrove(grove).allocateSeigniorage(_amount);
+        emit GroveFunded(block.timestamp, _amount);
+    }
+
+    function allocateSeigniorage() external nonReentrant checkCondition checkEpoch whenNotPaused {
+        _updateFavorPrice();
+
+        uint256 favorSupply = getFavorCirculatingSupply();
+        uint256 _percentage = getFavorPrice() / 100;
+        require(_percentage > 0, "Invalid favor price");
+
+        uint256 min = minSupplyExpansionPercent * 1e13;
+        uint256 max = maxSupplyExpansionPercent * 1e13;
+
+        if (_percentage > max){
+            _percentage = max;
+        } else if (_percentage < min){ 
+            _percentage = min;
+        }    
+
+        uint256 _savedForGrove = (favorSupply * _percentage) / 1e18 / 24; // divide by 24 for each epoch per day
+
+        if (_savedForGrove > 0) {
+            _sendToGrove(_savedForGrove);
+        }        
+        
+    }
+
+    function governanceRecoverUnsupported(
+        IERC20 _token,
+        uint256 _amount,
+        address _to
+    ) external onlyOwner {
+        require(address(_token) != address(favor), "Cannot withdraw Favor tokens");
+        _token.safeTransfer(_to, _amount);
+        emit RecoveredUnsupportedToken(address(_token), _to, _amount);
     }
 
 }
