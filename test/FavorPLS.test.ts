@@ -76,6 +76,20 @@ describe("FavorPLS.sol", () => {
         it("shall mint favor, set and reset minters", async () => {
             const [owner, minter, receiver] = await ethers.getSigners();
             let {favor} = await deployContracts();
+
+
+            // shall set minter
+            await expect(favor.addMinter(minter)).to.emit(favor, "MinterAdded").withArgs(minter.address);
+            // shall mint
+            await expect(favor.connect(minter).mint(receiver,555n)).to.not.be.revert(ethers);
+            // receiver shall receive 555 favors
+            expect(await  favor.balanceOf(receiver)).to.equal(555n);
+            // shall disable minter
+            await expect(favor.removeMinter(minter)).to.emit(favor, "MinterRemoved").withArgs(minter.address);
+
+            // shall revert
+            await expect(favor.connect(minter).mint(receiver, 123n)).to.be.revertedWith('Not authorized to mint');
+
         })
     })
 })
