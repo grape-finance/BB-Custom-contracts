@@ -18,6 +18,14 @@
   "homepage": "https://github.com/grape-finance/BB-Custom-contracts#readme",
   "type": "module",
   "dependencies": {
+    "@nomicfoundation/hardhat-ethers": "^4.0.0",
+    "@nomicfoundation/hardhat-ethers-chai-matchers": "^3.0.0",
+    "@nomicfoundation/hardhat-ignition-ethers": "^3.0.1",
+    "@nomicfoundation/hardhat-keystore": "^3.0.1",
+    "@nomicfoundation/hardhat-mocha": "^3.0.1",
+    "@nomicfoundation/hardhat-network-helpers": "^3.0.0",
+    "@nomicfoundation/hardhat-typechain": "^3.0.0",
+    "@nomicfoundation/hardhat-verify": "^3.0.0",
     "@openzeppelin/contracts": "^5.4.0"
   },
   "devDependencies": {
