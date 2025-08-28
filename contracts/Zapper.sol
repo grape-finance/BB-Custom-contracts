@@ -85,14 +85,15 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
         address initiator,
         bytes calldata params
     ) external override returns (bool) {
-
         require(msg.sender == address(POOL), "not registered pool");
         require(initiator == address(this), "bad initiator");
 
-        (address user, address favorToken, address lpToken) = abi.decode(params, (address, address, address));
+        (address user, address favorToken, address lpToken) = abi.decode(
+            params,
+            (address, address, address)
+        );
         require(user == pendingUser, "user mismatch");
         pendingUser = address(0);
-
 
         uint256 tokenAmount = IERC20(favorToken).balanceOf(address(this));
 
@@ -331,34 +332,21 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
         require(success, "Transfer failed");
     }
 
-    function addFavorToToken(
+    function addFavor(
         address _favor,
+        address _lp,
         address _token
     ) external onlyOwner {
         require(_favor != address(0), "Invalid address");
+        require(_lp != address(0), "Invalid address");
         require(_token != address(0), "Invalid address");
         favorToToken[_favor] = _token;
-    }
-
-    function addFavorToLp(address _favor, address _lp) external onlyOwner {
-        require(_favor != address(0), "Invalid address");
-        require(_lp != address(0), "Invalid address");
         favorToLp[_favor] = _lp;
-    }
-
-    function addTokenToFavor(
-        address _token,
-        address _favor
-    ) external onlyOwner {
-        require(_favor != address(0), "Invalid address");
-        require(_token != address(0), "Invalid address");
         tokenToFavor[_token] = _favor;
     }
 
-    function removeFavorToken(
-        address _favor
-    ) external onlyOwner {
-        require(_favor != address(0), "Invalid address");     
+    function removeFavorToken(address _favor) external onlyOwner {
+        require(_favor != address(0), "Invalid address");
         tokenToFavor[tokenToFavor[_favor]] = address(0);
         favorToLp[_favor] = address(0);
         favorToToken[_favor] = address(0);

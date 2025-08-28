@@ -33,9 +33,7 @@ describe("Zapper.sol", () => {
             //Revert function because user is not the owner
             await expect(zapper.connect(somebody).addDustToken(somebody)).to.be.revertedWithCustomError(zapper, "OwnableUnauthorizedAccount");
             await expect(zapper.connect(somebody).removeDustToken(somebody)).to.be.revertedWithCustomError(zapper, "OwnableUnauthorizedAccount");
-            await expect(zapper.connect(somebody).addTokenToFavor(somebody, somebody)).to.be.revertedWithCustomError(zapper, "OwnableUnauthorizedAccount");
-            await expect(zapper.connect(somebody).addFavorToLp(somebody, somebody)).to.be.revertedWithCustomError(zapper, "OwnableUnauthorizedAccount");
-            await expect(zapper.connect(somebody).addFavorToToken(somebody, somebody)).to.be.revertedWithCustomError(zapper, "OwnableUnauthorizedAccount");
+            await expect(zapper.connect(somebody).addFavor(somebody, somebody, somebody)).to.be.revertedWithCustomError(zapper, "OwnableUnauthorizedAccount");          
             await expect(zapper.connect(somebody).adminWithdraw(somebody, somebody, 1n)).to.be.revertedWithCustomError(zapper, "OwnableUnauthorizedAccount");
             await expect(zapper.connect(somebody).adminWithdrawPLS(somebody, 1n)).to.be.revertedWithCustomError(zapper, "OwnableUnauthorizedAccount");
             await expect(zapper.connect(somebody).removeFavorToken(somebody)).to.be.revertedWithCustomError(zapper, "OwnableUnauthorizedAccount");
@@ -60,15 +58,15 @@ describe("Zapper.sol", () => {
             expect(await zapper.isDustToken(somebody)).to.be.equal(true);
 
             //add token to favor
-            expect(await zapper.addTokenToFavor(somebody, deployer)).to.be.not.revert;
+            expect(await zapper.addFavor(somebody, deployer, owner)).to.be.not.revert;
             expect(await zapper.tokenToFavor(somebody)).to.be.equal(deployer);
 
             //add favor to lp
-            expect(await zapper.addFavorToLp(somebody, deployer)).to.be.not.revert;
+
             expect(await zapper.favorToLp(somebody)).to.be.equal(deployer);
 
             //add favor to lp
-            expect(await zapper.addFavorToToken(somebody, deployer)).to.be.not.revert;
+
             expect(await zapper.favorToToken(somebody)).to.be.equal(deployer);
 
         })
@@ -83,18 +81,14 @@ describe("Zapper.sol", () => {
             expect(await zapper.removeDustToken(somebody)).to.be.not.revert;
             expect(await zapper.isDustToken(somebody)).to.be.equal(false);
 
+        expect(await zapper.addFavor(somebody, deployer, owner)).to.be.not.revert;
 
 
-            //add token to favor
-            expect(await zapper.addTokenToFavor(deployer, somebody)).to.be.not.revert;
             expect(await zapper.tokenToFavor(deployer)).to.be.equal(somebody);
 
-            //add favor to lp
-            expect(await zapper.addFavorToLp(somebody, deployer)).to.be.not.revert;
+
             expect(await zapper.favorToLp(somebody)).to.be.equal(deployer);
 
-            //add favor to lp
-            expect(await zapper.addFavorToToken(somebody, deployer)).to.be.not.revert;
             expect(await zapper.favorToToken(somebody)).to.be.equal(deployer);
 
             //remove flavor token
