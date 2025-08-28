@@ -21,7 +21,8 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
 
     error UNSUPORTED_TOKEN();
 
-    IUniswapV2Router02 public immutable router; 
+    IUniswapV2Router02 public immutable router;
+ 
     address public immutable PLS;
 
 

@@ -21,8 +21,8 @@ contract CounterTest is Test {
         0xA0126Ac1364606BAfb150653c7Bc9f1af4283DFa;
 
     function setUp() public {
-        zapper = new LPZapper(address(this));
-        zapper2 = new LPZapper(PDAI);
+        zapper = new LPZapper(address(this), PLS,0x165C3410fC91EF562C50559f7d2289fEbed552d9);
+        zapper2 = new LPZapper(PDAI, PLS,0x165C3410fC91EF562C50559f7d2289fEbed552d9);
     }
 
     function test_setUp() public {
