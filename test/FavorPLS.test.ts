@@ -92,4 +92,43 @@ describe("FavorPLS.sol", () => {
 
         })
     })
+
+    describe('settings', () => {
+        it("shall change settings", async () => {
+            const [deployer, owner, minter, receiver] = await ethers.getSigners();
+            let {favor} = await deployContracts();
+
+
+            await expect(favor.addMinter(owner)).to.emit(favor, "MinterAdded").withArgs(owner.address);
+            expect(await favor.isMinter(owner)).to.equal(true);
+
+            await expect(favor.removeMinter(owner)).to.emit(favor, "MinterRemoved").withArgs(owner.address);
+            expect(await favor.isMinter(owner)).to.equal(false);
+
+            await expect(favor.setEsteem(owner)).to.emit(favor, "EsteemTokenUpdated").withArgs(owner.address);
+            expect(await favor.esteem()).to.equal(owner.address);
+
+            await expect(favor.setTreasury(owner)).to.emit(favor, "TreasuryUpdated").withArgs(owner.address);
+            expect(await favor.treasury()).to.equal(owner.address);
+
+            await expect(favor.setEsteemMinter(owner)).to.emit(favor, "EsteemMinterUpdated").withArgs(owner.address);
+            expect(await favor.esteemMinter()).to.equal(owner.address);
+
+
+            await expect(favor.setSellTax(239n)).to.emit(favor, "SellTaxUpdated").withArgs(239n);
+            expect(await favor.sellTax()).to.equal(239n);
+
+
+            await expect(favor.setBonusRates(239n, 23n)).to.emit(favor, "BonusRatesUpdated").withArgs(239n, 23n);
+            expect(await favor.bonusRate()).to.equal(239n);
+            expect(await favor.treasuryBonusRate()).to.equal(23n);
+
+            await expect(favor.setBuyWrapper(owner,true)).to.emit(favor, "BuyWrapperUpdated").withArgs(owner, true);
+            expect(await favor.isBuyWrapper(owner)).to.equal(true);
+
+            await expect(favor.setTaxExempt(owner, true)).to.emit(favor, "TaxExemptStatusUpdated").withArgs(owner, true);
+            expect(await favor.isTaxExempt(owner)).to.equal(true);
+
+        })
+    })
 })
