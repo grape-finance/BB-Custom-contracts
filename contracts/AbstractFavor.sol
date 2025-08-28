@@ -53,7 +53,7 @@ contract AbstractFavor is ERC20Burnable, Ownable {
         treasury = _treasury;
         esteem = BBToken(_esteem);
 
-        _mint(msg.sender, _initialSupply);
+        _mint(_owner, _initialSupply);
     }
 
 
@@ -91,7 +91,6 @@ contract AbstractFavor is ERC20Burnable, Ownable {
 
         return (userBonus, treasuryBonus);
     }
-
 
     /**
      * @dev See {IERC20-transfer}.

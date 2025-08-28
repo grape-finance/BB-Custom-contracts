@@ -58,7 +58,7 @@ describe("Esteem.sol", () => {
 
 
             //  shall remove minter
-            expect(esteem.removeMinter(minter)).to.emit(esteem, "MinterRemoved").withArgs(minter.address);
+            await expect(esteem.removeMinter(minter)).to.emit(esteem, "MinterRemoved").withArgs(minter.address);
 
             //  shall not mint under this address anumore
             await expect(esteem.connect(minter).mint(receiver, 123n)).to.be.revertedWith('OnlyMinter: caller is not a minter');
