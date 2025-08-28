@@ -21,22 +21,9 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
 
     error UNSUPORTED_TOKEN();
 
-    IUniswapV2Router02 public constant router =
-        IUniswapV2Router02(0x165C3410fC91EF562C50559f7d2289fEbed552d9);
-    address public constant PDAI = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
-    address public constant PLSX = 0x95B303987A60C71504D99Aa1b13B4DA07b0790ab;
-    address public constant PLS = 0xA1077a294dDE1B09bB078844df40758a5D0f9a27;
-    address public constant FAVOR_PDAI =
-        0xBc91E5aE4Ce07D0455834d52a9A4Df992e12FE12;
-    address public constant FAVOR_PLSX =
-        0x47c3038ad52E06B9B4aCa6D672FF9fF39b126806;
-    address public constant FAVOR_PLS =
-        0x30be72a397667FDfD641E3e5Bd68Db657711EB20;
-    address public constant PLSFLP = 0xdca85EFDCe177b24DE8B17811cEC007FE5098586;
-    address public constant PLSXFLP =
-        0x24264d580711474526e8F2A8cCB184F6438BB95c;
-    address public constant PDAIFLP =
-        0xA0126Ac1364606BAfb150653c7Bc9f1af4283DFa;
+    IUniswapV2Router02 public immutable router; 
+    address public immutable PLS;
+
 
     address[] public dustTokens;
     mapping(address => bool) public isDustToken;
@@ -46,7 +33,11 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
 
     receive() external payable {}
 
-    constructor(address _owner) Ownable(_owner) {}
+    constructor(address _owner, address _PLS, address _router) Ownable(_owner) {
+        PLS = _PLS;
+        router =  IUniswapV2Router02(_router);
+
+    }
 
     function getOptimalAddLiquidity(
         address tokenA,
