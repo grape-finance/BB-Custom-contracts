@@ -19,6 +19,8 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
     using SafeERC20 for IERC20;
     IPool public override POOL;
 
+    address private pendingUser;
+
     error UNSUPORTED_TOKEN();
 
     IUniswapV2Router02 public immutable router;
@@ -65,6 +67,8 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
         address token = favorToToken[favorToken];
         address lpToken = favorToLp[favorToken];
 
+        pendingUser = msg.sender;
+
         bytes memory data = abi.encode(msg.sender, favorToken, lpToken);
 
         IERC20(favorToken).safeTransferFrom(msg.sender, address(this), amount);
@@ -80,10 +84,14 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
         address initiator,
         bytes calldata params
     ) external override returns (bool) {
-        (address user, address favorToken, address lpToken) = abi.decode(
-            params,
-            (address, address, address)
-        );
+
+        require(msg.sender == address(POOL), "not registered pool");
+        require(initiator == address(this), "bad initiator");
+
+        (address user, address favorToken, address lpToken) = abi.decode(params, (address, address, address));
+        require(user == pendingUser, "user mismatch");
+        pendingUser = address(0);
+
 
         uint256 tokenAmount = IERC20(favorToken).balanceOf(address(this));
 
