@@ -13,7 +13,8 @@ describe("FavorPLS.sol", () => {
     async function deployContracts() {
         const [deployer, owner, treasury, esteem] = await ethers.getSigners();
 
-        const favor = await ethers.deployContract("FavorPLS", [owner, 123_000_000_000_000_000_000_000_000n, treasury, esteem]);
+        const favorInstance = await ethers.deployContract("FavorPLS", [owner, 123_000_000_000_000_000_000_000_000n, treasury, esteem]);
+        let favor = favorInstance.connect(owner);
 
         return {favor};
     }
@@ -37,7 +38,7 @@ describe("FavorPLS.sol", () => {
             const [deployer, owner] = await ethers.getSigners();
             let {favor} = await deployContracts();
 
-            expect(await  favor.balanceOf(owner)).equal(123_000_000_000_000_000_000_000_000n);
+            expect(await favor.balanceOf(owner)).equal(123_000_000_000_000_000_000_000_000n);
 
         })
     })

@@ -7,16 +7,16 @@ const {ethers} = await network.connect();
 describe("Esteem.sol", () => {
 
     async function deployContracts() {
-        const [owner] = await ethers.getSigners();
-        const esteem = await ethers.deployContract("Esteem", [owner]);
-
+        const [deployer, owner] = await ethers.getSigners();
+        const esteemInstance = await ethers.deployContract("Esteem", [owner]);
+        let esteem = esteemInstance.connect(owner);
         return {esteem};
     }
 
     describe(' deployment', () => {
 
         it("Should be able to create contract", async () => {
-            const [owner] = await ethers.getSigners();
+            const [deployer, owner] = await ethers.getSigners();
             let {esteem} = await deployContracts();
 
             expect(await esteem.name()).to.equal("Esteem Token");
@@ -28,7 +28,7 @@ describe("Esteem.sol", () => {
     describe('access control', () => {
 
         it("only owner methods", async () => {
-            const [owner, somebody] = await ethers.getSigners();
+            const [deployer, owner, somebody] = await ethers.getSigners();
             let {esteem} = await deployContracts();
 
             await expect(esteem.connect(somebody).addMinter(somebody)).to.be.revertedWithCustomError(esteem, "OwnableUnauthorizedAccount");
