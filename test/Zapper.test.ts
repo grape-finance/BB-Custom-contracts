@@ -1,26 +1,114 @@
-import {expect} from "chai";
-import {network} from "hardhat";
+import { expect } from "chai";
+import { network } from "hardhat";
 
-const {ethers} = await network.connect();
+const { ethers } = await network.connect();
 
 
-describe("Esteem.sol", () => {
+describe("Zapper.sol", () => {
 
     async function deployContracts() {
-        const [owner] = await ethers.getSigners();
-        const esteem = await ethers.deployContract("Esteem");
-
-        return {esteem};
+        const [deployer, owner] = await ethers.getSigners();
+        const zapperInstance = await ethers.deployContract("LPZapper", [owner, '0xA1077a294dDE1B09bB078844df40758a5D0f9a27', '0x165C3410fC91EF562C50559f7d2289fEbed552d9']);
+        let zapper = zapperInstance.connect(owner);
+        return { zapper };
     }
 
     describe(' deployment', () => {
 
         it("Should be able to create contract", async () => {
-            let {esteem} = await deployContracts();
+            const [deployer, owner] = await ethers.getSigners();
+            let { zapper } = await deployContracts();
+
+            await expect(await zapper.router()).to.be.equal('0x165C3410fC91EF562C50559f7d2289fEbed552d9');
 
 
-            expect(await esteem.name()).to.equal("Esteem Token");
         })
+    })
+
+    describe('access control', () => {
+
+        it("only owner methods", async () => {
+            const [deployer, owner, somebody] = await ethers.getSigners();
+            let { zapper } = await deployContracts();
+            //Revert function because user is not the owner
+            await expect(zapper.connect(somebody).addDustToken(somebody)).to.be.revertedWithCustomError(zapper, "OwnableUnauthorizedAccount");
+            await expect(zapper.connect(somebody).removeDustToken(somebody)).to.be.revertedWithCustomError(zapper, "OwnableUnauthorizedAccount");
+            await expect(zapper.connect(somebody).addTokenToFavor(somebody, somebody)).to.be.revertedWithCustomError(zapper, "OwnableUnauthorizedAccount");
+            await expect(zapper.connect(somebody).addFavorToLp(somebody, somebody)).to.be.revertedWithCustomError(zapper, "OwnableUnauthorizedAccount");
+            await expect(zapper.connect(somebody).addFavorToToken(somebody, somebody)).to.be.revertedWithCustomError(zapper, "OwnableUnauthorizedAccount");
+            await expect(zapper.connect(somebody).adminWithdraw(somebody, somebody, 1n)).to.be.revertedWithCustomError(zapper, "OwnableUnauthorizedAccount");
+            await expect(zapper.connect(somebody).adminWithdrawPLS(somebody, 1n)).to.be.revertedWithCustomError(zapper, "OwnableUnauthorizedAccount");
+            await expect(zapper.connect(somebody).removeFavorToken(somebody)).to.be.revertedWithCustomError(zapper, "OwnableUnauthorizedAccount");
+            await expect(zapper.connect(somebody).setPool(somebody)).to.be.revertedWithCustomError(zapper, "OwnableUnauthorizedAccount");
+
+
+
+
+        })
+
+
+
+    })
+
+    describe('adding tokens', () => {
+
+        it("add tokens", async () => {
+            const [deployer, owner, somebody] = await ethers.getSigners();
+            let { zapper } = await deployContracts();
+            //Add dust token
+            expect(await zapper.addDustToken(somebody)).to.be.not.revert;
+            expect(await zapper.isDustToken(somebody)).to.be.equal(true);
+
+            //add token to favor
+            expect(await zapper.addTokenToFavor(somebody, deployer)).to.be.not.revert;
+            expect(await zapper.tokenToFavor(somebody)).to.be.equal(deployer);
+
+            //add favor to lp
+            expect(await zapper.addFavorToLp(somebody, deployer)).to.be.not.revert;
+            expect(await zapper.favorToLp(somebody)).to.be.equal(deployer);
+
+            //add favor to lp
+            expect(await zapper.addFavorToToken(somebody, deployer)).to.be.not.revert;
+            expect(await zapper.favorToToken(somebody)).to.be.equal(deployer);
+
+        })
+
+        it("remove tokens", async () => {
+            const [deployer, owner, somebody] = await ethers.getSigners();
+            let { zapper } = await deployContracts();
+            //Add dust token
+            expect(await zapper.addDustToken(somebody)).to.be.not.revert;
+            expect(await zapper.isDustToken(somebody)).to.be.equal(true);
+            // remove dust token
+            expect(await zapper.removeDustToken(somebody)).to.be.not.revert;
+            expect(await zapper.isDustToken(somebody)).to.be.equal(false);
+
+
+
+            //add token to favor
+            expect(await zapper.addTokenToFavor(deployer, somebody)).to.be.not.revert;
+            expect(await zapper.tokenToFavor(deployer)).to.be.equal(somebody);
+
+            //add favor to lp
+            expect(await zapper.addFavorToLp(somebody, deployer)).to.be.not.revert;
+            expect(await zapper.favorToLp(somebody)).to.be.equal(deployer);
+
+            //add favor to lp
+            expect(await zapper.addFavorToToken(somebody, deployer)).to.be.not.revert;
+            expect(await zapper.favorToToken(somebody)).to.be.equal(deployer);
+
+            //remove flavor token
+            expect(await zapper.removeFavorToken(somebody)).to.be.not.revert;
+            expect(await zapper.tokenToFavor(somebody)).to.be.equal('0x0000000000000000000000000000000000000000');
+            expect(await zapper.favorToLp(somebody)).to.be.equal('0x0000000000000000000000000000000000000000');
+            expect(await zapper.favorToToken(somebody)).to.be.equal('0x0000000000000000000000000000000000000000');
+
+
+
+        })
+
+
+
     })
 
 

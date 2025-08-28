@@ -22,9 +22,8 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
     error UNSUPORTED_TOKEN();
 
     IUniswapV2Router02 public immutable router;
- 
-    address public immutable PLS;
 
+    address public immutable PLS;
 
     address[] public dustTokens;
     mapping(address => bool) public isDustToken;
@@ -36,8 +35,7 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
 
     constructor(address _owner, address _PLS, address _router) Ownable(_owner) {
         PLS = _PLS;
-        router =  IUniswapV2Router02(_router);
-
+        router = IUniswapV2Router02(_router);
     }
 
     function getOptimalAddLiquidity(
@@ -346,5 +344,14 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
         require(_favor != address(0), "Invalid address");
         require(_token != address(0), "Invalid address");
         tokenToFavor[_token] = _favor;
+    }
+
+    function removeFavorToken(
+        address _favor
+    ) external onlyOwner {
+        require(_favor != address(0), "Invalid address");     
+        tokenToFavor[tokenToFavor[_favor]] = address(0);
+        favorToLp[_favor] = address(0);
+        favorToToken[_favor] = address(0);
     }
 }
