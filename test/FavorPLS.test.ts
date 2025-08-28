@@ -42,4 +42,26 @@ describe("FavorPLS.sol", () => {
 
         })
     })
+
+
+    describe('access control', () => {
+        it("not owner shall not be able to call those methods", async () => {
+            const [deployer, owner, notOwner] = await ethers.getSigners();
+            let {favor} = await deployContracts();
+
+            let notOwned = favor.connect(notOwner);
+
+            await expect(notOwned.addMinter(owner)).to.be.revertedWithCustomError(favor, "OwnableUnauthorizedAccount");
+            await expect(notOwned.removeMinter(owner)).to.be.revertedWithCustomError(favor, "OwnableUnauthorizedAccount");
+
+        })
+
+        it("not mnter  shall not be able to call those methods", async () => {
+            const [deployer, owner, notOwner] = await ethers.getSigners();
+            let {favor} = await deployContracts();
+
+            await expect(favor.mint(notOwner, 123n)).to.be.revertedWith('Not authorized to mint');
+
+        })
+    })
 })
