@@ -53,6 +53,13 @@ describe("FavorPLS.sol", () => {
 
             await expect(notOwned.addMinter(owner)).to.be.revertedWithCustomError(favor, "OwnableUnauthorizedAccount");
             await expect(notOwned.removeMinter(owner)).to.be.revertedWithCustomError(favor, "OwnableUnauthorizedAccount");
+            await expect(notOwned.setEsteem(owner)).to.be.revertedWithCustomError(favor, "OwnableUnauthorizedAccount");
+            await expect(notOwned.setTreasury(owner)).to.be.revertedWithCustomError(favor, "OwnableUnauthorizedAccount");
+            await expect(notOwned.setEsteemMinter(owner)).to.be.revertedWithCustomError(favor, "OwnableUnauthorizedAccount");
+            await expect(notOwned.setSellTax(239n)).to.be.revertedWithCustomError(favor, "OwnableUnauthorizedAccount");
+            await expect(notOwned.setBonusRates(239n, 23n)).to.be.revertedWithCustomError(favor, "OwnableUnauthorizedAccount");
+            await expect(notOwned.setBuyWrapper(owner,true)).to.be.revertedWithCustomError(favor, "OwnableUnauthorizedAccount");
+            await expect(notOwned.setTaxExempt(owner, true)).to.be.revertedWithCustomError(favor, "OwnableUnauthorizedAccount");
 
         })
 
@@ -62,6 +69,13 @@ describe("FavorPLS.sol", () => {
 
             await expect(favor.mint(notOwner, 123n)).to.be.revertedWith('Not authorized to mint');
 
+        })
+    })
+
+    describe('mint', () => {
+        it("shall mint favor, set and reset minters", async () => {
+            const [owner, minter, receiver] = await ethers.getSigners();
+            let {favor} = await deployContracts();
         })
     })
 })
