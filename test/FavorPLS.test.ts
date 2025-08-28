@@ -16,7 +16,11 @@ describe("FavorPLS.sol", () => {
         const favorInstance = await ethers.deployContract("FavorPLS", [owner, 123_000_000_000_000_000_000_000_000n, treasury, esteem]);
         let favor = favorInstance.connect(owner);
 
-        return {favor};
+        const minter = await ethers.deployContract("MockEsteemMinter");
+
+        await favor.setEsteemMinter(minter);
+
+        return {favor, minter, owner, treasury, esteem};
     }
 
 
@@ -58,7 +62,7 @@ describe("FavorPLS.sol", () => {
             await expect(notOwned.setEsteemMinter(owner)).to.be.revertedWithCustomError(favor, "OwnableUnauthorizedAccount");
             await expect(notOwned.setSellTax(239n)).to.be.revertedWithCustomError(favor, "OwnableUnauthorizedAccount");
             await expect(notOwned.setBonusRates(239n, 23n)).to.be.revertedWithCustomError(favor, "OwnableUnauthorizedAccount");
-            await expect(notOwned.setBuyWrapper(owner,true)).to.be.revertedWithCustomError(favor, "OwnableUnauthorizedAccount");
+            await expect(notOwned.setBuyWrapper(owner, true)).to.be.revertedWithCustomError(favor, "OwnableUnauthorizedAccount");
             await expect(notOwned.setTaxExempt(owner, true)).to.be.revertedWithCustomError(favor, "OwnableUnauthorizedAccount");
 
         })
@@ -81,9 +85,9 @@ describe("FavorPLS.sol", () => {
             // shall set minter
             await expect(favor.addMinter(minter)).to.emit(favor, "MinterAdded").withArgs(minter.address);
             // shall mint
-            await expect(favor.connect(minter).mint(receiver,555n)).to.not.be.revert(ethers);
+            await expect(favor.connect(minter).mint(receiver, 555n)).to.not.be.revert(ethers);
             // receiver shall receive 555 favors
-            expect(await  favor.balanceOf(receiver)).to.equal(555n);
+            expect(await favor.balanceOf(receiver)).to.equal(555n);
             // shall disable minter
             await expect(favor.removeMinter(minter)).to.emit(favor, "MinterRemoved").withArgs(minter.address);
 
@@ -123,11 +127,41 @@ describe("FavorPLS.sol", () => {
             expect(await favor.bonusRate()).to.equal(239n);
             expect(await favor.treasuryBonusRate()).to.equal(23n);
 
-            await expect(favor.setBuyWrapper(owner,true)).to.emit(favor, "BuyWrapperUpdated").withArgs(owner, true);
+            await expect(favor.setBuyWrapper(owner, true)).to.emit(favor, "BuyWrapperUpdated").withArgs(owner, true);
             expect(await favor.isBuyWrapper(owner)).to.equal(true);
 
             await expect(favor.setTaxExempt(owner, true)).to.emit(favor, "TaxExemptStatusUpdated").withArgs(owner, true);
             expect(await favor.isTaxExempt(owner)).to.equal(true);
+
+        })
+    })
+
+    describe("calculations ", () => {
+        it("should calculate proper favor bonuses", async () => {
+            const [deployer, owner] = await ethers.getSigners();
+            let {favor, minter} = await deployContracts();
+
+            await minter.setEsteemRate(12_000_000_000_000_000_000n);
+            await minter.setEthPrice(17_000_000_000_000_000_000n);
+            await minter.setFavorPrice(favor, 11_000_000_000_000_000_000n);
+
+
+            let [userBonus, treasuryBonus] = await favor.calculateFavorBonuses(100_000_000_000_000_000_000n);
+
+            expect(userBonus).to.equal(779166666666666666666n);
+            expect(treasuryBonus).to.equal(194791666666666666666n);
+        })
+
+        it("shall revert bonus calculation if esteem rate is 0", async () => {
+            const [deployer, owner] = await ethers.getSigners();
+            let {favor, minter} = await deployContracts();
+
+            await minter.setEsteemRate(0n);
+            await minter.setEthPrice(17_000_000_000_000_000_000n);
+            await minter.setFavorPrice(favor, 11_000_000_000_000_000_000n);
+
+
+            await expect(favor.calculateFavorBonuses(100_000_000_000_000_000_000n)).to.be.revertedWith('Invalid Esteem rate');
 
         })
     })
