@@ -1,7 +1,7 @@
 import {LPZapper} from "./Zapper.sol";
 import {Test} from "forge-std/Test.sol";
 
-contract CounterTest is Test {
+contract ZapperTest is Test {
     LPZapper zapper;
     LPZapper zapper2;
 
