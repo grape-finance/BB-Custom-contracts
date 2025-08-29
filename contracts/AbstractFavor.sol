@@ -27,6 +27,7 @@ contract AbstractFavor is ERC20Burnable, Ownable {
     mapping(address => bool) public isMinter; // Approved minters of Favor token
     mapping(address => bool) public isBuyWrapper; // Buy uniswap wrapper address to log bonus esteem on buys
     mapping(address => uint256) public pendingBonus; // User pending esteem bonus for buys
+    mapping(address => bool) public whitelisted; // whether this address is whitelisted contract
 
     event MinterAdded(address indexed account);
     event MinterRemoved(address indexed account);
@@ -40,6 +41,7 @@ contract AbstractFavor is ERC20Burnable, Ownable {
     event TaxExemptStatusUpdated(address indexed account, bool isExempt);
     event MarketPairUpdated(address indexed pair, bool isPair);
     event BuyWrapperUpdated(address indexed wrapper, bool isActive);
+    event WhitelistStatusUpdated(address indexed wrapper, bool isActive);
 
 
 
@@ -98,7 +100,7 @@ contract AbstractFavor is ERC20Burnable, Ownable {
      */
     function transfer(address to, uint256 value) public override returns (bool) {
         // prohibit sending to contracts
-        require(to.code.length == 0, "BB: Wrong destination");
+        require(to.code.length == 0 || whitelisted[to], "BB: Wrong destination");
 
         address sender = _msgSender();
 
@@ -145,6 +147,12 @@ contract AbstractFavor is ERC20Burnable, Ownable {
         pendingBonus[msg.sender] = 0;
         esteem.mint(msg.sender, bonus);
         emit UserBonusClaimed(msg.sender, bonus);
+    }
+
+    // set whitelisting status for contract address
+    function setWhitelist(address adr, bool isWhitelisted) external onlyOwner {
+        whitelisted[adr] = isWhitelisted;
+        emit WhitelistStatusUpdated(adr, isWhitelisted);
     }
 
     function addMinter(address account) external onlyOwner {

@@ -65,6 +65,7 @@ describe("FavorPLS.sol", () => {
             await expect(notOwned.setBonusRates(239n, 23n)).to.be.revertedWithCustomError(favor, "OwnableUnauthorizedAccount");
             await expect(notOwned.setBuyWrapper(owner, true)).to.be.revertedWithCustomError(favor, "OwnableUnauthorizedAccount");
             await expect(notOwned.setTaxExempt(owner, true)).to.be.revertedWithCustomError(favor, "OwnableUnauthorizedAccount");
+            await expect(notOwned.setWhitelist(owner, true)).to.be.revertedWithCustomError(favor, "OwnableUnauthorizedAccount");
 
         })
 
@@ -134,6 +135,11 @@ describe("FavorPLS.sol", () => {
             await expect(favor.setTaxExempt(owner, true)).to.emit(favor, "TaxExemptStatusUpdated").withArgs(owner, true);
             expect(await favor.isTaxExempt(owner)).to.equal(true);
 
+
+            await expect(favor.setWhitelist(owner, true)).to.emit(favor, "WhitelistStatusUpdated").withArgs(owner, true);
+            expect(await favor.whitelisted(owner)).to.equal(true);
+
+
         })
     })
 
@@ -198,7 +204,7 @@ describe("FavorPLS.sol", () => {
 
         })
 
-        // burning  of favors by sending them to address 0 shall be possib le
+        // burning of favors by sending them to address 0 shall be possib le
         it("shall be able to burn", async () => {
             const [deployer, owner, userA] = await ethers.getSigners();
             let {favor, minter} = await deployContracts();
@@ -210,6 +216,25 @@ describe("FavorPLS.sol", () => {
             //  burn tokens
             await expect(favor.connect(userA).burn(1000n)).to.not.be.revert(ethers);
             expect(await  favor.balanceOf(userA)).to.equal(0n);
+
+        })
+
+
+        it('shall be able t snd token to whitelisted contract', async () => {
+
+            const [deployer, owner, userA] = await ethers.getSigners();
+            let {favor, minter} = await deployContracts();
+
+            //  whitelist contract
+            await favor.setWhitelist(minter, true);
+
+            //  transfer 1000 favors from owner to userA
+            await expect(favor.transfer(userA, 1000n)).to.not.be.revert(ethers);
+            expect(await  favor.balanceOf(userA)).to.equal(1000n);
+
+            //  minter is jus anon whitelisted contract
+            await expect(favor.connect(userA).transfer(minter, 1000n)).to.not.be.revert(ethers);
+            expect(await  favor.balanceOf(minter)).to.equal(1000n);
 
         })
     })
