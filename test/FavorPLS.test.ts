@@ -141,15 +141,14 @@ describe("FavorPLS.sol", () => {
             const [deployer, owner] = await ethers.getSigners();
             let {favor, minter} = await deployContracts();
 
+            await minter.setTokenPrice(favor,11_000_000_000_000_000_000n);
             await minter.setEsteemRate(12_000_000_000_000_000_000n);
-            await minter.setEthPrice(17_000_000_000_000_000_000n);
-            await minter.setFavorPrice(favor, 11_000_000_000_000_000_000n);
 
 
             let [userBonus, treasuryBonus] = await favor.calculateFavorBonuses(100_000_000_000_000_000_000n);
 
-            expect(userBonus).to.equal(779166666666666666666n);
-            expect(treasuryBonus).to.equal(194791666666666666666n);
+            expect(userBonus).to.equal(40333333333333333333n);
+            expect(treasuryBonus).to.equal(10083333333333333333n);
         })
 
         it("shall revert bonus calculation if esteem rate is 0", async () => {
@@ -157,8 +156,7 @@ describe("FavorPLS.sol", () => {
             let {favor, minter} = await deployContracts();
 
             await minter.setEsteemRate(0n);
-            await minter.setEthPrice(17_000_000_000_000_000_000n);
-            await minter.setFavorPrice(favor, 11_000_000_000_000_000_000n);
+            await minter.setTokenPrice(favor,17_000_000_000_000_000_000n);
 
 
             await expect(favor.calculateFavorBonuses(100_000_000_000_000_000_000n)).to.be.revertedWith('Invalid Esteem rate');

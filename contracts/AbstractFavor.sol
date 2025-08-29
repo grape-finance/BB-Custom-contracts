@@ -88,26 +88,42 @@ contract AbstractFavor is ERC20Burnable, Ownable {
         return (userBonus, treasuryBonus);
     }
 
+    /**
+     * @dev See {IERC20-transfer}.
+     *
+     * Requirements:
+     *
+     * - `to` cannot be the zero address.
+     * - the caller must have a balance of at least `value`.
+     */
+    function transfer(address to, uint256 value) public override returns (bool) {
 
-    function _transfer(address sender, address recipient, uint256 amount) internal override {
+        address sender = _msgSender();
+
+        if (_isTaxExempt(sender, to)) {
+            _transfer(sender, to, value);
+            return true;
+        }
+
         uint256 taxAmount = 0;
 
-        if (_isTaxExempt(sender, recipient)) {
-            super._transfer(sender, recipient, amount);
-            return;
-        }
-        // Transfer to Market Pair is likely a sell to be taxed
-        if (isMarketPair[recipient]) {
-            taxAmount = (amount * sellTax) / MULTIPLIER;
+        bool isBuy = isMarketPair[sender]; // Label LP interactions For readability
+        bool isSell = isMarketPair[to];
+        require(!(isBuy && isSell), "Cannot buy and sell in the same transaction");
+
+        if (isSell) {
+            taxAmount = (value * sellTax) / MULTIPLIER;
         }
 
         if (taxAmount > 0) {
-            super._transfer(sender, treasury, taxAmount);
-            amount -= taxAmount;
+            _transfer(sender, treasury, taxAmount);
+            value -= taxAmount;
         }
 
-        super._transfer(sender, recipient, amount);
+        _transfer(sender, to, value);
+        return true;
     }
+
 
     function logBuy(address user, uint256 amount) external {
         // Buy wrapper contract logs user buys of Favor to track esteem bonus accurately
