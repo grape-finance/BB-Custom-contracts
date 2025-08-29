@@ -285,6 +285,7 @@ interface IUniswapV2Router {
         uint amountIn, uint amountOutMin, address[] calldata path, address to, uint deadline
     ) external returns (uint[] memory amounts);
 
+    function getAmountsOut(uint amountIn, address[] calldata path) external view returns (uint[] memory amounts);
 }
 
 interface IUniswapV2Router02 is IUniswapV2Router {
@@ -305,6 +306,10 @@ interface IUniswapV2Router02 is IUniswapV2Router {
     ) external;
 }
 
+interface IOracle {
+    function getTokenTWAP(address _token) external view returns (uint256 amountOut);
+}
+
 interface IFavorToken {
     function logBuy(address user, uint amount) external;
 }
@@ -312,36 +317,46 @@ interface IFavorToken {
 contract FavorRouterWrapper is Ownable {
     using SafeERC20 for IERC20;
 
-    IUniswapV2Router02 public uniswapRouter;
+    IOracle public minterOracle;
+    IUniswapV2Router02 public uniswapRouter = IUniswapV2Router02(0x165C3410fC91EF562C50559f7d2289fEbed552d9);
+    
     mapping(address => bool) public isFavorToken;
-
-    event FavorTokenAdded(address indexed token);
-    event FavorTokenRemoved(address indexed token);
+    mapping(address => mapping(address => bool)) public allowedDirectPair;
+    
     event RouterUpdated(address indexed router);
+    event OracleUpdated(address indexed oracle);
+    event FavorTokenSet(address indexed token, bool allowed);
+    event AllowedDirectPairSet(address indexed fromToken, address indexed toToken, bool allowed);
     event RecoveredUnsupportedToken(address indexed token, address indexed to, uint256 amount);
 
-    constructor(address _router) {
-        require(_router != address(0), "Router cannot be zero address");
-        uniswapRouter = IUniswapV2Router02(_router);
+    constructor(address _oracle) {
+        require(_oracle != address(0), "Oracle cannot be zero address");
+        minterOracle = IOracle(_oracle);
     }
 
-    // --- Favor Token Management ---
-    function addFavorToken(address token) external onlyOwner {
+    function setAllowedDirectPair(address fromToken, address toToken, bool allowed) external onlyOwner {
+        require(fromToken != address(0), "Zero address not allowed");
+        require(toToken != address(0), "Zero address not allowed");
+        allowedDirectPair[fromToken][toToken] = allowed;
+        emit AllowedDirectPairSet(fromToken, toToken, allowed);
+    }
+
+    function setFavorToken(address token, bool allowed) external onlyOwner {
         require(token != address(0), "Zero address not allowed");
-        isFavorToken[token] = true;
-        emit FavorTokenAdded(token);
-    }
-
-    function removeFavorToken(address token) external onlyOwner {
-        require(isFavorToken[token], "Token not registered");
-        delete isFavorToken[token];
-        emit FavorTokenRemoved(token);
+        isFavorToken[token] = allowed;
+        emit FavorTokenSet(token, allowed);
     }
 
     function setRouter(address _router) external onlyOwner {
         require(_router != address(0), "Invalid router address");
         uniswapRouter = IUniswapV2Router02(_router);
         emit RouterUpdated(_router);
+    }
+
+    function setOracle(address _oracle) external onlyOwner {
+        require(_oracle != address(0), "Invalid oracle address");
+        minterOracle = IOracle(_oracle);
+        emit OracleUpdated(_oracle);
     }
 
     // --- Buy Wrappers ---
@@ -353,6 +368,7 @@ contract FavorRouterWrapper is Ownable {
     ) external payable {
         address finalToken = path[path.length - 1];
         require(isFavorToken[finalToken], "Path must end in registered FAVOR");
+        require(allowedDirectPair[path[0]][finalToken], "Pair not allowed");
         require(path.length == 2, "Path must be direct");
 
         uint[] memory amounts = uniswapRouter.swapExactETHForTokens{value: msg.value}(
@@ -360,7 +376,12 @@ contract FavorRouterWrapper is Ownable {
         );
 
         uint favorAmount = amounts[amounts.length - 1];
-        IFavorToken(finalToken).logBuy(to, favorAmount);
+        
+        uint256 twap = minterOracle.getTokenTWAP(finalToken);
+
+        if(twap < 3e18){
+            IFavorToken(finalToken).logBuy(to, favorAmount);
+        }
     }
 
     function swapExactTokensForFavorAndTrackBonus(
@@ -372,6 +393,7 @@ contract FavorRouterWrapper is Ownable {
     ) external {
         address finalToken = path[path.length - 1];
         require(isFavorToken[finalToken], "Path must end in registered FAVOR");
+        require(allowedDirectPair[path[0]][finalToken], "Pair not allowed");
         require(path.length == 2, "Path must be direct");
 
         IERC20(path[0]).safeTransferFrom(msg.sender, address(this), amountIn);
@@ -392,7 +414,11 @@ contract FavorRouterWrapper is Ownable {
         require(favorReceived > 0, "Swap yielded zero Favor");
         favor.safeTransfer(to, favorReceived);
 
-        IFavorToken(finalToken).logBuy(to, favorReceived);
+        uint256 twap = minterOracle.getTokenTWAP(finalToken);
+
+        if(twap < 3e18){
+            IFavorToken(finalToken).logBuy(to, favorReceived);
+        }
     }
 
     // --- Sell Wrappers ---
@@ -403,7 +429,10 @@ contract FavorRouterWrapper is Ownable {
         address to,
         uint256 deadline
     ) external {
-        require(isFavorToken[path[0]], "Path must start with registered FAVOR");
+        address finalToken = path[path.length - 1];
+        require(isFavorToken[path[0]], "Path must start in registered FAVOR");
+        require(allowedDirectPair[path[0]][finalToken], "Pair not allowed");
+        require(path.length == 2, "Path must be direct");
 
         IERC20(path[0]).safeTransferFrom(msg.sender, address(this), amountIn);
         IERC20(path[0]).forceApprove(address(uniswapRouter), amountIn);
@@ -415,6 +444,7 @@ contract FavorRouterWrapper is Ownable {
             to,
             deadline
         );
+
     }
 
     function swapExactFavorForETH(
@@ -424,11 +454,14 @@ contract FavorRouterWrapper is Ownable {
         address to,
         uint256 deadline
     ) external {
-        require(isFavorToken[path[0]], "Path must start with registered FAVOR");
+        address finalToken = path[path.length - 1];
+        require(isFavorToken[path[0]], "Path must start in registered FAVOR");
+        require(allowedDirectPair[path[0]][finalToken], "Pair not allowed");
+        require(path.length == 2, "Path must be direct");
 
         IERC20(path[0]).safeTransferFrom(msg.sender, address(this), amountIn);
         IERC20(path[0]).forceApprove(address(uniswapRouter), amountIn);
-     
+
         uniswapRouter.swapExactTokensForETHSupportingFeeOnTransferTokens(
             amountIn,
             amountOutMin,
@@ -437,6 +470,19 @@ contract FavorRouterWrapper is Ownable {
             deadline
 
         );
+
+    }
+
+    function uiAmountsOut(
+        uint256 amountIn,
+        address[] calldata path
+    ) external view returns (uint256[] memory amounts) {
+        require(amountIn > 0 && path.length >= 2, "Invalid inputs"); 
+        try uniswapRouter.getAmountsOut(amountIn, path) returns (uint[] memory amts) {
+            return (amts);
+        } catch {
+            revert("Output not found");
+        }
     }
 
     function governanceRecoverUnsupported(IERC20 _token, uint256 _amount, address _to) external onlyOwner {

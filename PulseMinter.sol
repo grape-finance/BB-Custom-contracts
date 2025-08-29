@@ -741,6 +741,15 @@ abstract contract Ownable is Context {
     }
 }
 
+interface IPool {
+    function supply(address asset, uint256 amount, address onBehalfOf, uint16 referralCode) external;
+}
+
+interface IWPLS {
+    function deposit() external payable;
+    function withdraw(uint256) external;
+}
+
 interface BBToken is IERC20{
     function mint(address recipient, uint256 amount) external;
     function burnFrom(address from, uint256 amount) external;
@@ -753,54 +762,54 @@ interface IOracle {
 contract MintRedeemer is Ownable, ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;
 
+    uint256 public constant PERIOD = 1 days;
     uint256 public constant MULTIPLIER = 10000;
 
     BBToken public esteem; 
+    IPool public POOL;
 
-    address public treasury;  // Treasury multisig wallet
-    address public keeper;
+    address public immutable WPLS = 0xA1077a294dDE1B09bB078844df40758a5D0f9a27; 
+    address public team = 0x1EA35487AE62322F61f4C0F639a598d9eEB2F340;
+    address public holding = 0x6831f815963FfCe95521271b94164eb4C82e7621;
 
-    uint256 public esteemRate = 16 * 1e18;       // $16 per Esteem start price
+    uint256 public startTime;
+    uint256 public epoch = 1;
+    uint256 public esteemRate = 21 * 1e18;       // $21 per Esteem start price
     uint256 public redeemRate = 7000;      // 70% in favor for Esteem redeemptions
     uint256 public treasuryBonusRate = 2500; // 25% extra bonus minted to protocol treasury multisig on top of users minted amount 
     uint256 public dailyRateIncrease = 0.25 ether;
-    uint256 public lastRateUpdateTimestamp;
-    uint256 public redemptionLockDuration = 6 hours;
+    uint256 public redemptionLockDuration = 1 hours;
 
     mapping(address => bool) public allowedMintTokens; // Tokens that can be used to mint Esteem
     mapping(address => bool) public favorTokens;
+    mapping(address => bool) public isApprovedUser;
     mapping(address => address) public priceOracles;
     mapping(address => uint256) public userUnlockTime; // Time upon which user can redeem esteem after minting it
 
     event Minted(address indexed user, uint256 inputAmount, uint256 esteemAmount);
     event Redeemed(address indexed user, uint256 esteemAmount, uint256 rewardAmount);
-    event keeperUpdated(address indexed newkeeper);
     event RateUpdated(uint256 newRate);
     event NewDailyRateIncrease(uint256 newRate);
     event RedeemRateUpdated(uint256 newRate);
     event TreasuryBonusUpdated(uint256 newBonus);
-    event TreasuryUpdated(address indexed newTreasury);
+    event TreasuryUpdated(address indexed newHolding, address indexed newTeam);
     event AdminWithdraw(address indexed token, address indexed to, uint256 amount);
+    event NewPOOL(address indexed admin);
     event ContractPaused(address indexed admin);
     event ContractUnpaused(address indexed admin);
     event OracleUpdated(address indexed token, address indexed oracle);
+    event ApprovedUserSet(address indexed user, bool allowed);
     event AllowedMintTokenSet(address indexed token, bool allowed);
     event ActiveFavorTokenSet(address indexed token, bool allowed);
     event redemptionLockDurationUpdated(uint256 duration);
+    event DepositedToStronghold(address indexed token, uint256 amount);
 
-    modifier onlyKeeper() {
-        require(msg.sender == keeper, "Not keeper");
-        _;
-    }
-
-    constructor(address _esteem, address _treasury) {
+    constructor(address _esteem, uint256 _startTime) {
         require(_esteem != address(0), "Invalid Esteem address");
-        require(_treasury != address(0), "Invalid treasury address");
-
+        require(_startTime >= block.timestamp, "Cannot start in past");
+        
+        startTime = _startTime;
         esteem = BBToken(_esteem);
-        treasury = _treasury;
-        keeper = msg.sender;
-        lastRateUpdateTimestamp = block.timestamp;
     }
 
     function mintEsteemWithPLS(uint256 deadline) external payable nonReentrant whenNotPaused {
@@ -812,11 +821,10 @@ contract MintRedeemer is Ownable, ReentrancyGuard, Pausable {
 
         uint256 treasuryAmount = (outputAmount * treasuryBonusRate) / MULTIPLIER;
 
-        (bool success, ) = treasury.call{value: msg.value}("");
-        require(success, "PLS transfer to treasury failed");
+        _depositToStronghold(address(0), msg.value);
 
         esteem.mint(msg.sender, outputAmount);
-        esteem.mint(treasury, treasuryAmount);
+        esteem.mint(team, treasuryAmount);
         
         userUnlockTime[msg.sender] = block.timestamp + redemptionLockDuration;
 
@@ -828,15 +836,17 @@ contract MintRedeemer is Ownable, ReentrancyGuard, Pausable {
         require(allowedMintTokens[token], "Token not accepted");
         require(amount > 0, "Amount must be > 0");
 
-        IERC20(token).safeTransferFrom(msg.sender, treasury, amount);
+        IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
 
         uint256 outputAmount = _calculateEsteemMint(amount, token);
         require(outputAmount > 0, "Increase your amount");
 
         uint256 treasuryAmount = (outputAmount * treasuryBonusRate) / MULTIPLIER;
 
+        _depositToStronghold(token, amount);
+
         esteem.mint(msg.sender, outputAmount);
-        esteem.mint(treasury, treasuryAmount);
+        esteem.mint(team, treasuryAmount);
 
         userUnlockTime[msg.sender] = block.timestamp + redemptionLockDuration;
 
@@ -871,6 +881,23 @@ contract MintRedeemer is Ownable, ReentrancyGuard, Pausable {
             return amount * (10 ** (18 - tokenDecimals));
         } 
      }
+
+     function _depositToStronghold(address token, uint256 amount) internal {
+        uint256 treasuryAmt = amount / 5;
+        uint256 toDeposit = amount - treasuryAmt;
+        if (token == address(0)) {
+            IWPLS(WPLS).deposit{value: amount }();
+            IERC20(WPLS).forceApprove(address(POOL), amount);
+            POOL.supply(WPLS, toDeposit, holding, 0);
+            IERC20(WPLS).safeTransfer(team, treasuryAmt);
+            emit DepositedToStronghold(WPLS, toDeposit);
+        } else {
+            IERC20(token).forceApprove(address(POOL), amount);
+            POOL.supply(token, toDeposit, holding, 0);
+            IERC20(token).safeTransfer(team, treasuryAmt);
+            emit DepositedToStronghold(token, toDeposit);
+        }
+    }
 
     // Calculates user output for minting Esteem based on the token input
     function _calculateEsteemMint(uint256 amount, address token) internal view returns (uint256) {
@@ -907,16 +934,22 @@ contract MintRedeemer is Ownable, ReentrancyGuard, Pausable {
         return price;
     }
 
-    function updateEsteemRate() external onlyKeeper {
-        require(block.timestamp >= lastRateUpdateTimestamp + 1 days, "Already updated today");
-        esteemRate += dailyRateIncrease;
-        lastRateUpdateTimestamp = block.timestamp;
-        emit RateUpdated(esteemRate);
+    function nextEpochTime() public view returns (uint256) {
+        return startTime + epoch * PERIOD;
     }
 
-    function setKeeper(address _address) external onlyOwner {
-        keeper = _address;
-        emit keeperUpdated(_address);
+    function updateEsteemRate() external {
+        require(isApprovedUser[msg.sender], "Not approved user");
+        require(block.timestamp >= startTime, "not started");
+        require(block.timestamp >= nextEpochTime(), "Updater epoch not passed");
+        epoch += 1;
+        esteemRate += dailyRateIncrease;
+    }
+
+    function setApprovedUser(address user, bool allowed) external onlyOwner {
+        require(user != address(0), "Zero address not allowed");
+        isApprovedUser[user] = allowed;
+        emit ApprovedUserSet(user, allowed);
     }
 
     function setDailyRateIncrease(uint256 _newRate) external onlyOwner {
@@ -928,6 +961,12 @@ contract MintRedeemer is Ownable, ReentrancyGuard, Pausable {
         require(_rate > 0, "Esteem Rate must be > 0");
         esteemRate = _rate;
         emit RateUpdated(_rate);
+    }
+
+    function setPool(address _pool) external onlyOwner {
+        require(_pool != address(0), "Must be a valid address");
+        POOL = IPool(_pool);
+        emit NewPOOL(_pool);
     }
 
     function setRedeemRate(uint256 _redeemRate) external onlyOwner {
@@ -942,10 +981,12 @@ contract MintRedeemer is Ownable, ReentrancyGuard, Pausable {
         emit TreasuryBonusUpdated(_treasuryBonusRate);
     }
 
-    function setTreasury(address _treasury) external onlyOwner {
-        require(_treasury != address(0), "Invalid Treasury address");
-        treasury = _treasury;
-        emit TreasuryUpdated(_treasury);
+    function setTreasury(address _holding, address _team) external onlyOwner {
+        require(_holding != address(0), "Invalid Holding address");
+        require(_team != address(0), "Invalid Team address");
+        holding = _holding;
+        team = _team;
+        emit TreasuryUpdated(_holding, _team);
     }
 
     function setPriceOracle(address token, address oracle) external onlyOwner {

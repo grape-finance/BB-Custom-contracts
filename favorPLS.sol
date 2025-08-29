@@ -596,15 +596,15 @@ interface BBToken {
     function mint(address recipient, uint256 amount) external;
 }
  
- contract FavorPLS is ERC20Burnable, Ownable {
+ contract PDAIF is ERC20Burnable, Ownable {
 
-    string private constant NAME = "Favor PLS";
-    string private constant SYMBOL = "fPLS";
+    string private constant NAME = "Favor PDAIF";
+    string private constant SYMBOL = "PDAIF";
     uint256 public constant MULTIPLIER = 10000;
     uint256 public constant MAX_TAX = 5000; // 50% MAX Sell Tax
 
     uint256 public sellTax = 5000; 
-    uint256 public bonusRate = 4400; // 44% buy bonus to buyer in esteem
+    uint256 public bonusRate = 4400; // Buy bonus to buyer in esteem
     uint256 public treasuryBonusRate = 2500; // 25% extra bonus minted to protocol treasury multisig on top of users minted amount 
     address public treasury; // Treasury multisig wallet
 
@@ -631,13 +631,10 @@ interface BBToken {
     event BuyWrapperUpdated(address indexed wrapper, bool isActive);
    
 
-    constructor(uint256 initialSupply, address _treasury, address _esteem) ERC20(NAME, SYMBOL) {
-        require(_esteem != address(0), "Invalid Esteem address");
+    constructor(uint256 initialSupply, address _treasury) ERC20(NAME, SYMBOL) {
         require(_treasury != address(0), "Invalid Treasury address");
 
         treasury = _treasury;
-        esteem = BBToken(_esteem);
-
         _mint(msg.sender, initialSupply * 10 ** decimals());
     }
 
@@ -651,7 +648,7 @@ interface BBToken {
     }
 
     function calculateFavorBonuses(uint256 amount) public view returns (uint256 userBonus, uint256 treasuryBonus) {
-        uint256 favorPrice = esteemMinter.getLatestTokenPrice(address(this)); // fPLS price in USD as 18 Decimals
+        uint256 favorPrice = esteemMinter.getLatestTokenPrice(address(this)); // Favor price in USD as 18 Decimals
 
         // Compute USD value of the amount (also 18 decimals)
         uint256 usdBuyAmount = (amount * favorPrice) / 1e18;
