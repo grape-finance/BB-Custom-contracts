@@ -5,8 +5,5 @@ interface Minter {
 
     function esteemRate() external view returns (uint256);
 
-    function getFavorPrice(address _favorToken) external view returns (uint256 updatedPrice);
-
-    function latestETHPrice() external view returns (uint256);
-
+   function getLatestTokenPrice(address token) external view returns (uint256);
 }

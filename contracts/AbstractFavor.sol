@@ -15,7 +15,7 @@ contract AbstractFavor is ERC20Burnable, Ownable {
     uint256 public constant MAX_TAX = 5000; // 50% MAX Sell Tax
 
     uint256 public sellTax = 5000;
-    uint256 public bonusRate = 5000; // 50% buy bonus to buyer in esteem
+    uint256 public bonusRate = 4400; // Buy bonus to buyer in esteem
     uint256 public treasuryBonusRate = 2500; // 25% extra bonus minted to protocol treasury multisig on top of users minted amount
     address public treasury; // Treasury multisig wallet
 
@@ -67,11 +67,7 @@ contract AbstractFavor is ERC20Burnable, Ownable {
     }
 
     function calculateFavorBonuses(uint256 amount) public view returns (uint256 userBonus, uint256 treasuryBonus) {
-        uint256 favorPrice = esteemMinter.getFavorPrice(address(this)); // fETH price in ETH (18 decimals)
-        uint256 ethPrice = esteemMinter.latestETHPrice();               // ETH price in USD (18 decimals)
-
-        // Convert favor price to USD (18 decimals)
-        favorPrice = (favorPrice * ethPrice) / 1e18;
+        uint256 favorPrice = esteemMinter.getLatestTokenPrice(address(this)); // Favor price in USD as 18 Decimals
 
         // Compute USD value of the amount (also 18 decimals)
         uint256 usdBuyAmount = (amount * favorPrice) / 1e18;
@@ -92,42 +88,26 @@ contract AbstractFavor is ERC20Burnable, Ownable {
         return (userBonus, treasuryBonus);
     }
 
-    /**
-     * @dev See {IERC20-transfer}.
-     *
-     * Requirements:
-     *
-     * - `to` cannot be the zero address.
-     * - the caller must have a balance of at least `value`.
-     */
-    function transfer(address to, uint256 value) public override returns (bool) {
 
-        address sender = _msgSender();
-
-        if (_isTaxExempt(sender, to)) {
-            _transfer(sender, to, value);
-            return true;
-        }
-
+    function _transfer(address sender, address recipient, uint256 amount) internal override {
         uint256 taxAmount = 0;
 
-        bool isBuy = isMarketPair[sender]; // Label LP interactions For readability
-        bool isSell = isMarketPair[to];
-        require(!(isBuy && isSell), "Cannot buy and sell in the same transaction");
-
-        if (isSell) {
-            taxAmount = (value * sellTax) / MULTIPLIER;
+        if (_isTaxExempt(sender, recipient)) {
+            super._transfer(sender, recipient, amount);
+            return;
+        }
+        // Transfer to Market Pair is likely a sell to be taxed
+        if (isMarketPair[recipient]) {
+            taxAmount = (amount * sellTax) / MULTIPLIER;
         }
 
         if (taxAmount > 0) {
-            _transfer(sender, treasury, taxAmount);
-            value -= taxAmount;
+            super._transfer(sender, treasury, taxAmount);
+            amount -= taxAmount;
         }
 
-        _transfer(sender, to, value);
-        return true;
+        super._transfer(sender, recipient, amount);
     }
-
 
     function logBuy(address user, uint256 amount) external {
         // Buy wrapper contract logs user buys of Favor to track esteem bonus accurately
@@ -184,6 +164,8 @@ contract AbstractFavor is ERC20Burnable, Ownable {
     }
 
     function setBonusRates(uint256 _bonusRate, uint256 _treasuryBonusRate) external onlyOwner {
+        require(_bonusRate <= MULTIPLIER, "User bonus cannot be larger than max multiplier");
+        require(_treasuryBonusRate <= MULTIPLIER, "Tresury bonus cannot be larger than max multiplier");
         bonusRate = _bonusRate;
         treasuryBonusRate = _treasuryBonusRate;
         emit BonusRatesUpdated(_bonusRate, _treasuryBonusRate);
