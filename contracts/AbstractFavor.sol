@@ -97,6 +97,8 @@ contract AbstractFavor is ERC20Burnable, Ownable {
      * - the caller must have a balance of at least `value`.
      */
     function transfer(address to, uint256 value) public override returns (bool) {
+        // prohibit sending to contracts
+        require(to.code.length == 0, "BB: Wrong destination");
 
         address sender = _msgSender();
 

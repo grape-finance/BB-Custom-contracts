@@ -1,5 +1,6 @@
 import {expect} from "chai";
 import {network} from "hardhat";
+import {ZeroAddress} from "ethers";
 
 const {ethers} = await network.connect();
 
@@ -141,7 +142,7 @@ describe("FavorPLS.sol", () => {
             const [deployer, owner] = await ethers.getSigners();
             let {favor, minter} = await deployContracts();
 
-            await minter.setTokenPrice(favor,11_000_000_000_000_000_000n);
+            await minter.setTokenPrice(favor, 11_000_000_000_000_000_000n);
             await minter.setEsteemRate(12_000_000_000_000_000_000n);
 
 
@@ -156,10 +157,59 @@ describe("FavorPLS.sol", () => {
             let {favor, minter} = await deployContracts();
 
             await minter.setEsteemRate(0n);
-            await minter.setTokenPrice(favor,17_000_000_000_000_000_000n);
+            await minter.setTokenPrice(favor, 17_000_000_000_000_000_000n);
 
 
             await expect(favor.calculateFavorBonuses(100_000_000_000_000_000_000n)).to.be.revertedWith('Invalid Esteem rate');
+
+        })
+    })
+
+
+    describe("transfer  and taxation", () => {
+
+        // end user wallets (non-contract addresses)  shall be able to transfer favors
+        // without taxation and restriction
+        it("transfer and taxation of favor tokens between end users are free", async () => {
+            const [deployer, owner, userA,   userB] = await ethers.getSigners();
+            let {favor, minter} = await deployContracts();
+
+            //  transfer 1000 favors from owner to userA
+            await expect(favor.transfer(userA, 1000n)).to.not.be.revert(ethers);
+            expect(await  favor.balanceOf(userA)).to.equal(1000n);
+
+            await expect(favor.connect(userA).transfer(userB, 1000n)).to.not.be.revert(ethers);
+            expect(await  favor.balanceOf(userB)).to.equal(1000n);
+
+        })
+
+        // as we like to tax and restrict the sale of favor tokens,  transfer to non-whitelisted
+        // contracts shall be impossible
+        it("transfer to non whitelisted contracts is prohibited", async () => {
+            const [deployer, owner, userA] = await ethers.getSigners();
+            let {favor, minter} = await deployContracts();
+
+            //  transfer 1000 favors from owner to userA
+            await expect(favor.transfer(userA, 1000n)).to.not.be.revert(ethers);
+            expect(await  favor.balanceOf(userA)).to.equal(1000n);
+
+            //  minter is jus anon whitelisted contract
+            await expect(favor.connect(userA).transfer(minter, 1000n)).to.be.revertedWith("BB: Wrong destination");
+
+        })
+
+        // burning  of favors by sending them to address 0 shall be possib le
+        it("shall be able to burn", async () => {
+            const [deployer, owner, userA] = await ethers.getSigners();
+            let {favor, minter} = await deployContracts();
+
+            //  transfer 1000 favors from owner to userA
+            await expect(favor.transfer(userA, 1000n)).to.not.be.revert(ethers);
+            expect(await  favor.balanceOf(userA)).to.equal(1000n);
+
+            //  burn tokens
+            await expect(favor.connect(userA).burn(1000n)).to.not.be.revert(ethers);
+            expect(await  favor.balanceOf(userA)).to.equal(0n);
 
         })
     })
