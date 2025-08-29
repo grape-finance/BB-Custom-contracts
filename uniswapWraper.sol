@@ -334,6 +334,7 @@ contract FavorRouterWrapper is Ownable {
         minterOracle = IOracle(_oracle);
     }
 
+    // Enforce only direct pair trades to qualify for buy bonuses
     function setAllowedDirectPair(address fromToken, address toToken, bool allowed) external onlyOwner {
         require(fromToken != address(0), "Zero address not allowed");
         require(toToken != address(0), "Zero address not allowed");
