@@ -306,6 +306,15 @@ interface IUniswapV2Router02 is IUniswapV2Router {
     ) external;
 }
 
+interface IWPLS {
+    function deposit() external payable;
+    function withdraw(uint256) external;
+}
+
+interface IPool {
+    function supply(address asset, uint256 amount, address onBehalfOf, uint16 referralCode) external;
+}
+
 interface IOracle {
     function getTokenTWAP(address _token) external view returns (uint256 amountOut);
 }
@@ -317,20 +326,30 @@ interface IFavorToken {
 contract FavorRouterWrapper is Ownable {
     using SafeERC20 for IERC20;
 
+    IPool public pool;
     IOracle public minterOracle;
     IUniswapV2Router02 public uniswapRouter = IUniswapV2Router02(0x165C3410fC91EF562C50559f7d2289fEbed552d9);
+
+    address public immutable WPLS = 0xA1077a294dDE1B09bB078844df40758a5D0f9a27; 
+    address public team = 0x1EA35487AE62322F61f4C0F639a598d9eEB2F340;
+    address public holding = 0x6831f815963FfCe95521271b94164eb4C82e7621;
     
     mapping(address => bool) public isFavorToken;
     mapping(address => mapping(address => bool)) public allowedDirectPair;
     
     event RouterUpdated(address indexed router);
     event OracleUpdated(address indexed oracle);
+    event PoolUpdated(address indexed pool);
     event FavorTokenSet(address indexed token, bool allowed);
+    event DepositedToStronghold(address indexed token, uint256 amount);
+    event TreasuryUpdated(address indexed newHolding, address indexed newTeam);
     event AllowedDirectPairSet(address indexed fromToken, address indexed toToken, bool allowed);
     event RecoveredUnsupportedToken(address indexed token, address indexed to, uint256 amount);
 
-    constructor(address _oracle) {
+    constructor(address _oracle, address _pool) {
+        require(_pool != address(0), "Pool cannot be zero address");
         require(_oracle != address(0), "Oracle cannot be zero address");
+        pool = IPool(_pool);
         minterOracle = IOracle(_oracle);
     }
 
@@ -358,6 +377,20 @@ contract FavorRouterWrapper is Ownable {
         require(_oracle != address(0), "Invalid oracle address");
         minterOracle = IOracle(_oracle);
         emit OracleUpdated(_oracle);
+    }
+
+    function setTreasury(address _holding, address _team) external onlyOwner {
+        require(_holding != address(0), "Invalid Holding address");
+        require(_team != address(0), "Invalid Team address");
+        holding = _holding;
+        team = _team;
+        emit TreasuryUpdated(_holding, _team);
+    }
+
+    function setPool(address _pool) external onlyOwner {
+        require(_pool != address(0), "Must be a valid address");
+        POOL = IPool(_pool);
+        emit PoolUpdated(_pool);
     }
 
     // --- Buy Wrappers ---
@@ -438,13 +471,24 @@ contract FavorRouterWrapper is Ownable {
         IERC20(path[0]).safeTransferFrom(msg.sender, address(this), amountIn);
         IERC20(path[0]).forceApprove(address(uniswapRouter), amountIn);
 
+        uint256 balBefore = IERC20(finalToken).balanceOf(address(this));
+
         uniswapRouter.swapExactTokensForTokensSupportingFeeOnTransferTokens(
             amountIn,
             amountOutMin,
             path,
-            to,
+            address(this),
             deadline
         );
+
+        uint256 balReceived = IERC20(finalToken).balanceOf(address(this)) - balBefore;
+        require(balReceived > 0, "Swap yielded zero tokens");
+        
+        uint256 treasuryAmnt = (balReceived * 5000) / 10000; // 50% sell tax
+
+        _depositToStronghold(finalToken, treasuryAmnt); // Auto deposit into lending pools for treasury
+
+        IERC20(finalToken).safeTransfer(to, (balReceived - treasuryAmnt)); // Send user output minus tax
 
     }
 
@@ -463,15 +507,38 @@ contract FavorRouterWrapper is Ownable {
         IERC20(path[0]).safeTransferFrom(msg.sender, address(this), amountIn);
         IERC20(path[0]).forceApprove(address(uniswapRouter), amountIn);
 
+        uint256 balBefore = address(this).balance;
+
         uniswapRouter.swapExactTokensForETHSupportingFeeOnTransferTokens(
             amountIn,
             amountOutMin,
             path,
-            to,
+            address(this),
             deadline
-
         );
 
+        uint256 balReceived = address(this).balance - balBefore;
+        require(balReceived > 0, "Swap yielded zero ETH");
+
+        uint256 treasuryAmnt = (balReceived * 5000) / 10000; // 50% sell tax
+        uint256 userAmt = balReceived - treasuryAmnt;
+
+        IWPLS(WPLS).deposit{value: treasuryAmnt}();
+        _depositToStronghold(WPLS, treasuryAmnt);
+
+        // Send remaining PLS to user
+        (bool success, ) = to.call{value: userAmt}("");
+        require(success, "PLS transfer failed");
+
+    }
+
+    function _depositToStronghold(address token, uint256 amount) internal {
+        uint256 treasuryAmt = amount / 5;
+        uint256 toDeposit = amount - treasuryAmt;
+        IERC20(token).forceApprove(address(POOL), amount);
+        POOL.supply(token, toDeposit, holding, 0);
+        IERC20(token).safeTransfer(team, treasuryAmt);
+        emit DepositedToStronghold(token, toDeposit);
     }
 
     function uiAmountsOut(
