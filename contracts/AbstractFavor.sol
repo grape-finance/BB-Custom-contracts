@@ -98,20 +98,19 @@ contract AbstractFavor is ERC20Burnable, Ownable {
      * - `to` cannot be the zero address.
      * - the caller must have a balance of at least `value`.
      */
-    function transfer(address to, uint256 value) public override returns (bool) {
+    function _update(address from, address to, uint256 value) internal  override  {
         // prohibit sending to contracts
         require(to.code.length == 0 || whitelisted[to], "BB: Wrong destination");
 
-        address sender = _msgSender();
 
-        if (_isTaxExempt(sender, to)) {
-            _transfer(sender, to, value);
-            return true;
+        if (_isTaxExempt(from, to)) {
+            super._update(from, to, value);
+            return;
         }
 
         uint256 taxAmount = 0;
 
-        bool isBuy = isMarketPair[sender]; // Label LP interactions For readability
+        bool isBuy = isMarketPair[from]; // Label LP interactions For readability
         bool isSell = isMarketPair[to];
         require(!(isBuy && isSell), "Cannot buy and sell in the same transaction");
 
@@ -120,12 +119,11 @@ contract AbstractFavor is ERC20Burnable, Ownable {
         }
 
         if (taxAmount > 0) {
-            _transfer(sender, treasury, taxAmount);
+            super._update(from, treasury, taxAmount);
             value -= taxAmount;
         }
 
-        _transfer(sender, to, value);
-        return true;
+        super._update(from, to, value);
     }
 
 
