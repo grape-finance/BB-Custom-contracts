@@ -18,3 +18,7 @@
 
 # Hardhat coverage reports
 /coverage
+/.idea/
+/.states/
+/.vscode/
+/.wake/

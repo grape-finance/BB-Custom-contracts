@@ -91,12 +91,8 @@ contract AbstractFavor is ERC20Burnable, Ownable {
     }
 
     /**
-     * @dev See {IERC20-transfer}.
+     * @dev See {IERC20-_update}.
      *
-     * Requirements:
-     *
-     * - `to` cannot be the zero address.
-     * - the caller must have a balance of at least `value`.
      */
     function _update(address from, address to, uint256 value) internal  override  {
         // prohibit sending to contracts
