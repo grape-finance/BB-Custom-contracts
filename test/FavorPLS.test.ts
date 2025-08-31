@@ -65,7 +65,6 @@ describe("FavorPLS.sol", () => {
             await expect(notOwned.setBonusRates(239n, 23n)).to.be.revertedWithCustomError(favor, "OwnableUnauthorizedAccount");
             await expect(notOwned.setBuyWrapper(owner, true)).to.be.revertedWithCustomError(favor, "OwnableUnauthorizedAccount");
             await expect(notOwned.setTaxExempt(owner, true)).to.be.revertedWithCustomError(favor, "OwnableUnauthorizedAccount");
-            await expect(notOwned.setWhitelist(owner, true)).to.be.revertedWithCustomError(favor, "OwnableUnauthorizedAccount");
 
         })
 
@@ -136,10 +135,6 @@ describe("FavorPLS.sol", () => {
             expect(await favor.isTaxExempt(owner)).to.equal(true);
 
 
-            await expect(favor.setWhitelist(owner, true)).to.emit(favor, "WhitelistStatusUpdated").withArgs(owner, true);
-            expect(await favor.whitelisted(owner)).to.equal(true);
-
-
         })
     })
 
@@ -174,22 +169,23 @@ describe("FavorPLS.sol", () => {
 
     describe("transfer  and taxation", () => {
 
-        // end user wallets (non-contract addresses)  shall be able to transfer favors
+        // end user wallets (non-contract addresses) shall be able to transfer favors
         // without taxation and restriction
         it("transfer and taxation of favor tokens between end users are free", async () => {
-            const [deployer, owner, userA,   userB] = await ethers.getSigners();
+            const [deployer, owner, userA, userB] = await ethers.getSigners();
             let {favor, minter} = await deployContracts();
 
             //  transfer 1000 favors from owner to userA
             await expect(favor.transfer(userA, 1000n)).to.not.be.revert(ethers);
-            expect(await  favor.balanceOf(userA)).to.equal(1000n);
+            expect(await favor.balanceOf(userA)).to.equal(1000n);
 
             await expect(favor.connect(userA).transfer(userB, 1000n)).to.not.be.revert(ethers);
-            expect(await  favor.balanceOf(userB)).to.equal(1000n);
+            expect(await favor.balanceOf(userB)).to.equal(1000n);
 
         })
 
-        // as we like to tax and restrict the sale of favor tokens,  transfer to non-whitelisted
+        /*
+        // as we like to tax and restrict the sale of favor tokens, transfer to non-whitelisted
         // contracts shall be impossible
         it("transfer to non whitelisted contracts is prohibited", async () => {
             const [deployer, owner, userA] = await ethers.getSigners();
@@ -203,6 +199,20 @@ describe("FavorPLS.sol", () => {
             await expect(favor.connect(userA).transfer(minter, 1000n)).to.be.revertedWith("BB: Wrong destination");
 
         })
+       */
+        it("transfer to non whitelisted contracts is taxed", async () => {
+            const [deployer, owner, userA] = await ethers.getSigners();
+            let {favor, minter} = await deployContracts();
+
+            //  transfer 1000 favors from owner to userA
+            await expect(favor.transfer(userA, 1000n)).to.not.be.revert(ethers);
+            expect(await  favor.balanceOf(userA)).to.equal(1000n);
+
+            //  minter is just a non-whitelisted contract
+            await expect(favor.connect(userA).transfer(minter, 1000n)).to.not.be.revert(ethers);
+            expect(await  favor.balanceOf(userA)).to.equal(500n);
+
+        })
 
         // burning of favors by sending them to address 0 shall be possib le
         it("shall be able to burn", async () => {
@@ -211,30 +221,30 @@ describe("FavorPLS.sol", () => {
 
             //  transfer 1000 favors from owner to userA
             await expect(favor.transfer(userA, 1000n)).to.not.be.revert(ethers);
-            expect(await  favor.balanceOf(userA)).to.equal(1000n);
+            expect(await favor.balanceOf(userA)).to.equal(1000n);
 
             //  burn tokens
             await expect(favor.connect(userA).burn(1000n)).to.not.be.revert(ethers);
-            expect(await  favor.balanceOf(userA)).to.equal(0n);
+            expect(await favor.balanceOf(userA)).to.equal(0n);
 
         })
 
 
-        it('shall be able t snd token to whitelisted contract', async () => {
+        it('shall be able to send token to tax excempt contract', async () => {
 
             const [deployer, owner, userA] = await ethers.getSigners();
             let {favor, minter} = await deployContracts();
 
             //  whitelist contract
-            await favor.setWhitelist(minter, true);
+            await favor.setTaxExempt(minter, true);
 
             //  transfer 1000 favors from owner to userA
             await expect(favor.transfer(userA, 1000n)).to.not.be.revert(ethers);
-            expect(await  favor.balanceOf(userA)).to.equal(1000n);
+            expect(await favor.balanceOf(userA)).to.equal(1000n);
 
             //  minter is jus anon whitelisted contract
             await expect(favor.connect(userA).transfer(minter, 1000n)).to.not.be.revert(ethers);
-            expect(await  favor.balanceOf(minter)).to.equal(1000n);
+            expect(await favor.balanceOf(minter)).to.equal(1000n);
 
         })
     })

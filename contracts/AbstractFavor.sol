@@ -27,7 +27,6 @@ contract AbstractFavor is ERC20Burnable, Ownable {
     mapping(address => bool) public isMinter; // Approved minters of Favor token
     mapping(address => bool) public isBuyWrapper; // Buy uniswap wrapper address to log bonus esteem on buys
     mapping(address => uint256) public pendingBonus; // User pending esteem bonus for buys
-    mapping(address => bool) public whitelisted; // whether this address is whitelisted contract
 
     event MinterAdded(address indexed account);
     event MinterRemoved(address indexed account);
@@ -41,7 +40,6 @@ contract AbstractFavor is ERC20Burnable, Ownable {
     event TaxExemptStatusUpdated(address indexed account, bool isExempt);
     event MarketPairUpdated(address indexed pair, bool isPair);
     event BuyWrapperUpdated(address indexed wrapper, bool isActive);
-    event WhitelistStatusUpdated(address indexed wrapper, bool isActive);
 
 
 
@@ -92,11 +90,12 @@ contract AbstractFavor is ERC20Burnable, Ownable {
 
     /**
      * @dev See {IERC20-_update}.
-     *
+     * here we apply taxation.  if destination is a contract, we treat is as a sell.
+     * edge cases like buy via approved contracts  while minting  ersteem of whatever
+     * will be tax exempt.
      */
     function _update(address from, address to, uint256 value) internal  override  {
-        // prohibit sending to contracts
-        require(to.code.length == 0 || whitelisted[to], "BB: Wrong destination");
+        bool destinationIsContract = to.code.length != 0;
 
 
         if (_isTaxExempt(from, to)) {
@@ -106,14 +105,11 @@ contract AbstractFavor is ERC20Burnable, Ownable {
 
         uint256 taxAmount = 0;
 
-        bool isBuy = isMarketPair[from]; // Label LP interactions For readability
-        bool isSell = isMarketPair[to];
-        require(!(isBuy && isSell), "Cannot buy and sell in the same transaction");
-
-        if (isSell) {
+        if (destinationIsContract) {
             taxAmount = (value * sellTax) / MULTIPLIER;
         }
 
+        // tax goes to treasury
         if (taxAmount > 0) {
             super._update(from, treasury, taxAmount);
             value -= taxAmount;
@@ -141,12 +137,6 @@ contract AbstractFavor is ERC20Burnable, Ownable {
         pendingBonus[msg.sender] = 0;
         esteem.mint(msg.sender, bonus);
         emit UserBonusClaimed(msg.sender, bonus);
-    }
-
-    // set whitelisting status for contract address
-    function setWhitelist(address adr, bool isWhitelisted) external onlyOwner {
-        whitelisted[adr] = isWhitelisted;
-        emit WhitelistStatusUpdated(adr, isWhitelisted);
     }
 
     function addMinter(address account) external onlyOwner {
