@@ -6,12 +6,13 @@ import "./interfaces/BBToken.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 import "./interfaces/IUniswapV2Pair.sol";
-import "./interfaces/UniV2Lib.sol";
+
 
 /**
  * base favor contract  with common logic
  */
-contract AbstractFavor is ERC20Burnable, Ownable {
+contract AbstractFavor2 is ERC20Burnable, Ownable {
+    
     uint256 public constant MULTIPLIER = 10000;
     uint256 public constant MAX_TAX = 5000; // 50% MAX Sell Tax
 
@@ -143,6 +144,15 @@ contract AbstractFavor is ERC20Burnable, Ownable {
         basePair = _basePair;
     }
 
+        function getAmountOut(uint amountIn, uint reserveIn, uint reserveOut) internal pure returns (uint amountOut) {
+        require(amountIn > 0, 'PulseXLibrary: INSUFFICIENT_INPUT_AMOUNT');
+        require(reserveIn > 0 && reserveOut > 0, 'PulseXLibrary: INSUFFICIENT_LIQUIDITY');
+        uint amountInWithFee = amountIn * 9971;
+        uint numerator = amountInWithFee * reserveOut;
+        uint denominator = reserveIn * 10000 + amountInWithFee;
+        amountOut = numerator / denominator;
+    }
+
     /**
      * @dev See {IERC20-transfer}.
      *
@@ -190,7 +200,7 @@ contract AbstractFavor is ERC20Burnable, Ownable {
                 ? (uint(r0), uint(r1), true)
                 : (uint(r1), uint(r0), false);
 
-            uint amountOut = PulseXLibrary.getAmountOut(
+            uint amountOut = getAmountOut(
                 taxAmount,
                 reserveIn,
                 reserveOut

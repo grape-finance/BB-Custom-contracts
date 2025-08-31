@@ -473,6 +473,8 @@ contract FavorRouterWrapper is Ownable {
 
     }
 
+    
+
     function uiAmountsOut(
         uint256 amountIn,
         address[] calldata path

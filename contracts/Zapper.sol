@@ -63,8 +63,8 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
 
     // TODO:  Needs proper reentrancy guard, or at least discussion!!!!!
     function requestFlashLoan(uint256 amount, address favorToken) external {
-        require(favorToToken[favorToken] != address(0), UNSUPORTED_TOKEN());
-        require(favorToLp[favorToken] != address(0), UNSUPORTED_TOKEN());
+        //require(favorToToken[favorToken] != address(0), UNSUPORTED_TOKEN());
+        //require(favorToLp[favorToken] != address(0), UNSUPORTED_TOKEN());
         address token = favorToToken[favorToken];
         address lpToken = favorToLp[favorToken];
 
