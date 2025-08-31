@@ -62,8 +62,8 @@ contract AbstractFavor is ERC20Burnable, Ownable {
         _mint(recipient_, amount_);
     }
 
-    function _isTaxExempt(address sender, address recipient) internal view returns (bool) {
-        return isTaxExempt[sender] || isTaxExempt[recipient];
+    function _isTaxExempt(address recipient) internal view returns (bool) {
+        return isTaxExempt[recipient];
     }
 
     function calculateFavorBonuses(uint256 amount) public view returns (uint256 userBonus, uint256 treasuryBonus) {
@@ -94,11 +94,11 @@ contract AbstractFavor is ERC20Burnable, Ownable {
      * edge cases like buy via approved contracts  while minting  ersteem of whatever
      * will be tax exempt.
      */
-    function _update(address from, address to, uint256 value) internal  override  {
+    function _update(address from, address to, uint256 value) internal override {
         bool destinationIsContract = to.code.length != 0;
 
 
-        if (_isTaxExempt(from, to)) {
+        if (_isTaxExempt(to)) {
             super._update(from, to, value);
             return;
         }
