@@ -1,9 +1,7 @@
 import {expect} from "chai";
 import {network} from "hardhat";
-import {ZeroAddress} from "ethers";
 
 const {ethers} = await network.connect();
-
 
 /**
  *   as favors  are derived from base class , this tests covers all the functionality
@@ -11,14 +9,22 @@ const {ethers} = await network.connect();
  */
 describe("FavorPLS.sol", () => {
 
+
     async function deployContracts() {
-        const [deployer, owner, treasury, esteem] = await ethers.getSigners();
+        const [deployer, owner, treasury] = await ethers.getSigners();
+
+        const esteemInstance = await ethers.deployContract("Esteem", [owner]);
+        let esteem = esteemInstance.connect(owner);
 
         const favorInstance = await ethers.deployContract("FavorPLS", [owner, 123_000_000_000_000_000_000_000_000n, treasury, esteem]);
         let favor = favorInstance.connect(owner);
 
-        const minter = await ethers.deployContract("MockEsteemMinter");
+        //  favor shall be able to mint esteem
+        await esteem.addMinter(favor);
 
+        const minter = await ethers.deployContract("MockEsteemMinter");
+        // 0.1 ,  18 digitts fixed decimal point
+        await minter.setEsteemRate(100000000000000000n)
         await favor.setEsteemMinter(minter);
 
         return {favor, minter, owner, treasury, esteem};
@@ -27,15 +33,16 @@ describe("FavorPLS.sol", () => {
 
     describe(' deployment', () => {
         it("Should be able to deploy and configure contract", async () => {
-            const [deployer, owner, treasury, esteem] = await ethers.getSigners();
-            let {favor} = await deployContracts();
+            const [deployer, owner, treasury] = await ethers.getSigners();
+
+            let {favor, esteem} = await deployContracts();
 
             expect(await favor.name()).to.equal("Favor PLS");
             expect(await favor.symbol()).to.equal("fPLS");
             expect(await favor.owner()).to.equal(owner.address);
 
             expect(await favor.treasury()).to.equal(treasury.address);
-            expect(await favor.esteem()).to.equal(esteem.address);
+            expect(await favor.esteem()).to.equal(esteem);
         })
 
 
@@ -73,6 +80,14 @@ describe("FavorPLS.sol", () => {
             let {favor} = await deployContracts();
 
             await expect(favor.mint(notOwner, 123n)).to.be.revertedWith('Not authorized to mint');
+
+        })
+
+        it("only log byuer can call this", async () => {
+            const [deployer, owner, notTreasury] = await ethers.getSigners();
+            let {favor} = await deployContracts();
+
+            await expect(favor.logBuy(owner, 123n)).to.be.revertedWith('Not authorised to log buy');
 
         })
     })
@@ -206,11 +221,11 @@ describe("FavorPLS.sol", () => {
 
             //  transfer 1000 favors from owner to userA
             await expect(favor.transfer(userA, 1000n)).to.not.be.revert(ethers);
-            expect(await  favor.balanceOf(userA)).to.equal(1000n);
+            expect(await favor.balanceOf(userA)).to.equal(1000n);
 
             //  minter is just a non-whitelisted contract
             await expect(favor.connect(userA).transfer(minter, 1000n)).to.not.be.revert(ethers);
-            expect(await  favor.balanceOf(userA)).to.equal(500n);
+            expect(await favor.balanceOf(userA)).to.equal(500n);
 
         })
 
@@ -230,7 +245,7 @@ describe("FavorPLS.sol", () => {
         })
 
 
-        it('shall be able to send token to tax excempt contract', async () => {
+        it('shall be able to send token to tax-excempt contract', async () => {
 
             const [deployer, owner, userA] = await ethers.getSigners();
             let {favor, minter} = await deployContracts();
@@ -245,6 +260,35 @@ describe("FavorPLS.sol", () => {
             //  minter is jus anon whitelisted contract
             await expect(favor.connect(userA).transfer(minter, 1000n)).to.not.be.revert(ethers);
             expect(await favor.balanceOf(minter)).to.equal(1000n);
+
+        })
+    })
+
+    describe("log buy and esteem minting", () => {
+
+
+        it("shall calculate and log proper esteem bonus for user", async () => {
+            const [deployer, owner, treasury, somebody] = await ethers.getSigners();
+            let {favor, esteem, minter} = await deployContracts();
+
+            await minter.setTokenPrice(favor, 11_000_000_000_000_000_000n);
+            await minter.setEsteemRate(12_000_000_000_000_000_000n);
+
+
+            await favor.setBuyWrapper(owner, true);
+
+            await expect(favor.logBuy(somebody, 123_000_000_000_000_000_000n)).to.not.be.revert(ethers);
+
+            //  user shall have claimable rewards
+            expect(await favor.pendingBonus(somebody)).to.equal(49_610_000_000_000_000_000n);
+
+            //  shall have minted bonus esteem for the treasury
+            expect(await esteem.balanceOf(treasury)).to.equal(12_402_500_000_000_000_000n);
+
+
+            //  claim rewards
+            await expect(favor.connect(somebody).claimBonus()).to.not.be.revert(ethers);
+            expect(await esteem.balanceOf(somebody)).to.equal(49_610_000_000_000_000_000n);
 
         })
     })

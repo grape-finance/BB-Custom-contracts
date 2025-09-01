@@ -121,7 +121,7 @@ contract AbstractFavor is ERC20Burnable, Ownable {
 
     function logBuy(address user, uint256 amount) external {
         // Buy wrapper contract logs user buys of Favor to track esteem bonus accurately
-        require(isBuyWrapper[msg.sender], "Only approved buy wrapper can log buys");
+        require(isBuyWrapper[msg.sender], "Not authorised to log buy");
 
         (uint256 userBonus, uint256 treasuryBonus) = calculateFavorBonuses(amount);
         pendingBonus[user] += userBonus;
