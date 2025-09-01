@@ -155,41 +155,7 @@ interface IPulseXRouter01 {
         uint deadline
     ) external returns (uint amountA, uint amountB);
 
-    function removeLiquidityETH(
-        address token,
-        uint liquidity,
-        uint amountTokenMin,
-        uint amountETHMin,
-        address to,
-        uint deadline
-    ) external returns (uint amountToken, uint amountETH);
 
-    function removeLiquidityWithPermit(
-        address tokenA,
-        address tokenB,
-        uint liquidity,
-        uint amountAMin,
-        uint amountBMin,
-        address to,
-        uint deadline,
-        bool approveMax,
-        uint8 v,
-        bytes32 r,
-        bytes32 s
-    ) external returns (uint amountA, uint amountB);
-
-    function removeLiquidityETHWithPermit(
-        address token,
-        uint liquidity,
-        uint amountTokenMin,
-        uint amountETHMin,
-        address to,
-        uint deadline,
-        bool approveMax,
-        uint8 v,
-        bytes32 r,
-        bytes32 s
-    ) external returns (uint amountToken, uint amountETH);
 
     function swapExactTokensForTokens(
         uint amountIn,
@@ -484,27 +450,7 @@ library PulseXLibrary {
 // import './IPulseXRouter01.sol';
 
 interface IPulseXRouter02 is IPulseXRouter01 {
-    function removeLiquidityETHSupportingFeeOnTransferTokens(
-        address token,
-        uint liquidity,
-        uint amountTokenMin,
-        uint amountETHMin,
-        address to,
-        uint deadline
-    ) external returns (uint amountETH);
-
-    function removeLiquidityETHWithPermitSupportingFeeOnTransferTokens(
-        address token,
-        uint liquidity,
-        uint amountTokenMin,
-        uint amountETHMin,
-        address to,
-        uint deadline,
-        bool approveMax,
-        uint8 v,
-        bytes32 r,
-        bytes32 s
-    ) external returns (uint amountETH);
+  
 
     function swapExactTokensForTokensSupportingFeeOnTransferTokens(
         uint amountIn,
@@ -632,7 +578,7 @@ pragma solidity =0.6.6;
 // import './interfaces/IWPLS.sol';
 
 interface IFavorToken2 {
-    function logBuy(address user, uint amount) external;
+
 
     function turnOnTax() external;
 
@@ -808,161 +754,10 @@ contract PulseXRouter02 is IPulseXRouter02 {
         require(amountB >= amountBMin, "PulseXRouter: INSUFFICIENT_B_AMOUNT");
     }
 
-    function removeLiquidityETH(
-        address token,
-        uint liquidity,
-        uint amountTokenMin,
-        uint amountETHMin,
-        address to,
-        uint deadline
-    )
-        public
-        virtual
-        override
-        ensure(deadline)
-        returns (uint amountToken, uint amountETH)
-    {
-        (amountToken, amountETH) = removeLiquidity(
-            token,
-            WPLS,
-            liquidity,
-            amountTokenMin,
-            amountETHMin,
-            address(this),
-            deadline
-        );
-        TransferHelper.safeTransfer(token, to, amountToken);
-        IWPLS(WPLS).withdraw(amountETH);
-        TransferHelper.safeTransferETH(to, amountETH);
-    }
 
-    function removeLiquidityWithPermit(
-        address tokenA,
-        address tokenB,
-        uint liquidity,
-        uint amountAMin,
-        uint amountBMin,
-        address to,
-        uint deadline,
-        bool approveMax,
-        uint8 v,
-        bytes32 r,
-        bytes32 s
-    ) external virtual override returns (uint amountA, uint amountB) {
-        address pair = PulseXLibrary.pairFor(factory, tokenA, tokenB);
-        uint value = approveMax ? uint(-1) : liquidity;
-        IPulseXPair(pair).permit(
-            msg.sender,
-            address(this),
-            value,
-            deadline,
-            v,
-            r,
-            s
-        );
-        (amountA, amountB) = removeLiquidity(
-            tokenA,
-            tokenB,
-            liquidity,
-            amountAMin,
-            amountBMin,
-            to,
-            deadline
-        );
-    }
 
-    function removeLiquidityETHWithPermit(
-        address token,
-        uint liquidity,
-        uint amountTokenMin,
-        uint amountETHMin,
-        address to,
-        uint deadline,
-        bool approveMax,
-        uint8 v,
-        bytes32 r,
-        bytes32 s
-    ) external virtual override returns (uint amountToken, uint amountETH) {
-        address pair = PulseXLibrary.pairFor(factory, token, WPLS);
-        uint value = approveMax ? uint(-1) : liquidity;
-        IPulseXPair(pair).permit(
-            msg.sender,
-            address(this),
-            value,
-            deadline,
-            v,
-            r,
-            s
-        );
-        (amountToken, amountETH) = removeLiquidityETH(
-            token,
-            liquidity,
-            amountTokenMin,
-            amountETHMin,
-            to,
-            deadline
-        );
-    }
 
     // **** REMOVE LIQUIDITY (supporting fee-on-transfer tokens) ****
-    function removeLiquidityETHSupportingFeeOnTransferTokens(
-        address token,
-        uint liquidity,
-        uint amountTokenMin,
-        uint amountETHMin,
-        address to,
-        uint deadline
-    ) public virtual override ensure(deadline) returns (uint amountETH) {
-        (, amountETH) = removeLiquidity(
-            token,
-            WPLS,
-            liquidity,
-            amountTokenMin,
-            amountETHMin,
-            address(this),
-            deadline
-        );
-        TransferHelper.safeTransfer(
-            token,
-            to,
-            IERC20(token).balanceOf(address(this))
-        );
-        IWPLS(WPLS).withdraw(amountETH);
-        TransferHelper.safeTransferETH(to, amountETH);
-    }
-
-    function removeLiquidityETHWithPermitSupportingFeeOnTransferTokens(
-        address token,
-        uint liquidity,
-        uint amountTokenMin,
-        uint amountETHMin,
-        address to,
-        uint deadline,
-        bool approveMax,
-        uint8 v,
-        bytes32 r,
-        bytes32 s
-    ) external virtual override returns (uint amountETH) {
-        address pair = PulseXLibrary.pairFor(factory, token, WPLS);
-        uint value = approveMax ? uint(-1) : liquidity;
-        IPulseXPair(pair).permit(
-            msg.sender,
-            address(this),
-            value,
-            deadline,
-            v,
-            r,
-            s
-        );
-        amountETH = removeLiquidityETHSupportingFeeOnTransferTokens(
-            token,
-            liquidity,
-            amountTokenMin,
-            amountETHMin,
-            to,
-            deadline
-        );
-    }
 
     // **** SWAP ****
     // requires the initial amount to have already been sent to the first pair

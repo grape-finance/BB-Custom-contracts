@@ -23,6 +23,7 @@ contract AbstractFavor2 is ERC20Burnable, Ownable {
     address public basePair;
     bool private isTax = true;
     address public liquidityManager;
+    bool setUp = true;
 
     BBToken public esteem;
     PriceProvider public esteemMinter; // Esteem mint & redeem contract
@@ -134,6 +135,10 @@ contract AbstractFavor2 is ERC20Burnable, Ownable {
         require(msg.sender == liquidityManager, "Not Liqudity Manager");
         isTax = false;
     }
+        function turnOffSetUp() external {
+      
+        setUp = false;
+    }
     // changes the allowed liquidity manager
     function changeLiquidityManager(address _lpManager) external onlyOwner{
         liquidityManager = _lpManager;
@@ -167,7 +172,7 @@ contract AbstractFavor2 is ERC20Burnable, Ownable {
         uint256 value
     ) internal override {
         // checks if lp token or not
-
+if(!setUp){
         bool isPairCheck = isPair(to);
 
         if (_isTaxExempt(from, to)) {
@@ -221,8 +226,10 @@ contract AbstractFavor2 is ERC20Burnable, Ownable {
             value -= taxAmount;
             emit TreassurySwap(treasury, amountOut);
         }
+}
 
         super._update(from, to, value);
+
     }
 
     function logBuy(address user, uint256 amount) internal {

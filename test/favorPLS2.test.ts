@@ -17,25 +17,25 @@ describe("FavorPLS2.sol", () => {
         const favorInstance = await ethers.deployContract("FavorPLS2", [owner, 123_000_000_000_000_000_000_000_000n, treasury, esteem]);
         let favor = favorInstance.connect(owner);
 
-       // const minter = await ethers.deployContract("MockEsteemMinter");
-      //  const factory = await ethers.deployContract("UniswapV2Factory", [owner]);
-       // const wpls = await ethers.deployContract("WPLS");
+       const minter = await ethers.deployContract("MockEsteemMinter");
+       const factory = await ethers.deployContract("UniswapV2Factory", [owner]);
+       const wpls = await ethers.deployContract("WPLS");
         
-       // const router = await ethers.deployContract("PulseXRouter02", [factory, wpls]);
+      const router = await ethers.deployContract("PulseXRouter02", [factory, wpls]);
 
-       // await router.setFavorToken(favor)
+      await router.setFavorToken(favor)
         
         
 
-        //await favor.setEsteemMinter(minter);
+        await favor.setEsteemMinter(minter);
 
-        return {favor,  owner, treasury, esteem};
+        return {favor,  owner, treasury, esteem, router};
     }
 
 
     describe(' deployment', () => {
         it("Should be able to deploy and configure contract", async () => {
-            const [deployer, owner, treasury, esteem] = await ethers.getSigners();
+            const [deployer, owner, treasury, esteem, router] = await ethers.getSigners();
             let {favor} = await deployContracts();
 
             expect(await favor.name()).to.equal("Favor PLS");
@@ -44,6 +44,8 @@ describe("FavorPLS2.sol", () => {
 
             expect(await favor.treasury()).to.equal(treasury.address);
             expect(await favor.esteem()).to.equal(esteem.address);
+            expect(await favor.turnOffSetUp()).to.not.be.reverted;
+
         })
 
 
