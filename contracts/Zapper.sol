@@ -332,9 +332,16 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
         require(success, "Transfer failed");
     }
 
+    /**
+     * register favor token with LP and base token
+     * as this is  a protected method, we expect parameters to be sane
+     */
     function addFavor(
+    // favor token
         address _favor,
+    // lp
         address _lp,
+    // base token
         address _token
     ) external onlyOwner {
         require(_favor != address(0), "Invalid address");
@@ -347,8 +354,9 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
 
     function removeFavorToken(address _favor) external onlyOwner {
         require(_favor != address(0), "Invalid address");
-        tokenToFavor[tokenToFavor[_favor]] = address(0);
-        favorToLp[_favor] = address(0);
-        favorToToken[_favor] = address(0);
+
+        delete(tokenToFavor[favorToToken[_favor]]);
+        delete(favorToLp[_favor]);
+        delete(favorToToken[_favor]);
     }
 }

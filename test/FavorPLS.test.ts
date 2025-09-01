@@ -25,7 +25,7 @@ describe("FavorPLS.sol", () => {
         const minter = await ethers.deployContract("MockEsteemMinter");
         // 0.1 ,  18 digitts fixed decimal point
         await minter.setEsteemRate(100000000000000000n)
-        await favor.setEsteemMinter(minter);
+        await favor.setPriceProvider(minter);
 
         return {favor, minter, owner, treasury, esteem};
     }
@@ -67,7 +67,7 @@ describe("FavorPLS.sol", () => {
             await expect(notOwned.removeMinter(owner)).to.be.revertedWithCustomError(favor, "OwnableUnauthorizedAccount");
             await expect(notOwned.setEsteem(owner)).to.be.revertedWithCustomError(favor, "OwnableUnauthorizedAccount");
             await expect(notOwned.setTreasury(owner)).to.be.revertedWithCustomError(favor, "OwnableUnauthorizedAccount");
-            await expect(notOwned.setEsteemMinter(owner)).to.be.revertedWithCustomError(favor, "OwnableUnauthorizedAccount");
+            await expect(notOwned.setPriceProvider(owner)).to.be.revertedWithCustomError(favor, "OwnableUnauthorizedAccount");
             await expect(notOwned.setSellTax(239n)).to.be.revertedWithCustomError(favor, "OwnableUnauthorizedAccount");
             await expect(notOwned.setBonusRates(239n, 23n)).to.be.revertedWithCustomError(favor, "OwnableUnauthorizedAccount");
             await expect(notOwned.setBuyWrapper(owner, true)).to.be.revertedWithCustomError(favor, "OwnableUnauthorizedAccount");
@@ -131,8 +131,8 @@ describe("FavorPLS.sol", () => {
             await expect(favor.setTreasury(owner)).to.emit(favor, "TreasuryUpdated").withArgs(owner.address);
             expect(await favor.treasury()).to.equal(owner.address);
 
-            await expect(favor.setEsteemMinter(owner)).to.emit(favor, "EsteemMinterUpdated").withArgs(owner.address);
-            expect(await favor.esteemMinter()).to.equal(owner.address);
+            await expect(favor.setPriceProvider(owner)).to.emit(favor, "PriceProviderUpdated").withArgs(owner.address);
+            expect(await favor.priceProvider()).to.equal(owner.address);
 
 
             await expect(favor.setSellTax(239n)).to.emit(favor, "SellTaxUpdated").withArgs(239n);

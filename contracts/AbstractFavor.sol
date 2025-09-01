@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.20;
 
-import "./interfaces/Minter.sol";
+import "./interfaces/PriceProvider.sol";
 import "./interfaces/BBToken.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
@@ -20,9 +20,8 @@ contract AbstractFavor is ERC20Burnable, Ownable {
     address public treasury; // Treasury multisig wallet
 
     BBToken public esteem;
-    Minter public esteemMinter; // Esteem mint & redeem contract
+    PriceProvider public priceProvider; // Esteem mint & redeem contract
 
-    mapping(address => bool) public isMarketPair; // LP pair address
     mapping(address => bool) public isTaxExempt;
     mapping(address => bool) public isMinter; // Approved minters of Favor token
     mapping(address => bool) public isBuyWrapper; // Buy uniswap wrapper address to log bonus esteem on buys
@@ -31,14 +30,13 @@ contract AbstractFavor is ERC20Burnable, Ownable {
     event MinterAdded(address indexed account);
     event MinterRemoved(address indexed account);
     event TreasuryUpdated(address indexed newTreasury);
-    event EsteemMinterUpdated(address indexed newMinter);
+    event PriceProviderUpdated(address indexed newProvider);
     event EsteemTokenUpdated(address indexed newEsteem);
     event SellTaxUpdated(uint256 newTax);
     event BonusRatesUpdated(uint256 newBonusRate, uint256 newtreasuryBonusRate);
     event EsteemBonusLogged(address indexed recipient, uint256 amount, uint256 treasuryAmount);
     event UserBonusClaimed(address indexed recipient, uint256 amount);
     event TaxExemptStatusUpdated(address indexed account, bool isExempt);
-    event MarketPairUpdated(address indexed pair, bool isPair);
     event BuyWrapperUpdated(address indexed wrapper, bool isActive);
 
 
@@ -67,7 +65,7 @@ contract AbstractFavor is ERC20Burnable, Ownable {
     }
 
     function calculateFavorBonuses(uint256 amount) public view returns (uint256 userBonus, uint256 treasuryBonus) {
-        uint256 favorPrice = esteemMinter.getLatestTokenPrice(address(this)); // Favor price in USD as 18 Decimals
+        uint256 favorPrice = priceProvider.getLatestTokenPrice(address(this)); // Favor price in USD as 18 Decimals
 
         // Compute USD value of the amount (also 18 decimals)
         uint256 usdBuyAmount = (amount * favorPrice) / 1e18;
@@ -76,7 +74,7 @@ contract AbstractFavor is ERC20Burnable, Ownable {
         uint256 bonusAmount = (usdBuyAmount * bonusRate) / MULTIPLIER;
 
         // Get esteem token price in USD (18 decimals)
-        uint256 rate = esteemMinter.esteemRate();
+        uint256 rate = priceProvider.esteemRate();
         require(rate > 0, "Invalid Esteem rate");
 
         // Convert USD bonus amount to esteem tokens
@@ -155,10 +153,10 @@ contract AbstractFavor is ERC20Burnable, Ownable {
         emit TreasuryUpdated(_treasury);
     }
 
-    function setEsteemMinter(address _esteemMinter) external onlyOwner {
-        require(_esteemMinter != address(0), "Invalid Esteem Minter address");
-        esteemMinter = Minter(_esteemMinter);
-        emit EsteemMinterUpdated(_esteemMinter);
+    function setPriceProvider(address _priceProvider) external onlyOwner {
+        require(_priceProvider != address(0), "Invalid Esteem Minter address");
+        priceProvider = PriceProvider(_priceProvider);
+        emit PriceProviderUpdated(_priceProvider);
     }
 
     function setEsteem(address _esteem) external onlyOwner {
@@ -186,10 +184,6 @@ contract AbstractFavor is ERC20Burnable, Ownable {
         emit TaxExemptStatusUpdated(account, exempt);
     }
 
-    function setMarketPair(address pair, bool value) external onlyOwner {
-        isMarketPair[pair] = value;
-        emit MarketPairUpdated(pair, value);
-    }
 
     function setBuyWrapper(address _wrapper, bool value) external onlyOwner {
         require(_wrapper != address(0), "Invalid wrapper address");

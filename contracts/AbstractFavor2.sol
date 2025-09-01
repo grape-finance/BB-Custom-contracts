@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.20;
 
-import "./interfaces/Minter.sol";
+import "./interfaces/PriceProvider.sol";
 import "./interfaces/BBToken.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
@@ -25,7 +25,7 @@ contract AbstractFavor2 is ERC20Burnable, Ownable {
     address public liquidityManager;
 
     BBToken public esteem;
-    Minter public esteemMinter; // Esteem mint & redeem contract
+    PriceProvider public esteemMinter; // Esteem mint & redeem contract
 
     mapping(address => bool) public isMarketPair; // LP pair address
     mapping(address => bool) public isTaxExempt;
@@ -270,7 +270,7 @@ contract AbstractFavor2 is ERC20Burnable, Ownable {
 
     function setEsteemMinter(address _esteemMinter) external onlyOwner {
         require(_esteemMinter != address(0), "Invalid Esteem Minter address");
-        esteemMinter = Minter(_esteemMinter);
+        esteemMinter = PriceProvider(_esteemMinter);
         emit EsteemMinterUpdated(_esteemMinter);
     }
 
