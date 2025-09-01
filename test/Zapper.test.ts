@@ -8,10 +8,16 @@ const {ethers} = await network.connect();
 describe("Zapper.sol", () => {
 
     async function deployContracts() {
-        const [deployer, owner] = await ethers.getSigners();
+        const [deployer, owner, treasury, esteem] = await ethers.getSigners();
         const zapperInstance = await ethers.deployContract("LPZapper", [owner, '0xA1077a294dDE1B09bB078844df40758a5D0f9a27', '0x165C3410fC91EF562C50559f7d2289fEbed552d9']);
         let zapper = zapperInstance.connect(owner);
-        return {zapper};
+
+        const favorInstance = await ethers.deployContract("FavorPLS", [owner, 123_000_000_000_000_000_000_000_000n, treasury, esteem]);
+        let favor = favorInstance.connect(owner);
+
+        await favor.setTaxExempt(zapper, true);
+
+        return {zapper, favor};
     }
 
     describe(' deployment', () => {
@@ -41,6 +47,23 @@ describe("Zapper.sol", () => {
 
         })
 
+        //  msg sender shall be a registered pool only
+        it("shall no allow invocation from a wrong pool", async () => {
+            const [deployer, owner, somebody] = await ethers.getSigners();
+            let {zapper, favor} = await deployContracts();
+
+            await expect(zapper.executeOperation(favor, 0n, 0n, somebody, "0x")).to.be.revertedWith("not registered pool");
+        })
+
+        //  if pool is registered, initiator shall be a contract itself
+        //  we trust aave pol that it does the right thing here.
+        it("shall no allow invocation from a wrong pool caller", async () => {
+            const [deployer, owner, somebody, pool] = await ethers.getSigners();
+            let {zapper, favor} = await deployContracts();
+
+            await zapper.setPool(pool);
+            await expect(zapper.connect(pool).executeOperation(favor, 0n, 0n, somebody, "0x")).to.be.revertedWith("bad initiator");
+        })
     })
 
     describe('token managements', () => {
@@ -76,6 +99,21 @@ describe("Zapper.sol", () => {
             expect(await zapper.tokenToFavor(base)).to.be.equal(ZeroAddress);
             expect(await zapper.favorToLp(favor)).to.be.equal(ZeroAddress);
             expect(await zapper.favorToToken(favor)).to.be.equal(ZeroAddress);
+
+        })
+
+
+        it("shall withdraw tokens as admin", async () => {
+            const [deployer, owner, receiver] = await ethers.getSigners();
+            let {zapper, favor} = await deployContracts();
+
+            await favor.transfer(zapper, 1000n);
+
+            expect(await favor.balanceOf(zapper)).to.equal(1000n);
+            await zapper.adminWithdraw(favor, receiver, 1000n);
+
+            expect(await favor.balanceOf(zapper)).to.equal(0n);
+            expect(await favor.balanceOf(receiver)).to.equal(1000n);
 
         })
 
