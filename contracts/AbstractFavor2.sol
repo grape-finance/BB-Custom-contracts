@@ -5,7 +5,8 @@ import "./interfaces/PriceProvider.sol";
 import "./interfaces/BBToken.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
-import "./interfaces/IUniswapV2Pair.sol";
+
+import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Pair.sol";
 
 
 /**

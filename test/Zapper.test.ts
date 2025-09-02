@@ -17,7 +17,19 @@ describe("Zapper.sol", () => {
 
         await favor.setTaxExempt(zapper, true);
 
-        return {zapper, favor};
+        let weth = await createToken(owner, 'wethweth', "t0");
+        let v2factory = await createUSV2Factory(owner);
+        let v2router = await createUSV2Router(owner, v2factory, weth);
+
+
+        // mock pool to test flash loans
+        const mockPoolInstance = await ethers.deployContract("MockPool", []);
+        let mockPool = mockPoolInstance.connect(owner);
+
+
+        await zapper.setPool(mockPool);
+
+        return {zapper, favor, mockPool};
     }
 
     describe(' deployment', () => {
@@ -44,6 +56,7 @@ describe("Zapper.sol", () => {
             await expect(zapper.connect(somebody).adminWithdrawPLS(somebody, 1n)).to.be.revertedWithCustomError(zapper, "OwnableUnauthorizedAccount");
             await expect(zapper.connect(somebody).removeFavorToken(somebody)).to.be.revertedWithCustomError(zapper, "OwnableUnauthorizedAccount");
             await expect(zapper.connect(somebody).setPool(somebody)).to.be.revertedWithCustomError(zapper, "OwnableUnauthorizedAccount");
+            await expect(zapper.connect(somebody).setAddressProvider(somebody)).to.be.revertedWithCustomError(zapper, "OwnableUnauthorizedAccount");
 
         })
 
@@ -55,13 +68,14 @@ describe("Zapper.sol", () => {
             await expect(zapper.executeOperation(favor, 0n, 0n, somebody, "0x")).to.be.revertedWith("not registered pool");
         })
 
-        //  if pool is registered, initiator shall be a contract itself
+        //  if the pool is registered, initiator shall be a contract itself
         //  we trust aave pol that it does the right thing here.
         it("shall no allow invocation from a wrong pool caller", async () => {
             const [deployer, owner, somebody, pool] = await ethers.getSigners();
             let {zapper, favor} = await deployContracts();
 
             await zapper.setPool(pool);
+
             await expect(zapper.connect(pool).executeOperation(favor, 0n, 0n, somebody, "0x")).to.be.revertedWith("bad initiator");
         })
     })
@@ -119,5 +133,13 @@ describe("Zapper.sol", () => {
 
     })
 
+    describe('zapping operation', () => {
+        it('shall request flash loan properly', async () => {
+            const [deployer, owner] = await ethers.getSigners();
+            let {zapper, favor, mockPool} = await deployContracts();
 
+            await expect(zapper.requestFlashLoan(12345n, favor)).to.not.be.revert(ethers);
+
+        })
+    })
 })

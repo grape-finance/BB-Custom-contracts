@@ -15,7 +15,10 @@
 
 pragma solidity 0.6.6;
 
-contract WPLS {
+import "@uniswap/v2-periphery/contracts/interfaces/IWETH.sol";
+
+//
+contract WPLS is IWETH {
     string public name     = "Wrapped Pulse";
     string public symbol   = "WPLS";
     uint8  public decimals = 18;
@@ -30,11 +33,11 @@ contract WPLS {
 
     receive() external payable {}
     
-    function deposit() public payable {
+    function deposit() public override payable {
         balanceOf[msg.sender] += msg.value;
         emit Deposit(msg.sender, msg.value);
     }
-    function withdraw(uint wad) public {
+    function withdraw(uint wad) public  override {
         require(balanceOf[msg.sender] >= wad);
         balanceOf[msg.sender] -= wad;
         msg.sender.transfer(wad);
@@ -51,7 +54,7 @@ contract WPLS {
         return true;
     }
 
-    function transfer(address dst, uint wad) public returns (bool) {
+    function transfer(address dst, uint wad) public override returns (bool) {
         return transferFrom(msg.sender, dst, wad);
     }
 

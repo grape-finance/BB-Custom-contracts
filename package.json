@@ -4,7 +4,8 @@
   "description": "custom contracts for  betterbank project",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "clean": "rm -fr ./artifacts ./cache  ./coverage ./typechain-types"
   },
   "repository": {
     "type": "git",
@@ -18,7 +19,10 @@
   "homepage": "https://github.com/grape-finance/BB-Custom-contracts#readme",
   "type": "module",
   "dependencies": {
-    "@openzeppelin/contracts": "^5.4.0"
+    "@openzeppelin/contracts": "^5.4.0",
+    "@uniswap/v2-core": "^1.0.1",
+    "@uniswap/v2-periphery": "^1.1.0-beta.0",
+    "@aave/core-v3": "^1.17.2"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-ignition": "^3.0.0",

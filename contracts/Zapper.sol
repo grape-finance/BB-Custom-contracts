@@ -7,17 +7,24 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-import "./interfaces/IUniswapV2Router02.sol";
-import "./interfaces/IUniswapV2Pair.sol";
+import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Pair.sol";
+import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Factory.sol";
+import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
+import "@uniswap/v2-periphery/contracts/interfaces/IWETH.sol";
 
-import "./interfaces/IUniswapV2Factory.sol";
-import "./interfaces//IFlashLoanSimpleReceiver.sol";
-import "./interfaces/IWPLS.sol";
+
+import "@aave/core-v3/contracts/flashloan/interfaces/IFlashLoanSimpleReceiver.sol";
+import "@aave/core-v3/contracts/interfaces/IPool.sol";
+import "@aave/core-v3/contracts/interfaces/IPoolAddressesProvider.sol";
+
+
 import "./interfaces/IFavorToken.sol";
 
 contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
     using SafeERC20 for IERC20;
-    IPool public override POOL;
+
+    IPool public  POOL;
+    IPoolAddressesProvider public  ADDRESSES_PROVIDER;
 
     address private pendingUser;
 
@@ -51,7 +58,7 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
         );
         require(pair != address(0), "Pair does not exist");
 
-        (uint112 res0, uint112 res1, ) = IUniswapV2Pair(pair).getReserves();
+        (uint112 res0, uint112 res1,) = IUniswapV2Pair(pair).getReserves();
         (uint reserveA, uint reserveB) = tokenA == IUniswapV2Pair(pair).token0()
             ? (res0, res1)
             : (res1, res0);
@@ -143,9 +150,9 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
     function _zapPLS(address _favor, uint256 amount, uint256 dl) internal {
         uint256 half = amount / 2;
 
-        IWPLS(router.WPLS()).deposit{value: half}();
+        IWETH(router.WETH()).deposit{value: half}();
 
-        address token = router.WPLS();
+        address token = router.WETH();
         address lp = favorToLp[_favor];
 
         uint256 balFavor = _swapAndLog(token, _favor, half, dl);
@@ -281,7 +288,7 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
     function _refundDust(address recipient) internal {
         uint256 ethBal = address(this).balance;
         if (ethBal > 0) {
-            (bool sent, ) = recipient.call{value: ethBal}("");
+            (bool sent,) = recipient.call{value: ethBal}("");
             require(sent, "refund PLS failed");
         }
 
@@ -294,9 +301,14 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
         }
     }
 
-    function setPool(address _pool) external onlyOwner {
-        require(_pool != address(0), "Must be a valid address");
-        POOL = IPool(_pool);
+    function setPool(IPool _pool) external onlyOwner {
+        require(address(_pool) != address(0), "Must be a valid address");
+        POOL = _pool;
+    }
+
+    function setAddressProvider(IPoolAddressesProvider _addressProvider) external onlyOwner {
+        require(address(_addressProvider) != address(0), "Must be a valid address");
+        ADDRESSES_PROVIDER = _addressProvider;
     }
 
     function addDustToken(address token) public onlyOwner {
@@ -328,7 +340,7 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
 
     function adminWithdrawPLS(address _to, uint256 _amount) external onlyOwner {
         require(_to != address(0), "Invalid address");
-        (bool success, ) = _to.call{value: _amount}("");
+        (bool success,) = _to.call{value: _amount}("");
         require(success, "Transfer failed");
     }
 
@@ -355,8 +367,8 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
     function removeFavorToken(address _favor) external onlyOwner {
         require(_favor != address(0), "Invalid address");
 
-        delete(tokenToFavor[favorToToken[_favor]]);
-        delete(favorToLp[_favor]);
-        delete(favorToToken[_favor]);
+        delete (tokenToFavor[favorToToken[_favor]]);
+        delete (favorToLp[_favor]);
+        delete (favorToToken[_favor]);
     }
 }
