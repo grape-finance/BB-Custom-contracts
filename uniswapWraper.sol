@@ -389,7 +389,7 @@ contract FavorRouterWrapper is Ownable {
 
     function setPool(address _pool) external onlyOwner {
         require(_pool != address(0), "Must be a valid address");
-        POOL = IPool(_pool);
+        pool = IPool(_pool);
         emit PoolUpdated(_pool);
     }
 
@@ -535,8 +535,8 @@ contract FavorRouterWrapper is Ownable {
     function _depositToStronghold(address token, uint256 amount) internal {
         uint256 treasuryAmt = amount / 5;
         uint256 toDeposit = amount - treasuryAmt;
-        IERC20(token).forceApprove(address(POOL), amount);
-        POOL.supply(token, toDeposit, holding, 0);
+        IERC20(token).forceApprove(address(pool), amount);
+        pool.supply(token, toDeposit, holding, 0);
         IERC20(token).safeTransfer(team, treasuryAmt);
         emit DepositedToStronghold(token, toDeposit);
     }
