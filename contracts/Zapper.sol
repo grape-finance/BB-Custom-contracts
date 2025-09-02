@@ -26,13 +26,10 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
     IPool public  POOL;
     IPoolAddressesProvider public  ADDRESSES_PROVIDER;
 
-    address private pendingUser;
+    address public pendingUser;
 
-    error UNSUPORTED_TOKEN();
-
-    IUniswapV2Router02 public immutable router;
-
-    address public immutable PLS;
+    IUniswapV2Router02 public router;
+    address public  PLS;
 
     address[] public dustTokens;
     mapping(address => bool) public isDustToken;
@@ -47,42 +44,31 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
         router = IUniswapV2Router02(_router);
     }
 
-    function getOptimalAddLiquidity(
-        address tokenA,
-        address tokenB,
-        uint amountADesired
-    ) public view returns (uint amountA, uint amountB) {
-        address pair = IUniswapV2Factory(router.factory()).getPair(
-            tokenA,
-            tokenB
-        );
-        require(pair != address(0), "Pair does not exist");
+    /**
+     * create liquidity by requesting flash loan, swapping it into pair  and put LP
+     * as collateral
+     */
+    function requestFlashLoan(uint256 _amount, address _favorToken) external {
 
-        (uint112 res0, uint112 res1,) = IUniswapV2Pair(pair).getReserves();
-        (uint reserveA, uint reserveB) = tokenA == IUniswapV2Pair(pair).token0()
-            ? (res0, res1)
-            : (res1, res0);
+        address token = favorToToken[_favorToken];
+        address lpToken = favorToLp[_favorToken];
 
-        uint amountBOptimal = router.quote(amountADesired, reserveA, reserveB);
-
-        return (amountADesired, amountBOptimal);
-    }
-
-    // TODO:  Needs proper reentrancy guard, or at least discussion!!!!!
-    function requestFlashLoan(uint256 amount, address favorToken) external {
-        //require(favorToToken[favorToken] != address(0), UNSUPORTED_TOKEN());
-        //require(favorToLp[favorToken] != address(0), UNSUPORTED_TOKEN());
-        address token = favorToToken[favorToken];
-        address lpToken = favorToLp[favorToken];
+        require(token != address(0), "Zapper: unsupported token");
+        require(lpToken != address(0), "Zapper: unsupported token");
 
         pendingUser = msg.sender;
 
-        bytes memory data = abi.encode(msg.sender, favorToken, lpToken);
+        bytes memory data = abi.encode(msg.sender, _favorToken, lpToken);
 
-        IERC20(favorToken).safeTransferFrom(msg.sender, address(this), amount);
-        (, uint256 amtB) = getOptimalAddLiquidity(favorToken, token, amount);
+        IERC20(_favorToken).safeTransferFrom(msg.sender, address(this), _amount);
 
-        POOL.flashLoanSimple(address(this), token, amtB, data, 0);
+        (uint112 res0, uint112 res1,) = IUniswapV2Pair(lpToken).getReserves();
+        (uint reserveA, uint reserveB) = _favorToken == IUniswapV2Pair(lpToken).token0()
+            ? (res0, res1)
+            : (res1, res0);
+
+        uint amountBOptimal = router.quote(_amount, reserveA, reserveB);
+        POOL.flashLoanSimple(address(this), token, amountBOptimal, data, 0);
     }
 
     function executeOperation(

@@ -10,18 +10,21 @@ describe("Zapper.sol", () => {
 
     async function deployContracts() {
         const [deployer, owner, treasury, esteem] = await ethers.getSigners();
-        const zapperInstance = await ethers.deployContract("LPZapper", [owner, '0xA1077a294dDE1B09bB078844df40758a5D0f9a27', '0x165C3410fC91EF562C50559f7d2289fEbed552d9']);
+
+
+        let weth = await createToken(owner, 'wethweth', "t0");
+
+        let v2factory = await createUSV2Factory(owner);
+        let v2router = await createUSV2Router(owner, v2factory, weth);
+
+
+        const zapperInstance = await ethers.deployContract("LPZapper", [owner, weth, v2router]);
         let zapper = zapperInstance.connect(owner);
 
         const favorInstance = await ethers.deployContract("FavorPLS", [owner, 123_000_000_000_000_000_000_000_000n, treasury, esteem]);
         let favor = favorInstance.connect(owner);
         await favor.setTaxExempt(zapper, true);
         await favor.setTaxExempt(owner, true);
-
-        let weth = await createToken(owner, 'wethweth', "t0");
-
-        let v2factory = await createUSV2Factory(owner);
-        let v2router = await createUSV2Router(owner, v2factory, weth);
 
         //  create proper liquidity pool
         await favor.approve(v2router, 1_000_000_000_000_000_000n);
@@ -32,6 +35,9 @@ describe("Zapper.sol", () => {
         let pairAdr = await v2factory.getPair(favor, weth);
 
         let favorWethPair = await ethers.getContractAt("IUniswapV2Pair", pairAdr, owner);
+
+        // register this pair as favor pair
+        await zapper.addFavor(favor, favorWethPair, weth);
 
         await v2router.addLiquidity(favor, weth, 1000000n, 2000000n, 0n, 0n, owner, Date.now() + 100000)
 
@@ -44,16 +50,17 @@ describe("Zapper.sol", () => {
 
         await zapper.setPool(mockPool);
 
-        return {zapper, favor, weth,  favorWethPair, mockPool};
+        return {zapper, favor, weth, favorWethPair, v2router, mockPool};
     }
 
     describe(' deployment', () => {
 
         it("Should be able to create contract", async () => {
             const [deployer, owner] = await ethers.getSigners();
-            let {zapper} = await deployContracts();
+            let {zapper, weth, v2router} = await deployContracts();
 
-            await expect(await zapper.router()).to.be.equal('0x165C3410fC91EF562C50559f7d2289fEbed552d9');
+            await expect(await zapper.router()).to.be.equal(v2router);
+            await expect(await zapper.PLS()).to.be.equal(weth);
 
         })
     })
@@ -149,12 +156,45 @@ describe("Zapper.sol", () => {
     })
 
     describe('zapping operation', () => {
-        it('shall request flash loan properly', async () => {
-            const [deployer, owner] = await ethers.getSigners();
+        it('shall not allow flash loan for unknoww tokens', async () => {
+            const [deployer, owner, somebody] = await ethers.getSigners();
+
             let {zapper, favor, weth} = await deployContracts();
 
+            await expect(zapper.requestFlashLoan(12345n, somebody)).to.be.revertedWith('Zapper: unsupported token');
+
+        })
+
+        it('shall request flash loan properly', async () => {
+
+            const [deployer, owner] = await ethers.getSigners();
+            let {zapper, favor, weth, mockPool, favorWethPair} = await deployContracts();
+
+            //  there shall be enough alowance of favor
+            await favor.approve(zapper, 1_000_000_000_000_000n);
             await expect(zapper.requestFlashLoan(12345n, favor)).to.not.be.revert(ethers);
 
+            //  there shall be amount of favor on balance of zapper
+            expect(await favor.balanceOf(zapper)).to.equal(12345n);
+
+            //  shall have passes  correct params to mock  pool
+            // callback to zapper itsel
+            expect(await mockPool.receiverAddress()).to.equal(zapper);
+            // loaning weth
+            expect(await mockPool.receiverAddress()).to.equal(zapper);
+            // proper counterpart token amount
+            expect(await mockPool.amount()).to.equal(24690n);
+            // properly encoded parameters
+            let enc = await mockPool.params();
+            let result = ethers.AbiCoder.defaultAbiCoder().decode(["address", "address", "address"], enc);
+            expect(result[0]).to.equal(owner);
+            expect(result[1]).to.equal(favor);
+            expect(result[2]).to.equal(favorWethPair);
+
+            // no referral code
+            expect(await mockPool.referralCode()).to.equal(0);
+
+            expect(await zapper.pendingUser()).to.equal(owner);
         })
     })
 })
