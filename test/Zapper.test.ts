@@ -15,13 +15,27 @@ describe("Zapper.sol", () => {
 
         const favorInstance = await ethers.deployContract("FavorPLS", [owner, 123_000_000_000_000_000_000_000_000n, treasury, esteem]);
         let favor = favorInstance.connect(owner);
-
         await favor.setTaxExempt(zapper, true);
+        await favor.setTaxExempt(owner, true);
 
         let weth = await createToken(owner, 'wethweth', "t0");
+
         let v2factory = await createUSV2Factory(owner);
         let v2router = await createUSV2Router(owner, v2factory, weth);
 
+        //  create proper liquidity pool
+        await favor.approve(v2router, 1_000_000_000_000_000_000n);
+        await weth.approve(v2router, 1_000_000_000_000_000_000n);
+
+        // pair
+        await v2factory.createPair(favor, weth);
+        let pairAdr = await v2factory.getPair(favor, weth);
+
+        let favorWethPair = await ethers.getContractAt("IUniswapV2Pair", pairAdr, owner);
+
+        await v2router.addLiquidity(favor, weth, 1000000n, 2000000n, 0n, 0n, owner, Date.now() + 100000)
+
+        console.log("reservers", await favorWethPair.getReserves());
 
         // mock pool to test flash loans
         const mockPoolInstance = await ethers.deployContract("MockPool", []);
@@ -30,7 +44,7 @@ describe("Zapper.sol", () => {
 
         await zapper.setPool(mockPool);
 
-        return {zapper, favor, mockPool};
+        return {zapper, favor, weth,  favorWethPair, mockPool};
     }
 
     describe(' deployment', () => {
@@ -137,7 +151,7 @@ describe("Zapper.sol", () => {
     describe('zapping operation', () => {
         it('shall request flash loan properly', async () => {
             const [deployer, owner] = await ethers.getSigners();
-            let {zapper, favor, mockPool} = await deployContracts();
+            let {zapper, favor, weth} = await deployContracts();
 
             await expect(zapper.requestFlashLoan(12345n, favor)).to.not.be.revert(ethers);
 

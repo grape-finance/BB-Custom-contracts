@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
+
+
 abstract contract Context {
     function _msgSender() internal view virtual returns (address) {
         return msg.sender;
@@ -273,37 +276,6 @@ library SafeERC20 {
         }
         return success && (returnSize == 0 ? address(token).code.length > 0 : returnValue == 1);
     }
-}
-
-interface IUniswapV2Router {
-
-    function swapExactETHForTokens(
-        uint amountOutMin, address[] calldata path, address to, uint deadline
-    ) external payable returns (uint[] memory amounts);
-
-    function swapExactTokensForTokens(
-        uint amountIn, uint amountOutMin, address[] calldata path, address to, uint deadline
-    ) external returns (uint[] memory amounts);
-
-    function getAmountsOut(uint amountIn, address[] calldata path) external view returns (uint[] memory amounts);
-}
-
-interface IUniswapV2Router02 is IUniswapV2Router {
-    function swapExactTokensForTokensSupportingFeeOnTransferTokens(
-        uint amountIn,
-        uint amountOutMin,
-        address[] calldata path,
-        address to,
-        uint deadline
-    ) external;
-
-    function swapExactTokensForETHSupportingFeeOnTransferTokens(
-        uint amountIn,
-        uint amountOutMin,
-        address[] calldata path,
-        address to,
-        uint deadline
-    ) external;
 }
 
 interface IOracle {

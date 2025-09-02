@@ -55,20 +55,20 @@ contract AbstractFavor is ERC20Burnable, Ownable {
     }
 
 
-    function mint(address recipient_, uint256 amount_) public {
+    function mint(address _recipient, uint256 _amount) public {
         require(isMinter[msg.sender], "Not authorized to mint");
-        _mint(recipient_, amount_);
+        _mint(_recipient, _amount);
     }
 
-    function _isTaxExempt(address recipient) internal view returns (bool) {
-        return isTaxExempt[recipient];
+    function _isTaxExempt(address _recipient) internal view returns (bool) {
+        return isTaxExempt[_recipient];
     }
 
-    function calculateFavorBonuses(uint256 amount) public view returns (uint256 userBonus, uint256 treasuryBonus) {
+    function calculateFavorBonuses(uint256 _amount) public view returns (uint256 userBonus_, uint256 treasuryBonus_) {
         uint256 favorPrice = priceProvider.getLatestTokenPrice(address(this)); // Favor price in USD as 18 Decimals
 
         // Compute USD value of the amount (also 18 decimals)
-        uint256 usdBuyAmount = (amount * favorPrice) / 1e18;
+        uint256 usdBuyAmount = (_amount * favorPrice) / 1e18;
 
         // Calculate bonus amount in USD value
         uint256 bonusAmount = (usdBuyAmount * bonusRate) / MULTIPLIER;
@@ -78,12 +78,11 @@ contract AbstractFavor is ERC20Burnable, Ownable {
         require(rate > 0, "Invalid Esteem rate");
 
         // Convert USD bonus amount to esteem tokens
-        userBonus = (bonusAmount * 1e18) / rate;
+        userBonus_ = (bonusAmount * 1e18) / rate;
 
         // Treasury bonus as a % of user bonus
-        treasuryBonus = (userBonus * treasuryBonusRate) / MULTIPLIER;
+        treasuryBonus_ = (userBonus_ * treasuryBonusRate) / MULTIPLIER;
 
-        return (userBonus, treasuryBonus);
     }
 
     /**
@@ -92,40 +91,40 @@ contract AbstractFavor is ERC20Burnable, Ownable {
      * edge cases like buy via approved contracts  while minting  ersteem of whatever
      * will be tax exempt.
      */
-    function _update(address from, address to, uint256 value) internal override {
-        bool destinationIsContract = to.code.length != 0;
+    function _update(address _from, address _to, uint256 _value) internal override {
+        bool destinationIsContract = _to.code.length != 0;
 
 
-        if (_isTaxExempt(to)) {
-            super._update(from, to, value);
+        if (_isTaxExempt(_to) || _isTaxExempt(_from)) {
+            super._update(_from, _to, _value);
             return;
         }
 
         uint256 taxAmount = 0;
 
         if (destinationIsContract) {
-            taxAmount = (value * sellTax) / MULTIPLIER;
+            taxAmount = (_value * sellTax) / MULTIPLIER;
         }
 
         // tax goes to treasury
         if (taxAmount > 0) {
-            super._update(from, treasury, taxAmount);
-            value -= taxAmount;
+            super._update(_from, treasury, taxAmount);
+            _value -= taxAmount;
         }
 
-        super._update(from, to, value);
+        super._update(_from, _to, _value);
     }
 
 
-    function logBuy(address user, uint256 amount) external {
+    function logBuy(address _user, uint256 _amount) external {
         // Buy wrapper contract logs user buys of Favor to track esteem bonus accurately
         require(isBuyWrapper[msg.sender], "Not authorised to log buy");
 
-        (uint256 userBonus, uint256 treasuryBonus) = calculateFavorBonuses(amount);
-        pendingBonus[user] += userBonus;
+        (uint256 userBonus, uint256 treasuryBonus) = calculateFavorBonuses(_amount);
+        pendingBonus[_user] += userBonus;
 
         esteem.mint(treasury, treasuryBonus); // Esteem bonus to treasury minted
-        emit EsteemBonusLogged(user, userBonus, treasuryBonus);
+        emit EsteemBonusLogged(_user, userBonus, treasuryBonus);
     }
 
     function claimBonus() external {
@@ -137,14 +136,14 @@ contract AbstractFavor is ERC20Burnable, Ownable {
         emit UserBonusClaimed(msg.sender, bonus);
     }
 
-    function addMinter(address account) external onlyOwner {
-        isMinter[account] = true;
-        emit MinterAdded(account);
+    function addMinter(address _account) external onlyOwner {
+        isMinter[_account] = true;
+        emit MinterAdded(_account);
     }
 
-    function removeMinter(address account) external onlyOwner {
-        isMinter[account] = false;
-        emit MinterRemoved(account);
+    function removeMinter(address _account) external onlyOwner {
+        isMinter[_account] = false;
+        emit MinterRemoved(_account);
     }
 
     function setTreasury(address _treasury) external onlyOwner {

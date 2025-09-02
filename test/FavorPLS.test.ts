@@ -229,6 +229,8 @@ describe("FavorPLS.sol", () => {
 
         })
 
+
+
         // burning of favors by sending them to address 0 shall be possib le
         it("shall be able to burn", async () => {
             const [deployer, owner, userA] = await ethers.getSigners();
@@ -252,6 +254,24 @@ describe("FavorPLS.sol", () => {
 
             //  whitelist contract
             await favor.setTaxExempt(minter, true);
+
+            //  transfer 1000 favors from owner to userA
+            await expect(favor.transfer(userA, 1000n)).to.not.be.revert(ethers);
+            expect(await favor.balanceOf(userA)).to.equal(1000n);
+
+            //  minter is jus anon whitelisted contract
+            await expect(favor.connect(userA).transfer(minter, 1000n)).to.not.be.revert(ethers);
+            expect(await favor.balanceOf(minter)).to.equal(1000n);
+
+        })
+
+        it('shall be able to send token from tax-excempt address to on whitelisted contract', async () => {
+
+            const [deployer, owner, userA] = await ethers.getSigners();
+            let {favor, minter} = await deployContracts();
+
+            //  whitelist contract
+            await favor.setTaxExempt(userA, true);
 
             //  transfer 1000 favors from owner to userA
             await expect(favor.transfer(userA, 1000n)).to.not.be.revert(ethers);

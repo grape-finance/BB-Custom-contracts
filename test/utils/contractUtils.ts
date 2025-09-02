@@ -15,7 +15,7 @@ async function createUSV2Factory(owner: HardhatEthersSigner) {
     let factory = await uniswapFactpry.connect(owner).deploy(owner.address);
 
     await factory.waitForDeployment();
-    return await ethers.getContractAt("IUniswapV2Factory", await factory.getAddress(), owner);
+    return await ethers.getContractAt(unsiswapV2Factory.interface, await factory.getAddress(), owner);
 }
 
 //  create  uniswap V2 factory factory  fee reciever is set to ownber
@@ -26,7 +26,7 @@ async function createUSV2Router(owner: HardhatEthersSigner, uniswapFactory: IUni
     await router.waitForDeployment();
 
     // return typesafe interface
-    return await ethers.getContractAt("IUniswapV2Router02", await router.getAddress(), owner);
+    return await ethers.getContractAt(uniswapV2Router.interface, await router.getAddress(), owner);
 }
 
 // reate token and mint 1M for the ownber
