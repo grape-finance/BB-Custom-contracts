@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.10;
 
+import "@aave/core-v3/contracts/flashloan/interfaces/IFlashLoanSimpleReceiver.sol";
+
 contract MockPool {
 
     address public receiverAddress;
@@ -26,5 +28,10 @@ contract MockPool {
         amount = _amount;
         params = _params;
         referralCode = _referralCode;
+    }
+
+    // simulate flash loan execution coming from a defined  initiator  address
+    function mockLoanFromWrongInitiator(address _target, address _initiator) external {
+        IFlashLoanSimpleReceiver(_target).executeOperation(_target, 123, 4546, _initiator, new bytes(0));
     }
 }

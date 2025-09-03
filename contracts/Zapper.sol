@@ -104,6 +104,7 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
             block.timestamp + 50
         );
 
+        // TODO: !!!!  Borrowing shall check for pending user!!!! not every used that was supplied
         IERC20(lpToken).forceApprove(address(POOL), lpAmount);
 
         POOL.supply(lpToken, lpAmount, user, 0);

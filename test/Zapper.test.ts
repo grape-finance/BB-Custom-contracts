@@ -193,8 +193,25 @@ describe("Zapper.sol", () => {
 
             // no referral code
             expect(await mockPool.referralCode()).to.equal(0);
-
+            // shall set up pending user for the attack prevention
             expect(await zapper.pendingUser()).to.equal(owner);
+        })
+
+        // in case other user simulates flash loan,execution shall be reverted
+        it('shall refuse operation if invoked fron not registered pool', async () => {
+
+            const [deployer, owner] = await ethers.getSigners();
+            let {zapper, weth} = await deployContracts();
+
+            await expect(zapper.executeOperation(weth, 123n, 456, owner, "0x")).to.be.revertedWith("not registered pool");
+        })
+
+        it('shall refuse operation if invoked fron wrong initiator', async () => {
+            const [deployer, owner] = await ethers.getSigners();
+
+            let {zapper, favor, weth, mockPool, favorWethPair} = await deployContracts();
+
+            await expect(mockPool.mockLoanFromWrongInitiator(zapper, owner) ).to.be.revertedWith("bad initiator");
         })
     })
 })
