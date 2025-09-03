@@ -2,6 +2,7 @@ import {expect} from "chai";
 import {network} from "hardhat";
 import {ZeroAddress} from "ethers";
 import {createToken, createUSV2Factory, createUSV2Router} from "./utils/contractUtils.js";
+import {exec} from "node:child_process";
 
 const {ethers} = await network.connect();
 
@@ -211,7 +212,23 @@ describe("Zapper.sol", () => {
 
             let {zapper, favor, weth, mockPool, favorWethPair} = await deployContracts();
 
-            await expect(mockPool.mockLoanFromWrongInitiator(zapper, owner) ).to.be.revertedWith("bad initiator");
+            await expect(mockPool.mockLoanFromWrongInitiator(zapper, owner)).to.be.revertedWith("bad initiator");
+        })
+
+        // in case stored user does not match, operation shall be refused
+        it('shall refuse operation  if user does not match', async () => {
+
+            const [deployer, owner] = await ethers.getSigners();
+            let {zapper, weth, favor, mockPool} = await deployContracts();
+
+
+            // simulate first part of onvocation
+            //   we shall  have "owner"  recorded as pending user
+            await favor.approve(zapper, 1_000_000_000_000_000n);
+            await expect(zapper.requestFlashLoan(12345n, favor)).to.not.be.revert(ethers);
+
+            await expect(mockPool.mockLoanFromWrongUser(zapper, owner, deployer)).to.be.revertedWith("user mismatch");
+
         })
     })
 })

@@ -34,4 +34,11 @@ contract MockPool {
     function mockLoanFromWrongInitiator(address _target, address _initiator) external {
         IFlashLoanSimpleReceiver(_target).executeOperation(_target, 123, 4546, _initiator, new bytes(0));
     }
+
+    // simulate flash loan execution with wring user passed in data
+    function mockLoanFromWrongUser(address _target, address _initiator, address _fakeUser) external {
+        bytes memory data = abi.encode(_fakeUser, _target, _target);
+
+        IFlashLoanSimpleReceiver(_target).executeOperation(_target, 123, 4546, _target, data);
+    }
 }
