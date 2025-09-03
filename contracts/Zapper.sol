@@ -114,80 +114,83 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
         return true;
     }
 
-    function zap(
-        address token,
-        uint256 amount,
-        uint256 deadline
-    ) external payable {
-        require(block.timestamp <= deadline, "Zap: deadline out of time");
+    //  zap  token into LP with favor
+    function zapToken(address _token, uint _amount, uint256 _deadline) public {
 
-        if (token == PLS) {
-            require(msg.value == amount, "Zap: value mismatch");
-            _zapPLS(tokenToFavor[token], amount, deadline);
-        } else if (tokenToFavor[token] != address(0)) {
-            _zapToken(tokenToFavor[token], amount, deadline);
-        } else {
-            revert("Zap: unsupported");
-        }
+        address favor = tokenToFavor[_token];
+        require(favor != address(0), "Zap: unsupported");
+
+        address lp = favorToLp[favor];
+        require(lp != address(0), "Zap: no lp");
+
+        uint256 half = _amount / 2;
+        IERC20(_token).safeTransferFrom(msg.sender, address(this), _amount);
+
+        uint256 balFavor = _swap(_token, favor, half, _deadline);
+        IFavorToken(favor).logBuy(msg.sender, balFavor);
+
+
+        _addLiquidity(_token, favor, half, balFavor, address(this), _deadline);
+
+        uint256 balLP = IERC20(lp).balanceOf(address(this));
+        _depositToStronghold(lp, balLP);
 
         _refundDust(msg.sender);
     }
 
-    function _zapPLS(address _favor, uint256 amount, uint256 dl) internal {
-        uint256 half = amount / 2;
-
-        IWETH(router.WETH()).deposit{value: half}();
-
-        address token = router.WETH();
-        address lp = favorToLp[_favor];
-
-        uint256 balFavor = _swapAndLog(token, _favor, half, dl);
-
-        _addLiquidityETH(_favor, half, balFavor, address(this), dl);
-        uint256 balLP = IERC20(lp).balanceOf(address(this));
-        _depositToStronghold(lp, balLP);
+    function zapPLS(uint256 _deadline) public payable {
+        //  wrap
+        IWETH(router.WETH()).deposit{value: msg.value}();
+        zapToken(PLS, uint112(msg.value), _deadline);
     }
 
-    function _zapToken(address _favor, uint256 amount, uint256 dl) internal {
-        uint256 half = amount / 2;
-        address token = favorToToken[_favor];
+    function zapFavor(address _favor, uint _amount, uint256 _deadline) public {
+
+        address token = tokenToFavor[_favor];
         address lp = favorToLp[_favor];
 
-        IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
+        uint256 half = _amount / 2;
 
-        uint256 balFavor = _swapAndLog(token, _favor, half, dl);
-        _addLiquidity(token, _favor, half, balFavor, address(this), dl);
+        IERC20(_favor).safeTransferFrom(msg.sender, address(this), _amount);
+
+        uint256 balToken = _swap(_favor, token, half, _deadline);
+
+        // TODO:  apply sales tax here before adding liqiodity
+        _addLiquidity(token, _favor, balToken, half, address(this), _deadline);
 
         uint256 balLP = IERC20(lp).balanceOf(address(this));
         _depositToStronghold(lp, balLP);
+
     }
 
-    function _swapAndLog(
-        address inToken,
-        address favorToken,
-        uint256 amt,
-        uint256 dl
+
+    function _swap(
+        address _in,
+        address _out,
+        uint256 _amount,
+        uint256 _deadline
     ) internal returns (uint256) {
-        IERC20(inToken).approve(address(router), amt);
+
+        IERC20(_in).approve(address(router), _amount);
 
         address[] memory path = new address[](2);
-        path[0] = inToken;
-        path[1] = favorToken;
+        path[0] = _in;
+        path[1] = _out;
 
-        uint256 before = IERC20(favorToken).balanceOf(address(this));
+        uint256 before = IERC20(_out).balanceOf(address(this));
         router.swapExactTokensForTokensSupportingFeeOnTransferTokens(
-            amt,
+            _amount,
             0,
             path,
             address(this),
-            dl
+            _deadline
         );
-        uint256 got = IERC20(favorToken).balanceOf(address(this)) - before;
+        uint256 got = IERC20(_out).balanceOf(address(this)) - before;
 
-        require(got > 0, "Swap failed");
-        IFavorToken(favorToken).logBuy(msg.sender, got);
+        require(got > 0, "Zapper: Swap failed");
         return got;
     }
+
 
     function _depositToStronghold(address token, uint256 amount) internal {
         IERC20(token).forceApprove(address(POOL), amount);
@@ -207,17 +210,8 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
         router.addLiquidity(a, b, aAmt, bAmt, 0, 0, to, dl);
     }
 
-    function _addLiquidityETH(
-        address token,
-        uint256 ethAmt,
-        uint256 tokenAmt,
-        address to,
-        uint256 dl
-    ) internal {
-        IERC20(token).approve(address(router), tokenAmt);
-        router.addLiquidityETH{value: ethAmt}(token, tokenAmt, 0, 0, to, dl);
-    }
 
+    //  wrapper to router call,  to avoid taxation
     function addLiquidity(
         address tokenA,
         address tokenB,
@@ -246,6 +240,7 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
         );
     }
 
+    //  wrapper for the router call to acoin taxation
     function addLiquidityETH(
         address token,
         uint amountTokenDesired,
