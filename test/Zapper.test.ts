@@ -2,7 +2,7 @@ import {expect} from "chai";
 import {network} from "hardhat";
 import {ZeroAddress} from "ethers";
 import {createToken, createUSV2Factory, createUSV2Router} from "./utils/contractUtils.js";
-import {exec} from "node:child_process";
+import {pool} from "@aave/core-v3/dist/types/types/protocol/index.js";
 
 const {ethers} = await network.connect();
 
@@ -227,7 +227,62 @@ describe("Zapper.sol", () => {
             await favor.approve(zapper, 1_000_000_000_000_000n);
             await expect(zapper.requestFlashLoan(12345n, favor)).to.not.be.revert(ethers);
 
-            await expect(mockPool.mockLoanFromWrongUser(zapper, owner, deployer)).to.be.revertedWith("user mismatch");
+            await expect(mockPool.mockLoanFromWrongUser(zapper, deployer)).to.be.revertedWith("user mismatch");
+
+        })
+
+
+        it('shall perform borrowing operation', async () => {
+
+            const [deployer, owner] = await ethers.getSigners();
+            let {zapper, weth, favor, mockPool, favorWethPair} = await deployContracts();
+
+
+            // simulate first part of onvocation
+            //   we shall  have "owner"  recorded as pending user
+            await favor.approve(zapper, 1_000_000_000_000_000n);
+            await expect(zapper.requestFlashLoan(12345n, favor)).to.not.be.revert(ethers);
+
+            //  before invoking, we shall provide amounts for LP creation
+            await favor.transfer(zapper, 1000n);
+            await weth.transfer(zapper, 2000n);
+
+            await expect(mockPool.mockExecute(zapper, owner, weth, 2000, 200, favor, favorWethPair)).to.not.be.revert(ethers);
+
+            //  there shall be chages
+
+            // pendign user shall be reset
+            expect(await zapper.pendingUser()).to.equal(ZeroAddress);
+
+            //  there shall be LP created for the zapper,  1000 favor and 2000 weth are transdferred to the pair
+            expect(await  favorWethPair.balanceOf(zapper)).to.equal(1414n);
+            expect(await  favor.balanceOf(favorWethPair)).to.equal(1001000n);
+            expect(await  weth.balanceOf(favorWethPair)).to.equal(2002000n);
+
+            // this amount ought to be approved for the pool to take
+            expect(await  favorWethPair.allowance(zapper, mockPool)).to.equal(1414n);
+
+            //  therre shall be approwal for  weth to repay loan  amount + premoum
+            expect(await  weth.allowance(zapper, mockPool)).to.equal(2200n);
+
+
+            // invocations shall be done
+
+            // supply
+            expect(await mockPool.supplyCalled()).to.be.equal(true);
+            expect(await mockPool.assetSupplied()).to.be.equal(favorWethPair);
+            expect(await mockPool.amountSupplied()).to.be.equal(1414n);
+            expect(await mockPool.suppliedTo()).to.be.equal(owner);
+            expect(await mockPool.supplyReferral()).to.be.equal(0);
+
+// borrow
+            expect(await mockPool.borrowCalled()).to.be.equal(true);
+            expect(await mockPool.assetBorrowed()).to.be.equal(weth);
+            // borrowed enough to repay the flash loan with premium
+            expect(await mockPool.amountBorrowed()).to.be.equal(2200);
+            expect(await mockPool.interestRateMode()).to.be.equal(2);
+            expect(await mockPool.borrowReferral()).to.be.equal(0);
+            expect(await mockPool.borrowedFrom()).to.be.equal(owner);
 
         })
     })
