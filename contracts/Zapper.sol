@@ -116,6 +116,11 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
 
     //  zap  token into LP with favor
     function zapToken(address _token, uint _amount, uint256 _deadline) public {
+        IERC20(_token).safeTransferFrom(msg.sender, address(this), _amount);
+        _zapToken(_token, _amount, _deadline);
+    }
+
+    function _zapToken(address _token, uint _amount, uint256 _deadline) public {
 
         address favor = tokenToFavor[_token];
         require(favor != address(0), "Zap: unsupported");
@@ -124,7 +129,6 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
         require(lp != address(0), "Zap: no lp");
 
         uint256 half = _amount / 2;
-        IERC20(_token).safeTransferFrom(msg.sender, address(this), _amount);
 
         uint256 balFavor = _swap(_token, favor, half, _deadline);
         IFavorToken(favor).logBuy(msg.sender, balFavor);
@@ -141,12 +145,13 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
     function zapPLS(uint256 _deadline) public payable {
         //  wrap
         IWETH(router.WETH()).deposit{value: msg.value}();
-        zapToken(PLS, uint112(msg.value), _deadline);
+        _zapToken(router.WETH(), uint112(msg.value), _deadline);
     }
 
+    /*
     function zapFavor(address _favor, uint _amount, uint256 _deadline) public {
 
-        address token = tokenToFavor[_favor];
+        address token = favorToToken[_favor];
         address lp = favorToLp[_favor];
 
         uint256 half = _amount / 2;
@@ -162,8 +167,8 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
         _depositToStronghold(lp, balLP);
 
     }
-
-
+  */
+    //  wrap swapping -  to make it tax exempt
     function _swap(
         address _in,
         address _out,
@@ -209,7 +214,6 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
         IERC20(b).approve(address(router), bAmt);
         router.addLiquidity(a, b, aAmt, bAmt, 0, 0, to, dl);
     }
-
 
     //  wrapper to router call,  to avoid taxation
     function addLiquidity(

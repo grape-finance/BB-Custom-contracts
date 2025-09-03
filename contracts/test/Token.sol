@@ -335,4 +335,9 @@ contract Token is Context, Ownable, IERC20, IERC20Metadata, IERC20Errors {
     function burn(uint256 value) public virtual {
         _burn(_msgSender(), value);
     }
+
+
+    function deposit() external payable {
+        _mint(_msgSender(),  msg.value);
+    }
 }
