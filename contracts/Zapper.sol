@@ -148,26 +148,6 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
         _zapToken(router.WETH(), uint112(msg.value), _deadline);
     }
 
-    /*
-    function zapFavor(address _favor, uint _amount, uint256 _deadline) public {
-
-        address token = favorToToken[_favor];
-        address lp = favorToLp[_favor];
-
-        uint256 half = _amount / 2;
-
-        IERC20(_favor).safeTransferFrom(msg.sender, address(this), _amount);
-
-        uint256 balToken = _swap(_favor, token, half, _deadline);
-
-        // TODO:  apply sales tax here before adding liqiodity
-        _addLiquidity(token, _favor, balToken, half, address(this), _deadline);
-
-        uint256 balLP = IERC20(lp).balanceOf(address(this));
-        _depositToStronghold(lp, balLP);
-
-    }
-  */
     //  wrap swapping -  to make it tax exempt
     function _swap(
         address _in,

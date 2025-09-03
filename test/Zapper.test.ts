@@ -374,34 +374,7 @@ describe("Zapper.sol", () => {
             //  and pending esteem bonus for owner
             expect(await favorEth.pendingBonus(owner)).to.equal(76560n);
         })
-        // not required use case.
-        /*
-        it('zap  Favor tokens  into LP', async () => {
-            const [deployer, owner, receiver] = await ethers.getSigners();
-            let {zapper, favorEth, weth, favorBasePair, mockPool} = await deployContracts();
 
-            // approve 10000 favor to zapper
-            await favorEth.approve(zapper, 10000n);
-
-            //  shall take 10000 base token, change 5000 to  2500  favor,   and supply liquidity
-            await expect(zapper.zapFavor(favorEth, 10000n, Date.now() + 10000)).to.not.be.revert(ethers);
-
-            // there shall be a balance on zapper
-            expect(await favorBasePair.balanceOf(zapper)).to.equal(7035n);
-
-            //  shall have supplied LP to mock pool
-            expect(await mockPool.supplyCalled()).to.be.equal(true);
-            expect(await mockPool.assetSupplied()).to.be.equal(favorBasePair);
-            expect(await mockPool.amountSupplied()).to.be.equal(7035n);
-            expect(await mockPool.suppliedTo()).to.be.equal(owner);
-
-
-            //  shall  withdraw  favor tokens
-            expect(await favorEth.balanceOf(owner)).to.equal(122999999999999999998990000n);
-            // shall not touch base token eth balance
-            expect(await weth.balanceOf(owner)).to.equal(999999999999999999998000000n);
-        })
-        */
         it('zap  PLS  into LP', async () => {
             const [deployer, owner] = await ethers.getSigners();
             let {zapper, favorEth, weth, favorWethPair, esteem, mockPool} = await deployContracts();
