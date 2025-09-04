@@ -182,6 +182,19 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
         POOL.supply(token, amount, msg.sender, 0);
     }
 
+    /**
+     * sell favor with taxation.   tax is sent to treasury in  base token
+     */
+    function sell(address _favor, uint256 _amount) public {
+        sellTo(msg.sender, _favor, _amount);
+    }
+
+    function sellTo(address _receiver, address _favor, uint256 _amount) public {
+        address lp = favorToLp[_favor];
+        require(lp != address(0), "Zapper: unsupported token");
+
+    }
+
     function _addLiquidity(
         address a,
         address b,
@@ -224,7 +237,7 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
         );
     }
 
-    //  wrapper for the router call to acoin taxation
+    //  wrapper for the router call to a coin taxation
     function addLiquidityETH(
         address token,
         uint amountTokenDesired,

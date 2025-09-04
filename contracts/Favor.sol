@@ -10,7 +10,7 @@ import {IFavorToken} from "./interfaces/IFavorToken.sol";
 /**
  * base favor contract  with common logic
  */
-contract AbstractFavor is IFavorToken, ERC20Burnable, Ownable {
+contract Favor is IFavorToken, ERC20Burnable, Ownable {
 
     uint256 public constant MULTIPLIER = 10000;
     uint256 public constant MAX_TAX = 5000; // 50% MAX Sell Tax

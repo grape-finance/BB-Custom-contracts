@@ -30,13 +30,13 @@ describe("Zapper.sol", () => {
         const zapperInstance = await ethers.deployContract("LPZapper", [owner, weth, v2router]);
         let zapper = zapperInstance.connect(owner);
 
-        const favorInstance = await ethers.deployContract("FavorPLS", [owner, 123_000_000_000_000_000_000_000_000n, treasury, esteem]);
+        const favorInstance = await ethers.deployContract("Favor", [owner, "FavorPLS", "fPLS", 123_000_000_000_000_000_000_000_000n, treasury, esteem]);
         let favorEth = favorInstance.connect(owner);
         await favorEth.setPriceProvider(minter);
         await esteem.addMinter(favorEth);
         await minter.setTokenPrice(favorEth, 7_000_000_000_000_000_000n);
 
-        const baseFavorInstance = await ethers.deployContract("FavorPLS", [owner, 123_000_000_000_000_000_000_000_000n, treasury, esteem]);
+        const baseFavorInstance = await ethers.deployContract("Favor", [owner, "FavorXXX", "fXXX", 123_000_000_000_000_000_000_000_000n, treasury, esteem]);
         let favorBase = baseFavorInstance.connect(owner);
         await favorBase.setPriceProvider(minter);
         await esteem.addMinter(favorBase);
@@ -77,8 +77,6 @@ describe("Zapper.sol", () => {
         await zapper.addFavor(favorBase, favorBasePair, baseToken);
 
         await v2router.addLiquidity(favorEth, weth, 1000000n, 2000000n, 0n, 0n, owner, Date.now() + 100000)
-
-        console.log("reservers", await favorWethPair.getReserves());
 
         // remove tax exempt status from owner
         await favorEth.setTaxExempt(owner, false);
@@ -408,5 +406,12 @@ describe("Zapper.sol", () => {
 
     describe('buy and sell', () => {
 
+        it('shall sell  not known favor token', async () => {
+            const [deployer, owner, somethingStrange] = await ethers.getSigners();
+            let {zapper, favorEth} = await deployContracts();
+
+            await expect(  zapper.sell(somethingStrange, 123n)).to.be.revertedWith('Zapper: unsupported token');
+
+        })
     })
 })
