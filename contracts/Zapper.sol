@@ -12,24 +12,22 @@ import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Factory.sol";
 import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 import "@uniswap/v2-periphery/contracts/interfaces/IWETH.sol";
 
-
 import "@aave/core-v3/contracts/flashloan/interfaces/IFlashLoanSimpleReceiver.sol";
 import "@aave/core-v3/contracts/interfaces/IPool.sol";
 import "@aave/core-v3/contracts/interfaces/IPoolAddressesProvider.sol";
-
 
 import "./interfaces/IFavorToken.sol";
 
 contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
     using SafeERC20 for IERC20;
 
-    IPool public  POOL;
-    IPoolAddressesProvider public  ADDRESSES_PROVIDER;
+    IPool public POOL;
+    IPoolAddressesProvider public ADDRESSES_PROVIDER;
 
     address public pendingUser;
 
     IUniswapV2Router02 public router;
-    address public  PLS;
+    address public PLS;
 
     address[] public dustTokens;
     mapping(address => bool) public isDustToken;
@@ -49,7 +47,6 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
      * as collateral
      */
     function requestFlashLoan(uint256 _amount, address _favorToken) external {
-
         address token = favorToToken[_favorToken];
         address lpToken = favorToLp[_favorToken];
 
@@ -121,7 +118,6 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
     }
 
     function _zapToken(address _token, uint _amount, uint256 _deadline) public {
-
         address favor = tokenToFavor[_token];
         require(favor != address(0), "Zap: unsupported");
 
@@ -132,7 +128,6 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
 
         uint256 balFavor = _swap(_token, favor, half, _deadline);
         IFavorToken(favor).logBuy(msg.sender, balFavor);
-
 
         _addLiquidity(_token, favor, half, balFavor, address(this), _deadline);
 
@@ -155,7 +150,6 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
         uint256 _amount,
         uint256 _deadline
     ) internal returns (uint256) {
-
         IERC20(_in).approve(address(router), _amount);
 
         address[] memory path = new address[](2);
@@ -175,7 +169,6 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
         require(got > 0, "Zapper: Swap failed");
         return got;
     }
-
 
     function _depositToStronghold(address token, uint256 amount) internal {
         IERC20(token).forceApprove(address(POOL), amount);
@@ -237,6 +230,7 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
         address to,
         uint deadline
     ) external {
+        require(favorToToken[tokenA] == tokenB, "Not listed to make LP");
         IERC20(tokenA).transferFrom(msg.sender, address(this), amountADesired);
         IERC20(tokenB).transferFrom(msg.sender, address(this), amountBDesired);
 
@@ -264,6 +258,7 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
         address to,
         uint deadline
     ) external payable {
+        require(favorToToken[token] == router.WETH(), "Not listed to make LP");
         IERC20(token).transferFrom(
             msg.sender,
             address(this),
@@ -284,7 +279,7 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
     function _refundDust(address recipient) internal {
         uint256 ethBal = address(this).balance;
         if (ethBal > 0) {
-            (bool sent,) = recipient.call{value: ethBal}("");
+            (bool sent, ) = recipient.call{value: ethBal}("");
             require(sent, "refund PLS failed");
         }
 
