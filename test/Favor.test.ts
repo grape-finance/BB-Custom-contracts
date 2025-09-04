@@ -37,7 +37,7 @@ describe("Favor.sol", () => {
 
             let {favor, esteem} = await deployContracts();
 
-            expect(await favor.name()).to.equal("Favor PLS");
+            expect(await favor.name()).to.equal("FavorPLS");
             expect(await favor.symbol()).to.equal("fPLS");
             expect(await favor.owner()).to.equal(owner.address);
 
