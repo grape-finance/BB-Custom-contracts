@@ -185,13 +185,31 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
     /**
      * sell favor with taxation.   tax is sent to treasury in  base token
      */
-    function sell(address _favor, uint256 _amount) public {
-        sellTo(msg.sender, _favor, _amount);
+    function sell(address _favor, uint256 _amount, uint256 _deadline) public {
+        sellTo(msg.sender, _favor, _amount, _deadline);
     }
 
-    function sellTo(address _receiver, address _favor, uint256 _amount) public {
-        address lp = favorToLp[_favor];
-        require(lp != address(0), "Zapper: unsupported token");
+    function sellTo(address _receiver, address _favor, uint256 _amount, uint256 _deadline) public {
+
+        address base = favorToToken[_favor];
+        require(base != address(0), "Zapper: unsupported token");
+
+
+        IERC20(_favor).safeTransferFrom(msg.sender, address(this), _amount);
+
+        uint256 tax = 0;
+        // is seller taxed?  sell 50% to treasury
+        if (!IFavorToken(_favor).isTaxExempt(msg.sender)) {
+            // seller is taxed.   sell 50%  to treasury
+            tax = IFavorToken(_favor).calculateTax(_amount);
+            _swap(_favor, base, tax, _deadline);
+            IERC20(base).safeTransfer(IFavorToken(_favor).treasury(), IERC20(base).balanceOf(address(this)));
+        }
+
+        _swap(_favor, base, _amount - tax, _deadline);
+
+        //  return token balance to _receiver
+        IERC20(base).safeTransfer(address(_receiver), IERC20(base).balanceOf(address(this)));
 
     }
 

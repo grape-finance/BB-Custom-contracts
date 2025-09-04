@@ -116,6 +116,10 @@ contract Favor is IFavorToken, ERC20Burnable, Ownable {
         super._update(_from, _to, _value);
     }
 
+    function calculateTax(uint256 _amount) external returns (uint256 tax) {
+        tax = _amount * sellTax / MULTIPLIER;
+    }
+
 
     function logBuy(address _user, uint256 _amount) external {
         // Buy wrapper contract logs user buys of Favor to track esteem bonus accurately

@@ -4,6 +4,7 @@ import {ZeroAddress} from "ethers";
 import {createToken, createUSV2Factory, createUSV2Router} from "./utils/contractUtils.js";
 import {pool} from "@aave/core-v3/dist/types/types/protocol/index.js";
 import hardhatNetworkHelpersPlugin from "@nomicfoundation/hardhat-network-helpers";
+import {favorTreasurySol} from "../types/ethers-contracts/index.js";
 
 const {ethers} = await network.connect();
 
@@ -78,7 +79,7 @@ describe("Zapper.sol", () => {
 
         await v2router.addLiquidity(favorEth, weth, 1000000n, 2000000n, 0n, 0n, owner, Date.now() + 100000)
 
-        // remove tax exempt status from owner
+        // remove tax-exempt status from owner
         await favorEth.setTaxExempt(owner, false);
         await favorBase.setTaxExempt(owner, false);
 
@@ -410,8 +411,42 @@ describe("Zapper.sol", () => {
             const [deployer, owner, somethingStrange] = await ethers.getSigners();
             let {zapper, favorEth} = await deployContracts();
 
-            await expect(  zapper.sell(somethingStrange, 123n)).to.be.revertedWith('Zapper: unsupported token');
+            await expect(zapper.sell(somethingStrange, 123n, Date.now() + 100000)).to.be.revertedWith('Zapper: unsupported token');
 
+        })
+
+
+        it('shall sell token without taxes for tax exempt sellers', async () => {
+            const [deployer, owner, treasury, somethingStrange, receiver] = await ethers.getSigners();
+            let {zapper, favorEth, weth} = await deployContracts();
+
+            await favorEth.setTaxExempt(owner, true);
+
+            await favorEth.approve(zapper, 1000n);
+
+            await expect(zapper.sellTo(receiver, favorEth, 1000n, Date.now() + 100000)).to.not.be.revert(ethers);
+
+            console.log(await weth.balanceOf(zapper));
+            //  uniswap fee applies
+            expect(await weth.balanceOf(receiver)).to.equal(1992n);
+            expect(await weth.balanceOf(treasury)).to.equal(0n);
+        })
+
+        it('shall tax on  sale iof not taxx exempt seller', async () => {
+            const [deployer, owner, treasury, receiver] = await ethers.getSigners();
+            let {zapper, favorEth, weth} = await deployContracts();
+
+            //  give receiver some favor
+            await favorEth.transfer(receiver, 1000n);
+            await favorEth.connect(receiver).approve(zapper, 1000n);
+
+            await expect(zapper.connect(receiver).sell(favorEth, 1000n, Date.now() + 100000)).to.not.be.revert(ethers);
+
+            // treasury shall have received forst chanrge of 993 weth
+            expect(await weth.balanceOf(treasury)).to.equal(996n);
+
+            //  receiver shall receive the rest
+            expect(await weth.balanceOf(receiver)).to.equal(995n);
         })
     })
 })
