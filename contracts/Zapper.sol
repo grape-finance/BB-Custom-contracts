@@ -230,7 +230,7 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
         address to,
         uint deadline
     ) external {
-        require(favorToToken[tokenA] == tokenB, "Not listed to make LP");
+        require(favorToToken[tokenA] == tokenB, "Zapper: Not listed to make LP");
         IERC20(tokenA).transferFrom(msg.sender, address(this), amountADesired);
         IERC20(tokenB).transferFrom(msg.sender, address(this), amountBDesired);
 
@@ -258,7 +258,7 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
         address to,
         uint deadline
     ) external payable {
-        require(favorToToken[token] == router.WETH(), "Not listed to make LP");
+        require(favorToToken[token] == router.WETH(), "Zapper: Not listed to make LP");
         IERC20(token).transferFrom(
             msg.sender,
             address(this),

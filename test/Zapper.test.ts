@@ -2,9 +2,6 @@ import {expect} from "chai";
 import {network} from "hardhat";
 import {ZeroAddress} from "ethers";
 import {createToken, createUSV2Factory, createUSV2Router} from "./utils/contractUtils.js";
-import {pool} from "@aave/core-v3/dist/types/types/protocol/index.js";
-import hardhatNetworkHelpersPlugin from "@nomicfoundation/hardhat-network-helpers";
-import {favorTreasurySol} from "../types/ethers-contracts/index.js";
 
 const {ethers} = await network.connect();
 
@@ -115,6 +112,19 @@ describe("Zapper.sol", () => {
             await expect(await zapper.PLS()).to.be.equal(weth);
 
         })
+
+
+        it("Should be able to set values", async () => {
+            const [deployer, owner, whatever] = await ethers.getSigners();
+            let {zapper} = await deployContracts();
+
+            await expect(zapper.setPool(whatever)).to.not.be.revert(ethers);
+            expect( await  zapper.POOL()).to.be.equal(whatever);
+
+            await expect(zapper.setAddressProvider(whatever)).to.not.be.revert(ethers);
+            expect( await  zapper.ADDRESSES_PROVIDER()).to.be.equal(whatever);
+
+        })
     })
 
     describe('access control', () => {
@@ -202,6 +212,27 @@ describe("Zapper.sol", () => {
 
             expect(await favorEth.balanceOf(zapper)).to.equal(0n);
             expect(await favorEth.balanceOf(receiver)).to.equal(1000n);
+
+        })
+
+        it("shall withdraw PLS as admin", async () => {
+            const [deployer, owner, receiver] = await ethers.getSigners();
+            let {zapper, favorEth} = await deployContracts();
+
+            await owner.sendTransaction({
+                to: zapper,
+                value: 10000n, // Sends exactly 1.0 ether
+            });
+
+            expect(await ethers.provider.getBalance(zapper)).to.equal(10000n);
+
+            let beforeSending = await ethers.provider.getBalance(receiver);
+
+            await expect(zapper.adminWithdrawPLS(receiver, 1000n)).to.not.be.revert(ethers);
+
+            let afterSending = await ethers.provider.getBalance(receiver);
+
+            expect(afterSending - beforeSending).to.equal(1000n);
 
         })
 
@@ -448,5 +479,49 @@ describe("Zapper.sol", () => {
             //  receiver shall receive the rest
             expect(await weth.balanceOf(receiver)).to.equal(995n);
         })
+    })
+
+    describe('liquidity management', () => {
+        it('shall refuse to add liquidity if not a regstered favor', async () => {
+            const [deployer, owner, somethingStrange] = await ethers.getSigners();
+            let {zapper, favorEth, weth} = await deployContracts();
+
+
+            await expect(zapper.addLiquidity(somethingStrange, weth, 1, 1, 1, 1, owner, 1)).to.be.revertedWith('Zapper: Not listed to make LP');
+        })
+
+
+        it('shall refuse to add ETH liquidity if not a a proper favor', async () => {
+            const [deployer, owner, somethingStrange] = await ethers.getSigners();
+            let {zapper, favorBase, baseToken} = await deployContracts();
+            await expect(zapper.addLiquidityETH(favorBase, 1, 1, 1, owner, 1)).to.be.revertedWith('Zapper: Not listed to make LP');
+        })
+
+
+        it('shall add.iqiodity to registered favor', async () => {
+            const [deployer, owner, somethingStrange] = await ethers.getSigners();
+            let {zapper, favorBase, baseToken, favorBasePair} = await deployContracts();
+
+            await favorBase.approve(zapper, 1000n);
+            await baseToken.approve(zapper, 2000n);
+            await expect(zapper.addLiquidity(favorBase, baseToken, 1000, 2000, 1000, 2000, owner, Date.now() + 10000)).to.not.be.revert(ethers);
+
+            expect(await favorBasePair.balanceOf(owner)).to.equal(1413213n);
+
+        })
+
+
+        it('shall add  eth to registered favor LP', async () => {
+            const [deployer, owner, somethingStrange] = await ethers.getSigners();
+            let {zapper, favorEth,favorWethPair} = await deployContracts();
+
+            await favorEth.approve(zapper, 1000n);
+
+            await expect(zapper.addLiquidityETH(favorEth,1000, 1000, 2000, owner, Date.now() + 10000,{value: 2000})).to.not.be.revert(ethers);
+
+            expect(await favorWethPair.balanceOf(owner)).to.equal(1414627n);
+
+        })
+
     })
 })
