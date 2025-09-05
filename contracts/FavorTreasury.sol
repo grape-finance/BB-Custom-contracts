@@ -83,7 +83,7 @@ contract FavorTreasury is Ownable, ReentrancyGuard, Pausable {
 
     function getFavorPrice() public view returns (uint256 favorPrice) {
         try IOracle(favorOracle).consult(favor, 1e18) returns (uint256 price) {
-            return uint256(price);
+            return price;
         } catch {
             revert("Treasury: failed to consult FAVOR price from the oracle");
         }
@@ -91,7 +91,7 @@ contract FavorTreasury is Ownable, ReentrancyGuard, Pausable {
     // Returns rolling TWAP price for UI which is more likely to be prone to short term price fluctuations
     function getFavorUpdatedPrice() public view returns (uint256 _favorPrice) {
         try IOracle(favorOracle).twap(favor, 1e18) returns (uint256 price) {
-            return uint256(price);
+            return price;
         } catch {
             revert("Treasury: failed to consult FAVOR price from the oracle");
         }

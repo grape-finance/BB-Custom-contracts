@@ -1,8 +1,9 @@
+
 // SPDX-License-Identifier: MIT
 
 pragma solidity ^0.8.20;
 
-// Legacy Uni V2 TWAP oracle for individual tokens
+// Legacy Uni V2 TWAP oracle for LP tokens with TWAP reserves calculation
 
 /**
  * @dev Provides information about the current execution context, including the
@@ -449,6 +450,69 @@ library UniswapV2OracleLibrary {
     }
 }
 
+library HomoraMath {
+  using SafeMath for uint;
+
+  function divCeil(uint lhs, uint rhs) internal pure returns (uint) {
+    return lhs.add(rhs).sub(1) / rhs;
+  }
+
+  function fmul(uint lhs, uint rhs) internal pure returns (uint) {
+    return lhs.mul(rhs) / (2**112);
+  }
+
+  function fdiv(uint lhs, uint rhs) internal pure returns (uint) {
+    return lhs.mul(2**112) / rhs;
+  }
+
+  // implementation from https://github.com/Uniswap/uniswap-lib/commit/99f3f28770640ba1bb1ff460ac7c5292fb8291a0
+  // original implementation: https://github.com/abdk-consulting/abdk-libraries-solidity/blob/master/ABDKMath64x64.sol#L687
+  function sqrt(uint x) internal pure returns (uint) {
+    if (x == 0) return 0;
+    uint xx = x;
+    uint r = 1;
+
+    if (xx >= 0x100000000000000000000000000000000) {
+      xx >>= 128;
+      r <<= 64;
+    }
+
+    if (xx >= 0x10000000000000000) {
+      xx >>= 64;
+      r <<= 32;
+    }
+    if (xx >= 0x100000000) {
+      xx >>= 32;
+      r <<= 16;
+    }
+    if (xx >= 0x10000) {
+      xx >>= 16;
+      r <<= 8;
+    }
+    if (xx >= 0x100) {
+      xx >>= 8;
+      r <<= 4;
+    }
+    if (xx >= 0x10) {
+      xx >>= 4;
+      r <<= 2;
+    }
+    if (xx >= 0x8) {
+      r <<= 1;
+    }
+
+    r = (r + x / r) >> 1;
+    r = (r + x / r) >> 1;
+    r = (r + x / r) >> 1;
+    r = (r + x / r) >> 1;
+    r = (r + x / r) >> 1;
+    r = (r + x / r) >> 1;
+    r = (r + x / r) >> 1; // Seven iterations should be enough
+    uint r1 = x / r;
+    return (r < r1 ? r : r1);
+  }
+}
+
 
 /**
  * @dev Contract module which provides a basic access control mechanism, where
@@ -548,6 +612,10 @@ contract Operator is Context, Ownable {
     }
 }
 
+interface IMasterOracle {
+    function getLatestPrice(address _token) external view returns (uint256 price);
+}
+
 contract Epoch is Operator {
     using SafeMath for uint256;
 
@@ -627,118 +695,252 @@ contract Epoch is Operator {
         epoch = _epoch;
     }
 }
-
-
-// fixed window oracle that recomputes the average price for the entire period once every period
-// note that the price average is only guaranteed to be over at least 1 period, but may be over a longer period
-contract Oracle is Epoch {
-    using FixedPoint for *;
+contract LPOracle is Epoch {
     using SafeMath for uint256;
+    using FixedPoint for *;
+    using HomoraMath for uint;
 
-    /* ========== STATE VARIABLES ========== */
+    /* ========== IMMUTABLES ========== */
+    IUniswapV2Pair public immutable pair;
+    address       public immutable token0;
+    address       public immutable token1;
 
-    // uniswap
-    address public token0;
-    address public token1;
-    IUniswapV2Pair public pair;
-
-    // oracle
-    uint32 public blockTimestampLast;
+    /* ========== CUMULATIVE STATE ========== */
     uint256 public price0CumulativeLast;
     uint256 public price1CumulativeLast;
-    uint256 public maxPriceCap;
+    uint32  public blockTimestampLast;
+
+    uint256 public kCumulativeLast;
+    uint32  public kTimestampLast;
+    uint256 public lastSqrtK;
+
+    uint256 public usd0CumulativeLast;
+    uint256 public usd1CumulativeLast;
+    uint32  public usdTimestampLast;
+
+    IMasterOracle public masterOracle;
+
+    /* ========== TWAP OUTPUTS ========== */
     FixedPoint.uq112x112 public price0Average;
     FixedPoint.uq112x112 public price1Average;
+    FixedPoint.uq112x112 public kAverage;
+    FixedPoint.uq112x112 public usd0Average;
+    FixedPoint.uq112x112 public usd1Average;
 
-    /* ========== CONSTRUCTOR ========== */
+    /* ========== CAPS ========== */
+    uint256 public lastLpPrice;
+    uint256 public lpPriceCap;
+
+    event Updated(
+        uint256 price0Cumulative,
+        uint256 price1Cumulative,
+        uint256 kCumulative,
+        uint256 usd0Cumulative,
+        uint256 usd1Cumulative,
+        uint32  timestamp
+    );
+    event PriceCapUpdated(uint256 newPriceCap);
+    event OracleUpdated(address indexed newOracle);
 
     constructor(
         IUniswapV2Pair _pair,
+        IMasterOracle _masterOracle,
         uint256 _period,
         uint256 _startTime,
         uint256 _priceCap
     ) Epoch(_period, _startTime, 0) {
-        require(_period >= 1 hours && _period <= 48 hours, '_period: out of range');
-        pair = _pair;
-        token0 = pair.token0();
-        token1 = pair.token1();
-        maxPriceCap = _priceCap;
-        price0CumulativeLast = pair.price0CumulativeLast(); // fetch the current accumulated price value (1 / 0)
-        price1CumulativeLast = pair.price1CumulativeLast(); // fetch the current accumulated price value (0 / 1)
-        uint112 reserve0;
-        uint112 reserve1;
-        (reserve0, reserve1, blockTimestampLast) = pair.getReserves();
-        require(reserve0 != 0 && reserve1 != 0, "Oracle: NO_RESERVES"); // ensure that there's liquidity in the pair
+        require(_period >= 1 hours && _period <= 48 hours, "_period: out of range");
+
+        pair            = _pair;
+        token0          = _pair.token0();
+        token1          = _pair.token1();
+        masterOracle    = _masterOracle;
+        lpPriceCap      = _priceCap;
+
+        // seed Uniswap price cumulatives + timestamp
+        (uint256 p0C, uint256 p1C, uint32 ts) = UniswapV2OracleLibrary
+            .currentCumulativePrices(address(pair));
+        price0CumulativeLast = p0C;
+        price1CumulativeLast = p1C;
+        blockTimestampLast   = ts;
+
+        // seed √K cumulative + lastSqrtK at current block time
+        uint32 nowTs = uint32(block.timestamp);
+        kTimestampLast     = nowTs;
+        (uint112 r0, uint112 r1,) = _pair.getReserves();
+        uint256 initialSqrtK = HomoraMath
+            .sqrt(uint256(r0).mul(r1))
+            .fdiv(_pair.totalSupply());
+        kCumulativeLast    = initialSqrtK.mul(nowTs);
+        lastSqrtK          = initialSqrtK;
+
+        // seed USD feed cumulatives at current block time
+        usdTimestampLast   = nowTs;
+        uint256 initialU0  = masterOracle.getLatestPrice(token0);
+        uint256 initialU1  = masterOracle.getLatestPrice(token1);
+        usd0CumulativeLast = initialU0.mul(nowTs);
+        usd1CumulativeLast = initialU1.mul(nowTs);
     }
 
-    /* ========== MUTABLE FUNCTIONS ========== */
+    /// @notice Update TWAPs: Uniswap prices, √K, and USD feeds
+    function update() external checkEpoch {
+        // 1) token0/token1 price TWAPs (Uniswap cumulative)
+        {
+            (uint256 p0C, uint256 p1C, uint32 blockTs) = UniswapV2OracleLibrary
+                .currentCumulativePrices(address(pair));
+            uint32 dt = blockTs - blockTimestampLast;
+            require(dt > 0, "Oracle: ZERO_TIME");
 
-    /** @dev Updates EMA price from Uniswap.  */
-    function update() public checkEpoch {
-        (uint256 price0Cumulative, uint256 price1Cumulative, uint32 blockTimestamp) = UniswapV2OracleLibrary.currentCumulativePrices(address(pair));
-        uint32 timeElapsed = blockTimestamp - blockTimestampLast; // overflow is desired
+            price0Average = FixedPoint.uq112x112(
+                uint224((p0C - price0CumulativeLast) / dt)
+            );
+            price1Average = FixedPoint.uq112x112(
+                uint224((p1C - price1CumulativeLast) / dt)
+            );
 
-        if (timeElapsed == 0) {
-            // prevent divided by zero
-            return;
+            price0CumulativeLast = p0C;
+            price1CumulativeLast = p1C;
+            blockTimestampLast   = blockTs;
         }
 
-        // overflow is desired, casting never truncates
-        // cumulative price is in (uq112x112 price * seconds) units so we simply wrap it after division by time elapsed
-        price0Average = FixedPoint.uq112x112(uint224((price0Cumulative - price0CumulativeLast) / timeElapsed));
-        price1Average = FixedPoint.uq112x112(uint224((price1Cumulative - price1CumulativeLast) / timeElapsed));
+                // 2) √K TWAP via two-segment integration
+        {
+            // get reserves + last-reserve-update timestamp
+            (uint112 r0, uint112 r1, uint32 tsReserve) = pair.getReserves();
+            uint32 nowTs = uint32(block.timestamp);
 
-        price0CumulativeLast = price0Cumulative;
-        price1CumulativeLast = price1Cumulative;
-        blockTimestampLast = blockTimestamp;
+            // spot √K (Q112.112)
+            uint256 sqrtKNow = HomoraMath
+                .sqrt(uint256(r0).mul(r1))
+                .fdiv(pair.totalSupply());
 
-        emit Updated(price0Cumulative, price1Cumulative);
+            // total time since last oracle update
+            uint32 dtFull = nowTs - kTimestampLast;
+            require(dtFull > 0, "Oracle: ZERO_TIME");
+
+            // split into before/after reserve-change
+            uint32 dt1;
+            uint32 dt2;
+            if (tsReserve > kTimestampLast) {
+                dt1 = tsReserve - kTimestampLast;
+                dt2 = nowTs - tsReserve;
+            } else {
+                dt1 = dtFull;
+                dt2 = 0;
+            }
+
+            // patch cumulative: old√K * dt1 + new√K * dt2
+            uint256 kC = kCumulativeLast
+                .add(lastSqrtK.mul(dt1))
+                .add(sqrtKNow.mul(dt2));
+
+            // compute TWAP over the full window
+            kAverage = FixedPoint.uq112x112(
+                uint224((kC - kCumulativeLast) / dtFull)
+            );
+
+            kCumulativeLast = kC;
+            kTimestampLast  = nowTs;
+            lastSqrtK       = sqrtKNow;
+        }
+
+        // 3) USD per-token TWAPs (custom feed)
+        {
+            uint32 nowTsU = uint32(block.timestamp);
+            uint256 u0 = masterOracle.getLatestPrice(token0);
+            uint256 u1 = masterOracle.getLatestPrice(token1);
+            uint32 dtU = nowTsU - usdTimestampLast;
+            require(dtU > 0, "Oracle: ZERO_TIME");
+
+            uint256 newUsd0C = usd0CumulativeLast.add(u0.mul(dtU));
+            uint256 newUsd1C = usd1CumulativeLast.add(u1.mul(dtU));
+
+            uint256 avg0Raw = (newUsd0C - usd0CumulativeLast) / dtU;
+            uint256 avg1Raw = (newUsd1C - usd1CumulativeLast) / dtU;
+
+            uint256 avg0Q112 = avg0Raw.mul(2**112).div(1e18);
+            uint256 avg1Q112 = avg1Raw.mul(2**112).div(1e18);
+
+            usd0Average = FixedPoint.uq112x112(uint224(avg0Q112));
+            usd1Average = FixedPoint.uq112x112(uint224(avg1Q112));
+
+            usd0CumulativeLast = newUsd0C;
+            usd1CumulativeLast = newUsd1C;
+            usdTimestampLast   = nowTsU;
+        }
+
+        // 4) LP price jump cap (freeze if > LPPriceCap × last)
+        {
+            uint256 sqrt0 = HomoraMath.sqrt(uint256(usd0Average._x));
+            uint256 sqrt1 = HomoraMath.sqrt(uint256(usd1Average._x));
+            uint256 kx    = uint256(kAverage._x);
+            uint256 part  = kx.mul(2).mul(sqrt0).div(2**56);
+            uint256 lpQ112= part.mul(sqrt1).div(2**56);
+            uint256 newLpPrice = lpQ112.mul(1e18) >> 112;
+
+            if (lastLpPrice == 0 || lpPriceCap == 0) {
+                lastLpPrice = newLpPrice;
+            } else {
+                uint256 maxAllowed = lastLpPrice.mul(lpPriceCap).div(1e18);
+                if (newLpPrice <= maxAllowed) {
+                    lastLpPrice = newLpPrice;
+                }
+            }
+        }
+
+        emit Updated(
+            price0CumulativeLast,
+            price1CumulativeLast,
+            kCumulativeLast,
+            usd0CumulativeLast,
+            usd1CumulativeLast,
+            blockTimestampLast
+        );
     }
 
-    // Note this will always return 0 before update has been called successfully for the first time.
-    function consult(address _token, uint256 _amountIn) external view returns (uint256 amountOut) {
-
+    /// @notice Consult TWAP: USD per unit of token0, token1 (18-decimals) or LP
+    /// @dev Deployer must call update() first after deployment or this will always return 0
+    function consult(address _token, uint256 _amountIn)
+        external view
+        returns (uint256 amountOut)
+    {
         if (_token == token0) {
             amountOut = uint256(price0Average.mul(_amountIn).decode144());
-        } else {
-            require(_token == token1, "Oracle: INVALID_TOKEN");
-            amountOut = uint256(price1Average.mul(_amountIn).decode144());
-        }
-
-        if (maxPriceCap > 0 && amountOut > maxPriceCap) {
-            amountOut = maxPriceCap;
-        }
-    }
-
-    /// @notice Returns rolling TWAP price which is more likely to be prone to short term price fluctuations. Only used on UI for informational purposes.
-    function twap(address _token, uint256 _amountIn) external view returns (uint256 _amountOut) {
-        (uint256 price0Cumulative, uint256 price1Cumulative, uint32 blockTimestamp) = UniswapV2OracleLibrary.currentCumulativePrices(address(pair));
-        uint32 timeElapsed = blockTimestamp - blockTimestampLast; // overflow is desired
-        if (_token == token0) {
-            _amountOut = uint256(
-            FixedPoint.uq112x112(
-                uint224((price0Cumulative - price0CumulativeLast) / timeElapsed)
-            ).mul(_amountIn).decode144()
-        );
         } else if (_token == token1) {
-            _amountOut = uint256(
-            FixedPoint.uq112x112(
-                uint224((price1Cumulative - price1CumulativeLast) / timeElapsed)
-            ).mul(_amountIn).decode144()
-        );
+            amountOut = uint256(price1Average.mul(_amountIn).decode144());
+        } else if (_token == address(pair)) {
+            amountOut = lastLpPrice;
+        } else {
+            revert("Oracle: INVALID_TOKEN");
         }
 
-        if (maxPriceCap > 0 && _amountOut > maxPriceCap) {
-            _amountOut = maxPriceCap;
-        }
     }
 
-    function setMaxPriceCap(uint256 _cap) external onlyOperator {
-        require(_cap > 0, "Cap must be positive");
-        maxPriceCap = _cap;
-        emit MaxPriceCapSet(_cap);
+    /// @notice Raw redeemable USD per LP in Q112.112
+    function redeemableUsdPerLpQ112() public view returns (uint256) {
+        (uint112 r0, uint112 r1,) = pair.getReserves();
+        uint256 px0 = uint256(usd0Average._x);
+        uint256 px1 = uint256(usd1Average._x);
+        uint256 totalUsdQ = uint256(r0).mul(px0).add(uint256(r1).mul(px1));
+        return totalUsdQ.div(pair.totalSupply());
     }
 
-    event Updated(uint256 price0CumulativeLast, uint256 price1CumulativeLast);
-    event MaxPriceCapSet(uint256 cap);
+    /// @notice Redeemable USD per LP scaled by 1e18
+    function redeemableUsdPerLpScaled() public view returns (uint144) {
+        uint256 q112 = redeemableUsdPerLpQ112();
+        uint256 scaled= q112.mul(1e18) >> 112;
+        return uint144(scaled);
+    }
+
+    /// @notice Set LP price update jump cap ie. 2e18 = 2x lastLpPrice
+    function setMaxPriceCap(uint256 _lpPriceCap) external onlyOwner {
+        lpPriceCap  = _lpPriceCap;
+        emit PriceCapUpdated(_lpPriceCap);
+    }
+
+    /// @notice Set Master oracle contract for USD price feeds of individual tokens in LP
+    function setMasterOracle(address _oracle) external onlyOwner {
+        masterOracle  = IMasterOracle(_oracle);
+        emit OracleUpdated(_oracle);
+    }
 }
