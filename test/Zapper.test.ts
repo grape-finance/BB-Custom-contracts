@@ -438,7 +438,7 @@ describe("Zapper.sol", () => {
 
     describe('buy and sell', () => {
 
-        it('shall sell  not known favor token', async () => {
+        it('shall not sell unknown favor token', async () => {
             const [deployer, owner, somethingStrange] = await ethers.getSigners();
             let {zapper, favorEth} = await deployContracts();
 
@@ -463,7 +463,7 @@ describe("Zapper.sol", () => {
             expect(await weth.balanceOf(treasury)).to.equal(0n);
         })
 
-        it('shall tax on  sale iof not taxx exempt seller', async () => {
+        it('shall tax on  sale if not a tax exempt seller', async () => {
             const [deployer, owner, treasury, receiver] = await ethers.getSigners();
             let {zapper, favorEth, weth} = await deployContracts();
 
@@ -479,10 +479,34 @@ describe("Zapper.sol", () => {
             //  receiver shall receive the rest
             expect(await weth.balanceOf(receiver)).to.equal(995n);
         })
+
+        it('shall not buy favor if not a registerred base token', async () => {
+            const [deployer, owner, receiver] = await ethers.getSigners();
+            let {zapper, favorEth, weth} = await deployContracts();
+
+            await expect( zapper.buy(receiver,123n,  Date.now() + 100000)).to.be.revertedWith('Zapper: unsupported token');
+        })
+
+        it('shall buy favor, and give out bonuses to treasury and receiver', async () => {
+            const [deployer, owner, treasury, receiver] = await ethers.getSigners();
+            let {zapper, favorEth, weth, esteem} = await deployContracts();
+
+            //  shall buy favor
+            await weth.approve(zapper, 1000n);
+            await expect(zapper.buyTo(receiver, weth, 1000,Date.now() + 100000 )).to.not.be.revert(ethers);
+
+            // receiver shall ge favor and pending esteem bonus
+            expect(await favorEth.balanceOf(receiver)).to.equal(498n);
+            expect(await favorEth.pendingBonus(receiver)).to.equal(15330n);
+
+            //  tresury shall get esteem
+            expect(await esteem.balanceOf(treasury)).to.equal(3832n);
+
+        })
     })
 
     describe('liquidity management', () => {
-        it('shall refuse to add liquidity if not a regstered favor', async () => {
+        it('shall refuse to add liquidity if not a registered favor', async () => {
             const [deployer, owner, somethingStrange] = await ethers.getSigners();
             let {zapper, favorEth, weth} = await deployContracts();
 

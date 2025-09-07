@@ -206,6 +206,32 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
 
     }
 
+    /**
+     * buy favor with base token.   rewards are minted
+     */
+    function buy(address _baseToken, uint256 _amount, uint256 _deadline) public {
+        buyTo(msg.sender, _baseToken, _amount, _deadline);
+    }
+
+    function buyTo(address _receiver, address _base, uint256 _amount, uint256 _deadline) public {
+
+        address favor = tokenToFavor[_base];
+        require(favor != address(0), "Zapper: unsupported token");
+
+
+        IERC20(_base).safeTransferFrom(msg.sender, address(this), _amount);
+
+
+        _swap(_base, favor, _amount, _deadline);
+
+        uint256 bought = IERC20(favor).balanceOf(address(this));
+        //  return token balance to _receiver
+        IERC20(favor).safeTransfer(address(_receiver), bought);
+
+        //  log buy anf  mint bonuses for everybody
+        IFavorToken(favor).logBuy(_receiver, bought);
+    }
+
     function _addLiquidity(
         address a,
         address b,
@@ -279,7 +305,7 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
     function _refundDust(address recipient) internal {
         uint256 ethBal = address(this).balance;
         if (ethBal > 0) {
-            (bool sent, ) = recipient.call{value: ethBal}("");
+            (bool sent,) = recipient.call{value: ethBal}("");
             require(sent, "refund PLS failed");
         }
 

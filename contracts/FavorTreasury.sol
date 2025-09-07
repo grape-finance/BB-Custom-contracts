@@ -5,7 +5,7 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import  "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import "./interfaces/IOracle.sol";
@@ -76,7 +76,7 @@ contract FavorTreasury is Ownable, ReentrancyGuard, Pausable {
     function isInitialized() public view returns (bool) {
         return initialized;
     }
-  
+
     function nextEpochPoint() public view returns (uint256) {
         return startTime + (epoch * PERIOD);
     }
@@ -131,14 +131,14 @@ contract FavorTreasury is Ownable, ReentrancyGuard, Pausable {
 
     function setMaxSupplyExpansionPercents(uint256 _maxSupplyExpansionPercent) external onlyOwner {
         require(_maxSupplyExpansionPercent >= 1 && _maxSupplyExpansionPercent <= 10000, "_maxSupplyExpansionPercent: out of range"); // [0.001%, 10%]
-        require(_maxSupplyExpansionPercent > minSupplyExpansionPercent, "max must be larger than min"); 
+        require(_maxSupplyExpansionPercent > minSupplyExpansionPercent, "max must be larger than min");
         maxSupplyExpansionPercent = _maxSupplyExpansionPercent;
         emit MaxSupplyExpansionPercentUpdated(_maxSupplyExpansionPercent);
     }
 
     function setMinSupplyExpansionPercents(uint256 _minSupplyExpansionPercent) external onlyOwner {
         require(_minSupplyExpansionPercent >= 1 && _minSupplyExpansionPercent <= 10000, "_minSupplyExpansionPercent: out of range"); // [0.001%, 10%]
-        require(_minSupplyExpansionPercent < maxSupplyExpansionPercent, "min must be smaller than max"); 
+        require(_minSupplyExpansionPercent < maxSupplyExpansionPercent, "min must be smaller than max");
         minSupplyExpansionPercent = _minSupplyExpansionPercent;
         emit MinSupplyExpansionPercentUpdated(_minSupplyExpansionPercent);
     }
@@ -150,7 +150,7 @@ contract FavorTreasury is Ownable, ReentrancyGuard, Pausable {
         uint256 bal = favorErc20.balanceOf(_addr);
         totalExcludedAmount += bal;
 
-        emit ExcludedAddressAdded(_addr, bal) ;
+        emit ExcludedAddressAdded(_addr, bal);
     }
 
     function removeExcludedAddress(address _addr) external onlyOwner {
@@ -186,9 +186,9 @@ contract FavorTreasury is Ownable, ReentrancyGuard, Pausable {
     }
 
     function _updateFavorPrice() internal {
-        try IOracle(favorOracle).update(){      
+        try IOracle(favorOracle).update(){
         } catch {
-                revert("Treasury: failed to update FAVOR price");
+            revert("Treasury: failed to update FAVOR price");
         }
     }
 
@@ -227,18 +227,18 @@ contract FavorTreasury is Ownable, ReentrancyGuard, Pausable {
         uint256 min = minSupplyExpansionPercent * 1e13;
         uint256 max = maxSupplyExpansionPercent * 1e13;
 
-        if (_percentage > max){
+        if (_percentage > max) {
             _percentage = max;
-        } else if (_percentage < min){ 
+        } else if (_percentage < min) {
             _percentage = min;
-        }    
+        }
 
         uint256 _savedForGrove = (favorSupply * _percentage) / 1e18 / 24; // divide by 24 for each epoch per day
 
         if (_savedForGrove > 0) {
             _sendToGrove(_savedForGrove);
-        }        
-        
+        }
+
     }
 
     function governanceRecoverUnsupported(
