@@ -4,10 +4,8 @@
 pragma solidity 0.8.20;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "./libraries/HomoraMath.sol";
 
 contract Epoch is Ownable {
-    using SafeMath for uint256;
 
     // Approved users mapping
     mapping(address => bool) public isApprovedUser;
@@ -33,7 +31,7 @@ contract Epoch is Ownable {
         period = _period;
         startTime = _startTime;
         epoch = _startEpoch;
-        lastEpochTime = startTime.sub(period);
+        lastEpochTime = startTime - period;
         isApprovedUser[msg.sender] = true;
     }
 
@@ -84,7 +82,7 @@ contract Epoch is Ownable {
     }
 
     function nextEpochPoint() public view returns (uint256) {
-        return lastEpochTime.add(period);
+        return lastEpochTime  + period;
     }
 
     /* ========== GOVERNANCE ========== */

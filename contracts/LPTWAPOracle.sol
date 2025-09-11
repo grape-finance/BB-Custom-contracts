@@ -3,18 +3,16 @@
 
 pragma solidity 0.8.20;
 
-import "@uniswap/v2-periphery/contracts/libraries/UniswapV2OracleLibrary.sol";
-
 import "./Epoch.sol";
-import "./libraries/HomoraMath.sol";
+
 import "./interfaces/IMasterOracle.sol";
+import "@openzeppelin/contracts/utils/math/Math.sol";
+import "@uniswap/v2-periphery/contracts/libraries/UniswapV2OracleLibrary.sol";
 
 /// @dev Legacy Uni V2 TWAP oracle for LP tokens with reserves TWAP
 
 contract LPOracle is Epoch {
-    using SafeMath for uint256;
-    using FixedPoint for *;
-    using HomoraMath for uint;
+    using Math for uint256;
 
     /* ========== IMMUTABLES ========== */
     IUniswapV2Pair public immutable pair;
@@ -67,35 +65,36 @@ contract LPOracle is Epoch {
     ) Epoch(_period, _startTime, 0) {
         require(_period >= 15 minutes && _period <= 24 hours, "_period: out of range");
 
-        pair            = _pair;
-        token0          = _pair.token0();
-        token1          = _pair.token1();
-        masterOracle    = _masterOracle;
-        lpPriceCap      = _priceCap;
+        pair = _pair;
+        token0 = _pair.token0();
+        token1 = _pair.token1();
+        masterOracle = _masterOracle;
+        lpPriceCap = _priceCap;
 
         // seed Uniswap price cumulatives + timestamp
         (uint256 p0C, uint256 p1C, uint32 ts) = UniswapV2OracleLibrary
             .currentCumulativePrices(address(pair));
         price0CumulativeLast = p0C;
         price1CumulativeLast = p1C;
-        blockTimestampLast   = ts;
+        blockTimestampLast = ts;
 
         // seed √K cumulative + lastSqrtK at current block time
         uint32 nowTs = uint32(block.timestamp);
-        kTimestampLast     = nowTs;
+        kTimestampLast = nowTs;
         (uint112 r0, uint112 r1,) = _pair.getReserves();
-        uint256 initialSqrtK = HomoraMath
-            .sqrt(uint256(r0).mul(r1))
-            .fdiv(_pair.totalSupply());
-        kCumulativeLast    = initialSqrtK.mul(nowTs);
-        lastSqrtK          = initialSqrtK;
+        // TODO:   check this math!!!!  and write test
+        uint256 initialSqrtK = uint256(FixedPoint.encode(
+                //  definitely fits into 112 bit after sqrt, but needs to be cast to uint256 after encoding
+                uint112(Math.sqrt(r0 * r1)))._x) / _pair.totalSupply();
+        kCumulativeLast = initialSqrtK * nowTs;
+        lastSqrtK = initialSqrtK;
 
         // seed USD feed cumulatives at current block time
-        usdTimestampLast   = nowTs;
-        uint256 initialU0  = masterOracle.getLatestPrice(token0);
-        uint256 initialU1  = masterOracle.getLatestPrice(token1);
-        usd0CumulativeLast = initialU0.mul(nowTs);
-        usd1CumulativeLast = initialU1.mul(nowTs);
+        usdTimestampLast = nowTs;
+        uint256 initialU0 = masterOracle.getLatestPrice(token0);
+        uint256 initialU1 = masterOracle.getLatestPrice(token1);
+        usd0CumulativeLast = initialU0 * nowTs;
+        usd1CumulativeLast = initialU1 * nowTs;
     }
 
     /// @notice Update TWAPs: Uniswap prices, √K, and USD feeds
@@ -116,19 +115,20 @@ contract LPOracle is Epoch {
 
             price0CumulativeLast = p0C;
             price1CumulativeLast = p1C;
-            blockTimestampLast   = blockTs;
+            blockTimestampLast = blockTs;
         }
 
-                // 2) √K TWAP via two-segment integration
+        // 2) √K TWAP via two-segment integration
         {
             // get reserves + last-reserve-update timestamp
             (uint112 r0, uint112 r1, uint32 tsReserve) = pair.getReserves();
             uint32 nowTs = uint32(block.timestamp);
 
             // spot √K (Q112.112)
-            uint256 sqrtKNow = HomoraMath
-                .sqrt(uint256(r0).mul(r1))
-                .fdiv(pair.totalSupply());
+            uint256 sqrtKNow = uint256(FixedPoint.encode(
+            //  definitely fits into 112 bit after sqrt, but needs to be cast to uint256 after encoding
+                uint112(Math.sqrt(r0 * r1)))._x) / pair.totalSupply();
+
 
             // total time since last oracle update
             uint32 dtFull = nowTs - kTimestampLast;
@@ -156,8 +156,8 @@ contract LPOracle is Epoch {
             );
 
             kCumulativeLast = kC;
-            kTimestampLast  = nowTs;
-            lastSqrtK       = sqrtKNow;
+            kTimestampLast = nowTs;
+            lastSqrtK = sqrtKNow;
         }
 
         // 3) USD per-token TWAPs (custom feed)
@@ -174,24 +174,24 @@ contract LPOracle is Epoch {
             uint256 avg0Raw = (newUsd0C - usd0CumulativeLast) / dtU;
             uint256 avg1Raw = (newUsd1C - usd1CumulativeLast) / dtU;
 
-            uint256 avg0Q112 = avg0Raw.mul(2**112).div(1e18);
-            uint256 avg1Q112 = avg1Raw.mul(2**112).div(1e18);
+            uint256 avg0Q112 = avg0Raw.mul(2 ** 112).div(1e18);
+            uint256 avg1Q112 = avg1Raw.mul(2 ** 112).div(1e18);
 
             usd0Average = FixedPoint.uq112x112(uint224(avg0Q112));
             usd1Average = FixedPoint.uq112x112(uint224(avg1Q112));
 
             usd0CumulativeLast = newUsd0C;
             usd1CumulativeLast = newUsd1C;
-            usdTimestampLast   = nowTsU;
+            usdTimestampLast = nowTsU;
         }
 
         // 4) LP price jump cap (freeze if > LPPriceCap × last)
         {
-            uint256 sqrt0 = HomoraMath.sqrt(uint256(usd0Average._x));
-            uint256 sqrt1 = HomoraMath.sqrt(uint256(usd1Average._x));
-            uint256 kx    = uint256(kAverage._x);
-            uint256 part  = kx.mul(2).mul(sqrt0).div(2**56);
-            uint256 lpQ112= part.mul(sqrt1).div(2**56);
+            uint256 sqrt0 = Math.sqrt(uint256(usd0Average._x));
+            uint256 sqrt1 = Math.sqrt(uint256(usd1Average._x));
+            uint256 kx = uint256(kAverage._x);
+            uint256 part = kx.mul(2).mul(sqrt0).div(2 ** 56);
+            uint256 lpQ112 = part.mul(sqrt1).div(2 ** 56);
             uint256 newLpPrice = lpQ112.mul(1e18) >> 112;
 
             if (lastLpPrice == 0 || lpPriceCap == 0) {
@@ -217,8 +217,8 @@ contract LPOracle is Epoch {
     /// @notice Consult TWAP: USD per unit of token0, token1 (18-decimals) or LP
     /// @dev Deployer must call update() first after deployment or this will always return 0
     function consult(address _token, uint256 _amountIn)
-        external view
-        returns (uint256 amountOut)
+    external view
+    returns (uint256 amountOut)
     {
         if (_token == token0) {
             amountOut = uint256(price0Average.mul(_amountIn).decode144());
@@ -244,19 +244,19 @@ contract LPOracle is Epoch {
     /// @notice Redeemable USD per LP scaled by 1e18
     function redeemableUsdPerLpScaled() public view returns (uint144) {
         uint256 q112 = redeemableUsdPerLpQ112();
-        uint256 scaled= q112.mul(1e18) >> 112;
+        uint256 scaled = q112.mul(1e18) >> 112;
         return uint144(scaled);
     }
 
     /// @notice Set LP price update jump cap ie. 2e18 = 2x lastLpPrice
     function setMaxPriceCap(uint256 _lpPriceCap) external onlyApproved {
-        lpPriceCap  = _lpPriceCap;
+        lpPriceCap = _lpPriceCap;
         emit PriceCapUpdated(_lpPriceCap);
     }
 
     /// @notice Set Master oracle contract for USD price feeds of individual tokens in LP
     function setMasterOracle(address _oracle) external onlyApproved {
-        masterOracle  = IMasterOracle(_oracle);
+        masterOracle = IMasterOracle(_oracle);
         emit OracleUpdated(_oracle);
     }
 

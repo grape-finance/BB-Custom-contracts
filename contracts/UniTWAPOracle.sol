@@ -2,8 +2,8 @@
 
 pragma solidity 0.8.20;
 
-import "@uniswap/v2-periphery/contracts/libraries/UniswapV2OracleLibrary.sol";
 import "./Epoch.sol";
+import "@uniswap/v2-periphery/contracts/libraries/UniswapV2OracleLibrary.sol";
 
 /// @dev Legacy Uni V2 TWAP oracle for individual tokens
 
@@ -11,7 +11,6 @@ import "./Epoch.sol";
 // note that the price average is only guaranteed to be over at least 1 period, but may be over a longer period
 contract Oracle is Epoch {
     using FixedPoint for *;
-    using SafeMath for uint256;
 
     /* ========== STATE VARIABLES ========== */
 
