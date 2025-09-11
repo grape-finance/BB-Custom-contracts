@@ -28,4 +28,28 @@ describe('FavorTreasury.sol', () => {
             expect(await favorTreasury.owner()).to.equal(owner.address);
         })
     })
+
+    describe('accerss control', () => {
+
+        it("only owner shall be able to call those methods", async () => {
+            const [deployer, owner, notOwner] = await ethers.getSigners();
+            let {favorTreasury} = await deployContracts();
+
+            let notOwned = favorTreasury.connect(notOwner);
+
+            // all those all shall fail
+            await expect(notOwned.initialize(owner, owner, owner, 12345n)).to.be.revertedWithCustomError(favorTreasury, "OwnableUnauthorizedAccount");
+            await expect(notOwned.setGrove(owner)).to.be.revertedWithCustomError(favorTreasury, "OwnableUnauthorizedAccount");
+            await expect(notOwned.setFavorOracle(owner)).to.be.revertedWithCustomError(favorTreasury, "OwnableUnauthorizedAccount");
+            await expect(notOwned.setMaxSupplyExpansionPercents(123)).to.be.revertedWithCustomError(favorTreasury, "OwnableUnauthorizedAccount");
+            await expect(notOwned.setMinSupplyExpansionPercents(123)).to.be.revertedWithCustomError(favorTreasury, "OwnableUnauthorizedAccount");
+            await expect(notOwned.addExcludedAddress(owner)).to.be.revertedWithCustomError(favorTreasury, "OwnableUnauthorizedAccount");
+            await expect(notOwned.removeExcludedAddress(owner)).to.be.revertedWithCustomError(favorTreasury, "OwnableUnauthorizedAccount");
+            await expect(notOwned.pause()).to.be.revertedWithCustomError(favorTreasury, "OwnableUnauthorizedAccount");
+            await expect(notOwned.unpause()).to.be.revertedWithCustomError(favorTreasury, "OwnableUnauthorizedAccount");
+            await expect(notOwned.setExtraFunds(owner, 123)).to.be.revertedWithCustomError(favorTreasury, "OwnableUnauthorizedAccount");
+            await expect(notOwned.governanceRecoverUnsupported(owner, 123, owner)).to.be.revertedWithCustomError(favorTreasury, "OwnableUnauthorizedAccount");
+
+        })
+    })
 })
