@@ -26,6 +26,7 @@ describe("Favor.sol", () => {
         // 0.1 ,  18 digitts fixed decimal point
         await minter.setEsteemRate(100000000000000000n)
         await favor.setPriceProvider(minter);
+        
 
         return {favor, minter, owner, treasury, esteem};
     }
@@ -154,11 +155,12 @@ describe("Favor.sol", () => {
     })
 
     describe("calculations ", () => {
-        it("should calculate proper favor bonuses", async () => {
+        it("should calculate proper favor bonuses if Favor below 3.00 TWAP", async () => {
             const [deployer, owner] = await ethers.getSigners();
             let {favor, minter} = await deployContracts();
 
             await minter.setTokenPrice(favor, 11_000_000_000_000_000_000n);
+            await minter.setTokenTWAP(favor, 2_000_000_000_000_000_000n);
             await minter.setEsteemRate(12_000_000_000_000_000_000n);
 
 
@@ -166,6 +168,30 @@ describe("Favor.sol", () => {
 
             expect(userBonus).to.equal(40333333333333333333n);
             expect(treasuryBonus).to.equal(10083333333333333333n);
+        })
+
+        it("No bonus if TWAP above 3.00", async () => {
+            const [deployer, owner] = await ethers.getSigners();
+            let {favor, minter} = await deployContracts();
+
+            await minter.setTokenTWAP(favor, 5_000_000_000_000_000_000n);
+
+            let [userBonus, treasuryBonus] = await favor.calculateFavorBonuses(100_000_000_000_000_000_000n);
+
+            expect(userBonus).to.equal(0n);
+            expect(treasuryBonus).to.equal(0n);
+        })
+
+        it("No bonus if TWAP == 3.00", async () => {
+            const [deployer, owner] = await ethers.getSigners();
+            let {favor, minter} = await deployContracts();
+
+            await minter.setTokenTWAP(favor, 3_000_000_000_000_000_000n);
+
+            let [userBonus, treasuryBonus] = await favor.calculateFavorBonuses(100_000_000_000_000_000_000n);
+
+            expect(userBonus).to.equal(0n);
+            expect(treasuryBonus).to.equal(0n);
         })
 
         it("shall revert bonus calculation if esteem rate is 0", async () => {
@@ -292,6 +318,7 @@ describe("Favor.sol", () => {
             let {favor, esteem, minter} = await deployContracts();
 
             await minter.setTokenPrice(favor, 11_000_000_000_000_000_000n);
+            await minter.setTokenTWAP(favor, 2_000_000_000_000_000_000n);
             await minter.setEsteemRate(12_000_000_000_000_000_000n);
 
 

@@ -8,5 +8,5 @@ interface IFavorToken {
 
     function treasury() external returns (address);
 
-    function calculateTax(uint256 amount) external returns (uint256);
+    function calculateTax(uint256 amount) external view returns (uint256);
 }

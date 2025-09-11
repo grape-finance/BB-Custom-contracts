@@ -14,6 +14,7 @@ contract Favor is IFavorToken, ERC20Burnable, Ownable {
 
     uint256 public constant MULTIPLIER = 10000;
     uint256 public constant MAX_TAX = 5000; // 50% MAX Sell Tax
+    uint256 public constant BONUS_TWAP_THRESHOLD = 3e18;
 
     uint256 public sellTax = 5000;
     uint256 public bonusRate = 4400; // Buy bonus to buyer in esteem
@@ -66,6 +67,12 @@ contract Favor is IFavorToken, ERC20Burnable, Ownable {
     }
 
     function calculateFavorBonuses(uint256 _amount) public view returns (uint256 userBonus_, uint256 treasuryBonus_) {
+
+        uint256 twap = priceProvider.getLatestTokenTWAP(address(this));
+
+        // No bonus if TWAP is at or above 3.00
+        if (twap >= BONUS_TWAP_THRESHOLD) return (0, 0);
+
         uint256 favorPrice = priceProvider.getLatestTokenPrice(address(this)); // Favor price in USD as 18 Decimals
 
         // Compute USD value of the amount (also 18 decimals)
@@ -116,7 +123,7 @@ contract Favor is IFavorToken, ERC20Burnable, Ownable {
         super._update(_from, _to, _value);
     }
 
-    function calculateTax(uint256 _amount) external returns (uint256 tax) {
+    function calculateTax(uint256 _amount) external view returns (uint256 tax) {
         tax = _amount * sellTax / MULTIPLIER;
     }
 
@@ -126,10 +133,14 @@ contract Favor is IFavorToken, ERC20Burnable, Ownable {
         require(isBuyWrapper[msg.sender], "Not authorised to log buy");
 
         (uint256 userBonus, uint256 treasuryBonus) = calculateFavorBonuses(_amount);
+
+        if (userBonus == 0 && treasuryBonus == 0) return; // Return if no bonus calculated
+
         pendingBonus[_user] += userBonus;
 
         esteem.mint(treasury, treasuryBonus); // Esteem bonus to treasury minted
         emit EsteemBonusLogged(_user, userBonus, treasuryBonus);
+        
     }
 
     function claimBonus() external {
