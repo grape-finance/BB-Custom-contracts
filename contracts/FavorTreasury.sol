@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.20;
+pragma solidity 0.8.20;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
@@ -33,7 +33,7 @@ contract FavorTreasury is Ownable, ReentrancyGuard, Pausable {
     address public favorOracle;
 
     uint256 public maxSupplyExpansionPercent = 3000; // 3%
-    uint256 public minSupplyExpansionPercent = 20; // 0.02%
+    uint256 public minSupplyExpansionPercent = 1; // 0.001%
 
     address public daoFund;
     uint256 public daoFundSharedPercent;
@@ -211,7 +211,6 @@ contract FavorTreasury is Ownable, ReentrancyGuard, Pausable {
 
         _amount -= _daoFundSharedAmount;
 
-        IERC20(favor).forceApprove(grove, 0);
         IERC20(favor).forceApprove(grove, _amount);
         IGrove(grove).allocateSeigniorage(_amount);
         emit GroveFunded(block.timestamp, _amount);
