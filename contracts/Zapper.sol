@@ -14,20 +14,22 @@ import "@uniswap/v2-periphery/contracts/interfaces/IWETH.sol";
 
 import "@aave/core-v3/contracts/flashloan/interfaces/IFlashLoanSimpleReceiver.sol";
 import "@aave/core-v3/contracts/interfaces/IPool.sol";
-import "@aave/core-v3/contracts/interfaces/IPoolAddressesProvider.sol";
 
 import "./interfaces/IFavorToken.sol";
 
-contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
+
+contract LPZapper is Ownable {
     using SafeERC20 for IERC20;
 
     IPool public POOL;
-    IPoolAddressesProvider public ADDRESSES_PROVIDER;
 
     address public pendingUser;
 
+    // Treasury Multisig Addresses
+    address public team = 0x1EA35487AE62322F61f4C0F639a598d9eEB2F340;
+    address public holding = 0x6831f815963FfCe95521271b94164eb4C82e7621;
+
     IUniswapV2Router02 public router;
-    address public PLS;
 
     address[] public dustTokens;
     mapping(address => bool) public isDustToken;
@@ -35,10 +37,24 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
     mapping(address => address) public favorToLp;
     mapping(address => address) public tokenToFavor;
 
+    
+    event NewPOOL(address indexed poolAddress);
+    event FavorRemoved(address indexed favorToken);
+    event DustTokenAdded(address indexed token);
+    event DustTokenRemoved(address indexed token);
+    event TreasuryUpdated(address indexed newHolding, address indexed newTeam);
+    event AdminWithdraw(address indexed token, address indexed to, uint256 amount);
+    event FlashLoanExecuted(address indexed user, address indexed lpToken, uint256 lpAmount);
+    event TaxCollected(address indexed favor, uint256 taxAmount, uint256 toPool, uint256 toTeam);
+    event ActiveFavorTokenSet(address indexed favorToken, address indexed lpToken, address indexed baseToken);
+    event TokenZapped(address indexed user, address indexed tokenIn, address indexed favor, uint256 amountIn, uint256 lpAmount);
+    event FavorSold(address indexed seller, address indexed receiver, address indexed favor, uint256 amountSold, uint256 baseReceived, uint256 taxPaid);
+    event FavorBought(address indexed buyer, address indexed receiver, address indexed baseToken, uint256 amountSpent, uint256 favorReceived);
+    
     receive() external payable {}
 
-    constructor(address _owner, address _PLS, address _router) Ownable(_owner) {
-        PLS = _PLS;
+
+    constructor(address _owner, address _router) Ownable(_owner) {
         router = IUniswapV2Router02(_router);
     }
 
@@ -74,7 +90,7 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
         uint256 premium,
         address initiator,
         bytes calldata params
-    ) external override returns (bool) {
+    ) external returns (bool) {
         require(msg.sender == address(POOL), "not registered pool");
         require(initiator == address(this), "bad initiator");
 
@@ -108,6 +124,8 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
 
         IERC20(asset).forceApprove(address(POOL), amount + premium);
 
+        emit FlashLoanExecuted(user, lpToken, lpAmount);
+
         return true;
     }
 
@@ -135,6 +153,9 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
         _depositToStronghold(lp, balLP);
 
         _refundDust(msg.sender);
+
+        emit TokenZapped(msg.sender, _token, favor, _amount, balLP);
+
     }
 
     function zapPLS(uint256 _deadline) public payable {
@@ -175,6 +196,17 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
         POOL.supply(token, amount, msg.sender, 0);
     }
 
+    function _depositToStrongholdForTreasury(address token, uint256 amount) internal {
+        // Tax is split 80% deposited to the pool and remaining sent in base token
+        uint256 treasuryAmt = (amount * 20) / 100;
+        uint256 toDeposit = amount - treasuryAmt;
+        IERC20(token).forceApprove(address(POOL), toDeposit);
+        POOL.supply(token, toDeposit, holding, 0);
+        IERC20(token).safeTransfer(team, treasuryAmt);
+
+        emit TaxCollected(token, amount, toDeposit, treasuryAmt);
+    }
+
     /**
      * sell favor with taxation.   tax is sent to treasury in  base token
      */
@@ -195,14 +227,16 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
         if (!IFavorToken(_favor).isTaxExempt(msg.sender)) {
             // seller is taxed.   sell 50%  to treasury
             tax = IFavorToken(_favor).calculateTax(_amount);
-            _swap(_favor, base, tax, _deadline);
-            IERC20(base).safeTransfer(IFavorToken(_favor).treasury(), IERC20(base).balanceOf(address(this)));
+            uint256 taxSold = _swap(_favor, base, tax, _deadline);
+            _depositToStrongholdForTreasury(base, taxSold);
         }
 
-        _swap(_favor, base, _amount - tax, _deadline);
+        uint256 userSold = _swap(_favor, base, _amount - tax, _deadline);
 
         //  return token balance to _receiver
-        IERC20(base).safeTransfer(address(_receiver), IERC20(base).balanceOf(address(this)));
+        IERC20(base).safeTransfer(address(_receiver), userSold);
+
+        emit FavorSold(msg.sender, _receiver, _favor, _amount, userSold, tax);
 
     }
 
@@ -221,15 +255,15 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
 
         IERC20(_base).safeTransferFrom(msg.sender, address(this), _amount);
 
+        uint256 bought = _swap(_base, favor, _amount, _deadline);
 
-        _swap(_base, favor, _amount, _deadline);
-
-        uint256 bought = IERC20(favor).balanceOf(address(this));
         //  return token balance to _receiver
         IERC20(favor).safeTransfer(address(_receiver), bought);
 
         //  log buy anf  mint bonuses for everybody
         IFavorToken(favor).logBuy(_receiver, bought);
+
+        emit FavorBought(msg.sender, _receiver, _base, _amount, bought);
     }
 
     function _addLiquidity(
@@ -321,17 +355,22 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
     function setPool(IPool _pool) external onlyOwner {
         require(address(_pool) != address(0), "Must be a valid address");
         POOL = _pool;
+        emit NewPOOL(address(_pool));
     }
 
-    function setAddressProvider(IPoolAddressesProvider _addressProvider) external onlyOwner {
-        require(address(_addressProvider) != address(0), "Must be a valid address");
-        ADDRESSES_PROVIDER = _addressProvider;
+    function setTreasury(address _holding, address _team) external onlyOwner {
+        require(_holding != address(0), "Invalid Holding address");
+        require(_team != address(0), "Invalid Team address");
+        holding = _holding;
+        team = _team;
+        emit TreasuryUpdated(_holding, _team);
     }
 
     function addDustToken(address token) public onlyOwner {
         require(!isDustToken[token], "already added");
         isDustToken[token] = true;
         dustTokens.push(token);
+        emit DustTokenAdded(token);
     }
 
     function removeDustToken(address token) external onlyOwner {
@@ -344,6 +383,7 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
                 break;
             }
         }
+        emit DustTokenRemoved(token);
     }
 
     function adminWithdraw(
@@ -353,12 +393,14 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
     ) external onlyOwner {
         require(_to != address(0), "Invalid address");
         _token.safeTransfer(_to, _amount);
+        emit AdminWithdraw(address(_token), _to, _amount);
     }
 
     function adminWithdrawPLS(address _to, uint256 _amount) external onlyOwner {
         require(_to != address(0), "Invalid address");
         (bool success,) = _to.call{value: _amount}("");
         require(success, "Transfer failed");
+        emit AdminWithdraw(address(address(0)), _to, _amount);
     }
 
     /**
@@ -379,6 +421,7 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
         favorToToken[_favor] = _token;
         favorToLp[_favor] = _lp;
         tokenToFavor[_token] = _favor;
+        emit ActiveFavorTokenSet(_favor, _lp, _token);
     }
 
     function removeFavorToken(address _favor) external onlyOwner {
@@ -387,5 +430,6 @@ contract LPZapper is IFlashLoanSimpleReceiver, Ownable {
         delete (tokenToFavor[favorToToken[_favor]]);
         delete (favorToLp[_favor]);
         delete (favorToToken[_favor]);
+        emit FavorRemoved(_favor);
     }
 }

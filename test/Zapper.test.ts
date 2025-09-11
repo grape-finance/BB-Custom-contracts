@@ -25,7 +25,8 @@ describe("Zapper.sol", () => {
         let v2router = await createUSV2Router(owner, v2factory, weth);
 
 
-        const zapperInstance = await ethers.deployContract("LPZapper", [owner, weth, v2router]);
+        const zapperInstance = await ethers.deployContract("LPZapper", [owner, v2router]);
+
         let zapper = zapperInstance.connect(owner);
 
         const favorInstance = await ethers.deployContract("Favor", [owner, "FavorPLS", "fPLS", 123_000_000_000_000_000_000_000_000n, treasury, esteem]);
@@ -106,10 +107,9 @@ describe("Zapper.sol", () => {
 
         it("Should be able to create contract", async () => {
             const [deployer, owner] = await ethers.getSigners();
-            let {zapper, weth, v2router} = await deployContracts();
+            let {zapper, v2router} = await deployContracts();
 
             await expect(await zapper.router()).to.be.equal(v2router);
-            await expect(await zapper.PLS()).to.be.equal(weth);
 
         })
 
@@ -120,9 +120,6 @@ describe("Zapper.sol", () => {
 
             await expect(zapper.setPool(whatever)).to.not.be.revert(ethers);
             expect( await  zapper.POOL()).to.be.equal(whatever);
-
-            await expect(zapper.setAddressProvider(whatever)).to.not.be.revert(ethers);
-            expect( await  zapper.ADDRESSES_PROVIDER()).to.be.equal(whatever);
 
         })
     })
@@ -140,7 +137,7 @@ describe("Zapper.sol", () => {
             await expect(zapper.connect(somebody).adminWithdrawPLS(somebody, 1n)).to.be.revertedWithCustomError(zapper, "OwnableUnauthorizedAccount");
             await expect(zapper.connect(somebody).removeFavorToken(somebody)).to.be.revertedWithCustomError(zapper, "OwnableUnauthorizedAccount");
             await expect(zapper.connect(somebody).setPool(somebody)).to.be.revertedWithCustomError(zapper, "OwnableUnauthorizedAccount");
-            await expect(zapper.connect(somebody).setAddressProvider(somebody)).to.be.revertedWithCustomError(zapper, "OwnableUnauthorizedAccount");
+            await expect(zapper.connect(somebody).setTreasury(somebody, somebody)).to.be.revertedWithCustomError(zapper, "OwnableUnauthorizedAccount");
 
         })
 
@@ -178,7 +175,7 @@ describe("Zapper.sol", () => {
 
         })
 
-        it("mabage favor tokens", async () => {
+        it("manage favor tokens", async () => {
             const [deployer, owner, favor, lp, base] = await ethers.getSigners();
             let {zapper} = await deployContracts();
 
@@ -463,9 +460,12 @@ describe("Zapper.sol", () => {
             expect(await weth.balanceOf(treasury)).to.equal(0n);
         })
 
-        it('shall tax on  sale if not a tax exempt seller', async () => {
+        it('shall tax on sale if not a tax exempt seller and send + auto deposit to pool for treasury', async () => {
             const [deployer, owner, treasury, receiver] = await ethers.getSigners();
-            let {zapper, favorEth, weth} = await deployContracts();
+            let {zapper, favorEth, weth, mockPool} = await deployContracts();
+
+            const teamAddress = await zapper.team();
+            const holdingAddress = await zapper.holding();
 
             //  give receiver some favor
             await favorEth.transfer(receiver, 1000n);
@@ -473,11 +473,20 @@ describe("Zapper.sol", () => {
 
             await expect(zapper.connect(receiver).sell(favorEth, 1000n, Date.now() + 100000)).to.not.be.revert(ethers);
 
-            // treasury shall have received forst chanrge of 993 weth
-            expect(await weth.balanceOf(treasury)).to.equal(996n);
+            // treasury team shall receive 20% of tax directly in base token
+            
+            expect(await weth.balanceOf(teamAddress)).to.equal(199n);
+
+            // and 80% of tax deposited to the pool for holding address
+            expect(await mockPool.supplyCalled()).to.be.equal(true);
+            expect(await mockPool.assetSupplied()).to.be.equal(weth);
+            expect(await mockPool.amountSupplied()).to.be.equal(797n);
+            expect(await mockPool.suppliedTo()).to.be.equal(holdingAddress);
+            expect(await mockPool.supplyReferral()).to.be.equal(0);
 
             //  receiver shall receive the rest
             expect(await weth.balanceOf(receiver)).to.equal(995n);
+
         })
 
         it('shall not buy favor if not a registerred base token', async () => {
@@ -522,7 +531,7 @@ describe("Zapper.sol", () => {
         })
 
 
-        it('shall add.iqiodity to registered favor', async () => {
+        it('shall add liquidity to registered favor', async () => {
             const [deployer, owner, somethingStrange] = await ethers.getSigners();
             let {zapper, favorBase, baseToken, favorBasePair} = await deployContracts();
 
