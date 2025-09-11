@@ -47,14 +47,13 @@ contract MintRedeemer is Ownable, ReentrancyGuard, Pausable {
     event TreasuryBonusUpdated(uint256 newBonus);
     event TreasuryUpdated(address indexed newHolding, address indexed newTeam);
     event AdminWithdraw(address indexed token, address indexed to, uint256 amount);
-    event NewPOOL(address indexed admin);
+    event NewPOOL(address indexed poolAddress);
     event ContractPaused(address indexed admin);
     event ContractUnpaused(address indexed admin);
     event OracleUpdated(address indexed token, address indexed oracle);
     event ApprovedUserSet(address indexed user, bool allowed);
     event AllowedMintTokenSet(address indexed token, bool allowed);
     event ActiveFavorTokenSet(address indexed token, bool allowed);
-    event DepositedToStronghold(address indexed token, uint256 amount);
 
     constructor(address _esteem, uint256 _startTime, address _owner) Ownable(_owner){
         require(_esteem != address(0), "Invalid Esteem address");
@@ -131,19 +130,17 @@ contract MintRedeemer is Ownable, ReentrancyGuard, Pausable {
 
     /// @notice Deposit 80% of treasury amount into the lending pool immediately and send remaining as base tokens to team pay multisig
      function _depositToStronghold(address token, uint256 amount) internal {
-        uint256 treasuryAmt = amount / 5;
+        uint256 treasuryAmt = (amount * 20) / 100;
         uint256 toDeposit = amount - treasuryAmt;
         if (token == address(0)) {
             IWETH(WPLS).deposit{value: amount }();
-            IERC20(WPLS).forceApprove(address(POOL), amount);
+            IERC20(WPLS).forceApprove(address(POOL), toDeposit);
             POOL.supply(WPLS, toDeposit, holding, 0);
             IERC20(WPLS).safeTransfer(team, treasuryAmt);
-            emit DepositedToStronghold(WPLS, toDeposit);
         } else {
-            IERC20(token).forceApprove(address(POOL), amount);
+            IERC20(token).forceApprove(address(POOL), toDeposit);
             POOL.supply(token, toDeposit, holding, 0);
             IERC20(token).safeTransfer(team, treasuryAmt);
-            emit DepositedToStronghold(token, toDeposit);
         }
     }
 
@@ -177,7 +174,16 @@ contract MintRedeemer is Ownable, ReentrancyGuard, Pausable {
         // All oracles output token price in USD value as 18 decimals
         address oracle = priceOracles[token];
         require(oracle != address(0), "No oracle set for token");
-        uint256 price = IOracle(oracle).getLatestPrice(token);
+        uint256 price = IMasterOracle(oracle).getLatestPrice(token);
+        require(price > 0, "Invalid price from Oracle");
+        return price;
+    }
+
+    function getLatestTokenTWAP(address token) public view returns (uint256) {
+        // All oracles output token price as TWAP value in paired token
+        address oracle = priceOracles[token];
+        require(oracle != address(0), "No oracle set for token");
+        uint256 price = IMasterOracle(oracle).getTokenTWAP(token);
         require(price > 0, "Invalid price from Oracle");
         return price;
     }

@@ -118,9 +118,9 @@ contract MinterOracle is UsingFetch, Ownable {
         }
     }
 
-    function getTokenTWAP(address _Token) public view returns (uint256 updatedPrice) {
+    function getTokenTWAP(address _token) public view returns (uint256) {
         
-        try IOracle(priceOracles[_Token]).consult(_Token, 1e18) returns (uint256 twapPrice) {
+        try IOracle(priceOracles[_token]).consult(_token, 1e18) returns (uint256 twapPrice) {
             return twapPrice;
         } catch {
             revert("Failed to consult price from the oracle");

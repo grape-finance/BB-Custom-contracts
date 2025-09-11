@@ -45,7 +45,7 @@ contract ShareWrapper {
 contract Staking is ShareWrapper, Ownable, ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;
 
-    uint256 public constant MAX_HISTORY = 10000;
+    uint256 public constant MAX_HISTORY = 50000;
     uint256 public historyStart;
     uint256 public historyEnd;
 
