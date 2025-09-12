@@ -7,6 +7,7 @@ import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Pair.sol";
 
 import "./interfaces/IOracle.sol";
 import "./interfaces/IBasisAsset.sol";
@@ -23,15 +24,19 @@ contract FavorTreasury is Ownable, ReentrancyGuard, Pausable {
 
     uint256 public startTime;
     uint256 public epoch = 0;
-    uint256 public totalExcludedAmount; // Total tokens excluded from circ supply calculation
 
-    mapping(address => bool) public _isExcluded; // Excluded addresses mapping from circulating supply
+    /* Addresses and LPs to exclude from supply calculation */ 
+    address[] public excludedAddresses;
+    address[] public lpPairsToExclude;
+    mapping(address => bool) public excludedFromTotalSupply;
+    mapping(address => bool) public isLpPairToExclude;
 
     address public favor;
 
     address public grove;
     address public favorOracle;
 
+    uint256 public lastEpochCirculatingSupply; // 0 for the first run
     uint256 public maxSupplyExpansionPercent = 3000; // 3%
     uint256 public minSupplyExpansionPercent = 1; // 0.001%
 
@@ -48,8 +53,10 @@ contract FavorTreasury is Ownable, ReentrancyGuard, Pausable {
     event DaoFundUpdated(address indexed daoFund, uint256 daoFundSharedPercent);
     event ContractPaused(address indexed admin);
     event ContractUnpaused(address indexed admin);
-    event ExcludedAddressAdded(address indexed excludedAddress, uint256 amount);
-    event ExcludedAddressRemoved(address indexed excludedAddress, uint256 amount);
+    event ExcludedAddressAdded(address indexed excludedAddress);
+    event ExcludedAddressRemoved(address indexed excludedAddress);
+    event LpPairToExcludeAdded(address indexed pair);
+    event LpPairToExcludeRemoved(address indexed pair);
     event RecoveredUnsupportedToken(address indexed token, address indexed to, uint256 amount);
 
 
@@ -81,6 +88,14 @@ contract FavorTreasury is Ownable, ReentrancyGuard, Pausable {
         return startTime + (epoch * PERIOD);
     }
 
+    function getAddressesExcluded() external view returns (address[] memory) {
+        return excludedAddresses;
+    }
+
+    function getLpPairsExcluded() external view returns (address[] memory) {
+        return lpPairsToExclude;
+    }
+
     function getFavorPrice() public view returns (uint256 favorPrice) {
         try IOracle(favorOracle).consult(favor, 1e18) returns (uint256 price) {
             return price;
@@ -88,7 +103,8 @@ contract FavorTreasury is Ownable, ReentrancyGuard, Pausable {
             revert("Treasury: failed to consult FAVOR price from the oracle");
         }
     }
-    // Returns rolling TWAP price for UI which is more likely to be prone to short term price fluctuations
+
+    /// @notice Returns rolling TWAP price which is more likely to be prone to short term price fluctuations. Only used on UI for informational purposes.
     function getFavorUpdatedPrice() public view returns (uint256 _favorPrice) {
         try IOracle(favorOracle).twap(favor, 1e18) returns (uint256 price) {
             return price;
@@ -143,25 +159,109 @@ contract FavorTreasury is Ownable, ReentrancyGuard, Pausable {
         emit MinSupplyExpansionPercentUpdated(_minSupplyExpansionPercent);
     }
 
-    function addExcludedAddress(address _addr) external onlyOwner {
-        require(!_isExcluded[_addr], "Address already excluded");
-        _isExcluded[_addr] = true;
-        IERC20 favorErc20 = IERC20(favor);
-        uint256 bal = favorErc20.balanceOf(_addr);
-        totalExcludedAmount += bal;
+    /// @dev Add addresses to an array to be excluded in Favor supply calculations for each epochs mints
+    function addExcludedAddress(address _address) external onlyOwner {
+        require(_address != address(0), "Cannot exclude zero address");
+        require(!excludedFromTotalSupply[_address], "Address already excluded");
+        
+        excludedFromTotalSupply[_address] = true;
+        excludedAddresses.push(_address);
 
-        emit ExcludedAddressAdded(_addr, bal);
+        emit ExcludedAddressAdded(_address);
+    }
+    
+    function removeExcludedAddress(address _address) external onlyOwner {
+        require(excludedFromTotalSupply[_address], "Address not excluded");
+        
+        excludedFromTotalSupply[_address] = false;
+        
+        // Remove from array
+        uint256 n = excludedAddresses.length;
+        for (uint256 i = 0; i < n; i++) {
+            if (excludedAddresses[i] == _address) {
+                excludedAddresses[i] = excludedAddresses[n - 1];
+                excludedAddresses.pop();
+                break;
+            }
+        }
+        
+        emit ExcludedAddressRemoved(_address);
     }
 
-    function removeExcludedAddress(address _addr) external onlyOwner {
-        require(_isExcluded[_addr], "Address must be excluded");
-        _isExcluded[_addr] = false;
-        IERC20 favorErc20 = IERC20(favor);
-        uint256 bal = favorErc20.balanceOf(_addr);
-        totalExcludedAmount -= bal;
+    /// @dev Add LP pairs to an array to have their Favor tokens excluded in Favor supply calculations for each epochs mints
+    /// @notice Used to exclude Favor from the LP cushion and FAVOR/FAVOR LPs the treasury holds
+    function addLpPairToExclude(address pair) external onlyOwner {
+        require(pair != address(0), "Zero pair");
+        require(!isLpPairToExclude[pair], "Pair already added");
 
-        emit ExcludedAddressRemoved(_addr, bal);
+        address t0 = IUniswapV2Pair(pair).token0();
+        address t1 = IUniswapV2Pair(pair).token1();
+        require(t0 == favor || t1 == favor, "Pair missing FAVOR");
+
+        isLpPairToExclude[pair] = true;
+        lpPairsToExclude.push(pair);
+
+        emit LpPairToExcludeAdded(pair);
     }
+
+    function removeLpPairToExclude(address pair) external onlyOwner {
+        require(isLpPairToExclude[pair], "Pair not present");
+        isLpPairToExclude[pair] = false;
+
+        // Remove from array
+        uint256 n = lpPairsToExclude.length;
+        for (uint256 i = 0; i < n; i++) {
+            if (lpPairsToExclude[i] == pair) {
+                lpPairsToExclude[i] = lpPairsToExclude[n - 1];
+                lpPairsToExclude.pop();
+                break;
+            }
+        }
+
+        emit LpPairToExcludeRemoved(pair);
+    }
+    
+
+     /// @notice Gas intensive if many addresses are added to the list, planned usage is for ~10 protocol wallets/contracts & 2 LPs at most
+    function getFavorCirculatingSupply() public view returns (uint256) {
+        uint256 totalSupply = IERC20(favor).totalSupply();
+
+        // Loose Favor balances of excluded addresses
+        uint256 balanceExcluded = 0;
+        uint256 excludedLen = excludedAddresses.length;
+        for (uint256 i = 0; i < excludedLen; i++) {
+            balanceExcluded += IERC20(favor).balanceOf(excludedAddresses[i]);
+        }
+
+        // Favor in LP tokens held by excluded addresses
+        uint256 favorFromLpHeldByExcluded = 0;
+        uint256 pairsLen = lpPairsToExclude.length;
+
+        // Loop through LP pairs excluded and calculate Favor reserves in each
+        for (uint256 j = 0; j < pairsLen; j++) {
+            address pair = lpPairsToExclude[j];
+            if (!isLpPairToExclude[pair]) continue; 
+
+            IUniswapV2Pair p = IUniswapV2Pair(pair);
+
+            (uint112 r0, uint112 r1, ) = p.getReserves();
+            address t0 = p.token0();
+            uint256 favorReserves = (t0 == favor) ? uint256(r0) : uint256(r1);
+
+            uint256 lpTotal = p.totalSupply();
+            if (lpTotal == 0 || favorReserves == 0) continue;
+
+            // Get excluded LP token balance of each excluded address and add to excluded balance of Favor
+            for (uint256 i = 0; i < excludedLen; i++) {
+                uint256 holderLp = p.balanceOf(excludedAddresses[i]);
+                if (holderLp == 0) continue;
+                favorFromLpHeldByExcluded += (favorReserves * holderLp) / lpTotal;
+            }
+        }
+
+        return totalSupply - balanceExcluded - favorFromLpHeldByExcluded;
+    }
+
 
     function pause() external onlyOwner {
         _pause();
@@ -192,13 +292,6 @@ contract FavorTreasury is Ownable, ReentrancyGuard, Pausable {
         }
     }
 
-    function getFavorCirculatingSupply() public view returns (uint256) {
-        uint256 totalSupply = IERC20(favor).totalSupply();
-        return totalSupply <= totalExcludedAmount
-            ? 0
-            : totalSupply - totalExcludedAmount;
-    }
-
     function _sendToGrove(uint256 _amount) internal {
         IBasisAsset(favor).mint(address(this), _amount);
 
@@ -220,6 +313,14 @@ contract FavorTreasury is Ownable, ReentrancyGuard, Pausable {
         _updateFavorPrice();
 
         uint256 favorSupply = getFavorCirculatingSupply();
+
+        // Calculate a simple average supply over the epoch window to use for expansion, first epoch uses only the current supply
+        uint256 avgSupply = lastEpochCirculatingSupply == 0
+        ? favorSupply
+        : (favorSupply + lastEpochCirculatingSupply) / 2;
+
+        lastEpochCirculatingSupply = favorSupply;
+
         uint256 _percentage = getFavorPrice() / 100;
         require(_percentage > 0, "Invalid favor price");
 
@@ -232,7 +333,7 @@ contract FavorTreasury is Ownable, ReentrancyGuard, Pausable {
             _percentage = min;
         }
 
-        uint256 _savedForGrove = (favorSupply * _percentage) / 1e18 / 24; // divide by 24 for each epoch per day
+        uint256 _savedForGrove = (avgSupply * _percentage) / 1e18 / 24; // divide by 24 for each epoch per day
 
         if (_savedForGrove > 0) {
             _sendToGrove(_savedForGrove);

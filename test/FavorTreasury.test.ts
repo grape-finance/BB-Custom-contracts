@@ -29,7 +29,7 @@ describe('FavorTreasury.sol', () => {
         })
     })
 
-    describe('accerss control', () => {
+    describe('access control', () => {
 
         it("only owner shall be able to call those methods", async () => {
             const [deployer, owner, notOwner] = await ethers.getSigners();
@@ -45,6 +45,8 @@ describe('FavorTreasury.sol', () => {
             await expect(notOwned.setMinSupplyExpansionPercents(123)).to.be.revertedWithCustomError(favorTreasury, "OwnableUnauthorizedAccount");
             await expect(notOwned.addExcludedAddress(owner)).to.be.revertedWithCustomError(favorTreasury, "OwnableUnauthorizedAccount");
             await expect(notOwned.removeExcludedAddress(owner)).to.be.revertedWithCustomError(favorTreasury, "OwnableUnauthorizedAccount");
+            await expect(notOwned.addLpPairToExclude(owner)).to.be.revertedWithCustomError(favorTreasury, "OwnableUnauthorizedAccount");
+            await expect(notOwned.removeLpPairToExclude(owner)).to.be.revertedWithCustomError(favorTreasury, "OwnableUnauthorizedAccount");
             await expect(notOwned.pause()).to.be.revertedWithCustomError(favorTreasury, "OwnableUnauthorizedAccount");
             await expect(notOwned.unpause()).to.be.revertedWithCustomError(favorTreasury, "OwnableUnauthorizedAccount");
             await expect(notOwned.setExtraFunds(owner, 123)).to.be.revertedWithCustomError(favorTreasury, "OwnableUnauthorizedAccount");
