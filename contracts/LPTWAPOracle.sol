@@ -7,12 +7,16 @@ import "./Epoch.sol";
 
 import "./interfaces/IMasterOracle.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
-import "@uniswap/v2-periphery/contracts/libraries/UniswapV2OracleLibrary.sol";
+import {IUniswapV2Pair} from "@uniswap/v2-core/contracts/interfaces/IUniswapV2Pair.sol";
+import {UniswapV2OracleLibrary} from "@uniswap/v2-periphery/contracts/libraries/UniswapV2OracleLibrary.sol";
+import '@uniswap/lib/contracts/libraries/FixedPoint.sol';
 
 /// @dev Legacy Uni V2 TWAP oracle for LP tokens with reserves TWAP
 
 contract LPOracle is Epoch {
     using Math for uint256;
+    using FixedPoint for FixedPoint.uq112x112;
+    using FixedPoint for FixedPoint.uq144x112;
 
     /* ========== IMMUTABLES ========== */
     IUniswapV2Pair public immutable pair;
@@ -83,9 +87,8 @@ contract LPOracle is Epoch {
         kTimestampLast = nowTs;
         (uint112 r0, uint112 r1,) = _pair.getReserves();
         // TODO:   check this math!!!!  and write test
-        uint256 initialSqrtK = uint256(FixedPoint.encode(
-                //  definitely fits into 112 bit after sqrt, but needs to be cast to uint256 after encoding
-                uint112(Math.sqrt(r0 * r1)))._x) / _pair.totalSupply();
+        uint256 initialSqrtK = FixedPoint.encode(uint112(Math.sqrt(r0 * r1)))
+            .div(uint112(_pair.totalSupply()))._x;
         kCumulativeLast = initialSqrtK * nowTs;
         lastSqrtK = initialSqrtK;
 
@@ -125,10 +128,8 @@ contract LPOracle is Epoch {
             uint32 nowTs = uint32(block.timestamp);
 
             // spot √K (Q112.112)
-            uint256 sqrtKNow = uint256(FixedPoint.encode(
-            //  definitely fits into 112 bit after sqrt, but needs to be cast to uint256 after encoding
-                uint112(Math.sqrt(r0 * r1)))._x) / pair.totalSupply();
-
+            uint256 sqrtKNow = FixedPoint.encode(
+                uint112(Math.sqrt(r0 * r1))).div(uint112(pair.totalSupply()))._x;
 
             // total time since last oracle update
             uint32 dtFull = nowTs - kTimestampLast;
@@ -146,9 +147,7 @@ contract LPOracle is Epoch {
             }
 
             // patch cumulative: old√K * dt1 + new√K * dt2
-            uint256 kC = kCumulativeLast
-                .add(lastSqrtK.mul(dt1))
-                .add(sqrtKNow.mul(dt2));
+            uint256 kC = kCumulativeLast + lastSqrtK * dt1 + sqrtKNow * dt2;
 
             // compute TWAP over the full window
             kAverage = FixedPoint.uq112x112(
@@ -168,14 +167,14 @@ contract LPOracle is Epoch {
             uint32 dtU = nowTsU - usdTimestampLast;
             require(dtU > 0, "Oracle: ZERO_TIME");
 
-            uint256 newUsd0C = usd0CumulativeLast.add(u0.mul(dtU));
-            uint256 newUsd1C = usd1CumulativeLast.add(u1.mul(dtU));
+            uint256 newUsd0C = usd0CumulativeLast + u0 * dtU;
+            uint256 newUsd1C = usd1CumulativeLast + u1 * dtU;
 
             uint256 avg0Raw = (newUsd0C - usd0CumulativeLast) / dtU;
             uint256 avg1Raw = (newUsd1C - usd1CumulativeLast) / dtU;
 
-            uint256 avg0Q112 = avg0Raw.mul(2 ** 112).div(1e18);
-            uint256 avg1Q112 = avg1Raw.mul(2 ** 112).div(1e18);
+            uint256 avg0Q112 = (avg0Raw << 112) / 1e18;
+            uint256 avg1Q112 = (avg1Raw << 112) / 1e18;
 
             usd0Average = FixedPoint.uq112x112(uint224(avg0Q112));
             usd1Average = FixedPoint.uq112x112(uint224(avg1Q112));
@@ -190,14 +189,14 @@ contract LPOracle is Epoch {
             uint256 sqrt0 = Math.sqrt(uint256(usd0Average._x));
             uint256 sqrt1 = Math.sqrt(uint256(usd1Average._x));
             uint256 kx = uint256(kAverage._x);
-            uint256 part = kx.mul(2).mul(sqrt0).div(2 ** 56);
-            uint256 lpQ112 = part.mul(sqrt1).div(2 ** 56);
-            uint256 newLpPrice = lpQ112.mul(1e18) >> 112;
+            uint256 part = kx * 2 * sqrt0 / 2 ** 56;
+            uint256 lpQ112 = part * sqrt1 / 2 ** 56;
+            uint256 newLpPrice = lpQ112 * 1e18 >> 112;
 
             if (lastLpPrice == 0 || lpPriceCap == 0) {
                 lastLpPrice = newLpPrice;
             } else {
-                uint256 maxAllowed = lastLpPrice.mul(lpPriceCap).div(1e18);
+                uint256 maxAllowed = lastLpPrice * lpPriceCap / 1e18;
                 if (newLpPrice <= maxAllowed) {
                     lastLpPrice = newLpPrice;
                 }
@@ -237,14 +236,14 @@ contract LPOracle is Epoch {
         (uint112 r0, uint112 r1,) = pair.getReserves();
         uint256 px0 = uint256(usd0Average._x);
         uint256 px1 = uint256(usd1Average._x);
-        uint256 totalUsdQ = uint256(r0).mul(px0).add(uint256(r1).mul(px1));
-        return totalUsdQ.div(pair.totalSupply());
+        uint256 totalUsdQ = uint256(r0) * px0 + uint256(r1) * px1;
+        return totalUsdQ / pair.totalSupply();
     }
 
     /// @notice Redeemable USD per LP scaled by 1e18
     function redeemableUsdPerLpScaled() public view returns (uint144) {
         uint256 q112 = redeemableUsdPerLpQ112();
-        uint256 scaled = q112.mul(1e18) >> 112;
+        uint256 scaled = q112 * 1e18 >> 112;
         return uint144(scaled);
     }
 
