@@ -50,20 +50,29 @@ contract Oracle is Epoch {
 
     /* ========== MUTABLE FUNCTIONS ========== */
 
-    /** @dev Updates EMA price from Uniswap.  */
+    /// @dev Updates TWAP price from Uniswap 
     function update() public checkEpoch {
-        (uint256 price0Cumulative, uint256 price1Cumulative, uint32 blockTimestamp) = UniswapV2OracleLibrary.currentCumulativePrices(address(pair));
-        uint32 timeElapsed = blockTimestamp - blockTimestampLast; // overflow is desired
+        (uint256 price0Cumulative, uint256 price1Cumulative, uint32 blockTimestamp) =
+            UniswapV2OracleLibrary.currentCumulativePrices(address(pair));
 
-        if (timeElapsed == 0) {
-            // prevent divided by zero
-            return;
+        uint32 timeElapsed;
+        unchecked {
+            // Overflow desired wrapped in unchecked
+            timeElapsed = blockTimestamp - blockTimestampLast;
+        }
+        if (timeElapsed == 0) return; // prevent divide-by-zero
+
+        uint256 price0Delta;
+        uint256 price1Delta;
+        unchecked {
+            // Overflow desired wrapped in unchecked
+            price0Delta = price0Cumulative - price0CumulativeLast;
+            price1Delta = price1Cumulative - price1CumulativeLast;
         }
 
-        // overflow is desired, casting never truncates
-        // cumulative price is in (uq112x112 price * seconds) units so we simply wrap it after division by time elapsed
-        price0Average = FixedPoint.uq112x112(uint224((price0Cumulative - price0CumulativeLast) / timeElapsed));
-        price1Average = FixedPoint.uq112x112(uint224((price1Cumulative - price1CumulativeLast) / timeElapsed));
+        // average = (cumulativeDelta / timeElapsed) in uq112x112
+        price0Average = FixedPoint.uq112x112(uint224(price0Delta / timeElapsed));
+        price1Average = FixedPoint.uq112x112(uint224(price1Delta / timeElapsed));
 
         price0CumulativeLast = price0Cumulative;
         price1CumulativeLast = price1Cumulative;
@@ -72,11 +81,11 @@ contract Oracle is Epoch {
         emit Updated(price0Cumulative, price1Cumulative);
     }
 
-    // Note this will always return 0 before update has been called successfully for the first time.
+    /// @notice Will always return 0 before update has been called successfully for the first time.
     function consult(address _token, uint256 _amountIn) external view returns (uint256 amountOut) {
 
         if (_token == token0) {
-            amountOut = uint256(price0Average.mul(_amountIn).decode144());
+            amountOut = uint256(price0Average.mul(_amountIn).decode144()); // Uses FixedPoint library for mul of uq112x112
         } else {
             require(_token == token1, "Oracle: INVALID_TOKEN");
             amountOut = uint256(price1Average.mul(_amountIn).decode144());
@@ -89,20 +98,27 @@ contract Oracle is Epoch {
 
     /// @notice Returns rolling TWAP price which is more likely to be prone to short term price fluctuations. Only used on UI for informational purposes.
     function twap(address _token, uint256 _amountIn) external view returns (uint256 _amountOut) {
-        (uint256 price0Cumulative, uint256 price1Cumulative, uint32 blockTimestamp) = UniswapV2OracleLibrary.currentCumulativePrices(address(pair));
-        uint32 timeElapsed = blockTimestamp - blockTimestampLast; // overflow is desired
+        (uint256 price0Cumulative, uint256 price1Cumulative, uint32 blockTimestamp) =
+            UniswapV2OracleLibrary.currentCumulativePrices(address(pair));
+
+        uint32 timeElapsed;
+        unchecked { timeElapsed = blockTimestamp - blockTimestampLast; } // Overflow desired wrapped in unchecked
+        if (timeElapsed == 0) return 0;
+
         if (_token == token0) {
+            uint256 price0Delta;
+            unchecked { price0Delta = price0Cumulative - price0CumulativeLast; }
             _amountOut = uint256(
-            FixedPoint.uq112x112(
-                uint224((price0Cumulative - price0CumulativeLast) / timeElapsed)
-            ).mul(_amountIn).decode144()
-        );
+                FixedPoint.uq112x112(uint224(price0Delta / timeElapsed)).mul(_amountIn).decode144()
+            );
         } else if (_token == token1) {
+            uint256 price1Delta;
+            unchecked { price1Delta = price1Cumulative - price1CumulativeLast; }
             _amountOut = uint256(
-            FixedPoint.uq112x112(
-                uint224((price1Cumulative - price1CumulativeLast) / timeElapsed)
-            ).mul(_amountIn).decode144()
-        );
+                FixedPoint.uq112x112(uint224(price1Delta / timeElapsed)).mul(_amountIn).decode144()
+            );
+        } else {
+            revert("Oracle: INVALID_TOKEN");
         }
 
         if (maxPriceCap > 0 && _amountOut > maxPriceCap) {
