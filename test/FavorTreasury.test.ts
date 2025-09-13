@@ -54,4 +54,18 @@ describe('FavorTreasury.sol', () => {
 
         })
     })
+
+    describe('settings and initialisation', () => {
+        it("shall initialise treasury", async () => {
+            const [deployer, owner, favor, oracle, groove] = await ethers.getSigners();
+            let {favorTreasury} = await deployContracts();
+
+            let currentTime = Date.now();
+            await expect(favorTreasury.initialize(favor, oracle, groove, currentTime)).to.emit(favorTreasury, "Initialized");
+
+            expect(await  favorTreasury.isInitialized()).to.equal(true);
+            //  epoch 0  upon initalisation
+            expect(await  favorTreasury.nextEpochPoint()).to.equal(currentTime);
+        })
+    })
 })

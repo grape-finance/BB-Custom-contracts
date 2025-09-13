@@ -5,7 +5,7 @@ pragma solidity 0.8.20;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract Epoch is Ownable {
+abstract contract Epoch is Ownable {
 
     // Approved users mapping
     mapping(address => bool) public isApprovedUser;
