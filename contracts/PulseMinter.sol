@@ -12,9 +12,10 @@ import "@uniswap/v2-periphery/contracts/interfaces/IWETH.sol";
 
 import "./interfaces/BBToken.sol";
 import "./interfaces/IMasterOracle.sol";
+import {IPriceProvider} from "./interfaces/IPriceProvider.sol";
 
 
-contract MintRedeemer is Ownable, ReentrancyGuard, Pausable {
+contract MintRedeemer is Ownable, ReentrancyGuard, Pausable, IPriceProvider {
     using SafeERC20 for IERC20;
 
     uint256 public constant PERIOD = 1 days;

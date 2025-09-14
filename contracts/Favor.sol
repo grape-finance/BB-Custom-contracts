@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.20;
 
-import "./interfaces/PriceProvider.sol";
+import "./interfaces/IPriceProvider.sol";
 import "./interfaces/BBToken.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
@@ -22,7 +22,7 @@ contract Favor is IFavorToken, ERC20Burnable, Ownable {
     address public treasury; // Treasury multisig wallet
 
     BBToken public esteem;
-    PriceProvider public priceProvider; // Esteem mint & redeem contract
+    IPriceProvider public priceProvider; // Esteem mint & redeem contract
 
     mapping(address => bool) public isTaxExempt;
     mapping(address => bool) public isMinter; // Approved minters of Favor token
@@ -170,7 +170,7 @@ contract Favor is IFavorToken, ERC20Burnable, Ownable {
 
     function setPriceProvider(address _priceProvider) external onlyOwner {
         require(_priceProvider != address(0), "Invalid Esteem Minter address");
-        priceProvider = PriceProvider(_priceProvider);
+        priceProvider = IPriceProvider(_priceProvider);
         emit PriceProviderUpdated(_priceProvider);
     }
 

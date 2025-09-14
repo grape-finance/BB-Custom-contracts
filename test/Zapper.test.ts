@@ -493,7 +493,7 @@ describe("Zapper.sol", () => {
             const [deployer, owner, receiver] = await ethers.getSigners();
             let {zapper, favorEth, weth} = await deployContracts();
 
-            await expect( zapper.buy(receiver,123n,  Date.now() + 100000)).to.be.revertedWith('Zapper: unsupported token');
+            await expect( zapper.buy(receiver,123n,  0n, Date.now() + 100000)).to.be.revertedWith('Zapper: unsupported token');
         })
 
         it('shall buy favor, and give out bonuses to treasury and receiver', async () => {
@@ -502,7 +502,7 @@ describe("Zapper.sol", () => {
 
             //  shall buy favor
             await weth.approve(zapper, 1000n);
-            await expect(zapper.buyTo(receiver, weth, 1000,Date.now() + 100000 )).to.not.be.revert(ethers);
+            await expect(zapper.buyTo(receiver, weth, 1000, 0n, Date.now() + 100000 )).to.not.be.revert(ethers);
 
             // receiver shall ge favor and pending esteem bonus
             expect(await favorEth.balanceOf(receiver)).to.equal(498n);
@@ -512,6 +512,20 @@ describe("Zapper.sol", () => {
             expect(await esteem.balanceOf(treasury)).to.equal(3832n);
 
         })
+
+        it('shall buy favor and honor min out', async () => {
+            const [deployer, owner, treasury, receiver] = await ethers.getSigners();
+            let {zapper, favorEth, weth, esteem} = await deployContracts();
+
+            //  shall not buy if not enough favor out
+            await weth.approve(zapper, 1000n);
+            await expect(zapper.buy(weth, 1000, 499n, Date.now() + 100000 )).to.be.revertedWith('UniswapV2Router: INSUFFICIENT_OUTPUT_AMOUNT');
+
+            //  now it is enough
+            await expect(zapper.buyTo(receiver, weth, 1000, 498n, Date.now() + 100000 )).to.not.be.revert(ethers);
+
+        })
+
     })
 
     describe('liquidity management', () => {

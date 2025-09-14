@@ -144,7 +144,7 @@ contract LPZapper is Ownable {
 
         uint256 half = _amount / 2;
 
-        uint256 balFavor = _swap(_token, favor, half, _deadline);
+        uint256 balFavor = _swap(_token, favor, half, 0,  _deadline);
         IFavorToken(favor).logBuy(msg.sender, balFavor);
 
         _addLiquidity(_token, favor, half, balFavor, address(this), _deadline);
@@ -169,6 +169,7 @@ contract LPZapper is Ownable {
         address _in,
         address _out,
         uint256 _amount,
+        uint256 _amountOutMin,
         uint256 _deadline
     ) internal returns (uint256) {
         IERC20(_in).approve(address(router), _amount);
@@ -180,7 +181,7 @@ contract LPZapper is Ownable {
         uint256 before = IERC20(_out).balanceOf(address(this));
         router.swapExactTokensForTokensSupportingFeeOnTransferTokens(
             _amount,
-            0,
+            _amountOutMin,
             path,
             address(this),
             _deadline
@@ -227,11 +228,11 @@ contract LPZapper is Ownable {
         if (!IFavorToken(_favor).isTaxExempt(msg.sender)) {
             // seller is taxed.   sell 50%  to treasury
             tax = IFavorToken(_favor).calculateTax(_amount);
-            uint256 taxSold = _swap(_favor, base, tax, _deadline);
+            uint256 taxSold = _swap(_favor, base, tax, 0, _deadline);
             _depositToStrongholdForTreasury(base, taxSold);
         }
 
-        uint256 userSold = _swap(_favor, base, _amount - tax, _deadline);
+        uint256 userSold = _swap(_favor, base, _amount - tax, 0,_deadline);
 
         //  return token balance to _receiver
         IERC20(base).safeTransfer(address(_receiver), userSold);
@@ -243,11 +244,11 @@ contract LPZapper is Ownable {
     /**
      * buy favor with base token.   rewards are minted
      */
-    function buy(address _baseToken, uint256 _amount, uint256 _deadline) public {
-        buyTo(msg.sender, _baseToken, _amount, _deadline);
+    function buy(address _baseToken, uint256 _amount, uint256 _amountOutMin, uint256 _deadline) public {
+        buyTo(msg.sender, _baseToken, _amount, _amountOutMin, _deadline);
     }
 
-    function buyTo(address _receiver, address _base, uint256 _amount, uint256 _deadline) public {
+    function buyTo(address _receiver, address _base, uint256 _amount,  uint256 _amountOutMin,uint256 _deadline) public {
 
         address favor = tokenToFavor[_base];
         require(favor != address(0), "Zapper: unsupported token");
@@ -255,7 +256,7 @@ contract LPZapper is Ownable {
 
         IERC20(_base).safeTransferFrom(msg.sender, address(this), _amount);
 
-        uint256 bought = _swap(_base, favor, _amount, _deadline);
+        uint256 bought = _swap(_base, favor, _amount, _amountOutMin, _deadline);
 
         //  return token balance to _receiver
         IERC20(favor).safeTransfer(address(_receiver), bought);
