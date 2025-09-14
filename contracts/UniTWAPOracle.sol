@@ -51,7 +51,7 @@ contract Oracle is Epoch {
     /* ========== MUTABLE FUNCTIONS ========== */
 
     /// @dev Updates TWAP price from Uniswap 
-    function update() public checkEpoch {
+    function update() public onlyApproved checkEpoch {
         (uint256 price0Cumulative, uint256 price1Cumulative, uint32 blockTimestamp) =
             UniswapV2OracleLibrary.currentCumulativePrices(address(pair));
 
@@ -126,7 +126,7 @@ contract Oracle is Epoch {
         }
     }
 
-    function setMaxPriceCap(uint256 _cap) external onlyApproved {
+    function setMaxPriceCap(uint256 _cap) external onlyOwner {
         require(_cap > 0, "Cap must be positive");
         maxPriceCap = _cap;
         emit MaxPriceCapSet(_cap);
