@@ -87,13 +87,13 @@ abstract contract Epoch is Ownable {
 
     /* ========== GOVERNANCE ========== */
 
-    function setPeriod(uint256 _period) external onlyApproved {
+    function setPeriod(uint256 _period) external onlyOwner {
         require(_period >= 15 minutes && _period <= 24 hours, '_period: out of range');
         period = _period;
         emit PeriodUpdated(_period);
     }
 
-    function setEpoch(uint256 _epoch) external onlyApproved {
+    function setEpoch(uint256 _epoch) external onlyOwner {
         epoch = _epoch;
         emit EpochUpdated(_epoch);
     }

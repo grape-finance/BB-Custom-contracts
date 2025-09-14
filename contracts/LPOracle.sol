@@ -101,7 +101,7 @@ contract LPOracle is Epoch {
     }
 
     /// @notice Update TWAPs: Uniswap prices, √K, and USD feeds
-    function update() external checkEpoch {
+    function update() external  onlyApproved checkEpoch {
         // 1) token0/token1 price TWAPs (Uniswap cumulative)
         {
             (uint256 p0C, uint256 p1C, uint32 blockTs) = UniswapV2OracleLibrary
@@ -248,13 +248,13 @@ contract LPOracle is Epoch {
     }
 
     /// @notice Set LP price update jump cap ie. 2e18 = 2x lastLpPrice
-    function setMaxPriceCap(uint256 _lpPriceCap) external onlyApproved {
+    function setMaxPriceCap(uint256 _lpPriceCap) external onlyOwner {
         lpPriceCap = _lpPriceCap;
         emit PriceCapUpdated(_lpPriceCap);
     }
 
     /// @notice Set Master oracle contract for USD price feeds of individual tokens in LP
-    function setMasterOracle(address _oracle) external onlyApproved {
+    function setMasterOracle(address _oracle) external onlyOwner {
         masterOracle = IMasterOracle(_oracle);
         emit OracleUpdated(_oracle);
     }
