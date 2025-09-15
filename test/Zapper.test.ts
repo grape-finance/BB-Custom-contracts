@@ -508,7 +508,7 @@ describe("Zapper.sol", () => {
             expect(await favorEth.balanceOf(receiver)).to.equal(498n);
             expect(await favorEth.pendingBonus(receiver)).to.equal(15330n);
 
-            //  tresury shall get esteem
+            //  treasury shall get esteem
             expect(await esteem.balanceOf(treasury)).to.equal(3832n);
 
         })

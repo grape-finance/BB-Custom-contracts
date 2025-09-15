@@ -2,45 +2,15 @@
 
 pragma solidity 0.8.20;
 
+import "./ShareWrapper.sol";
+import "./interfaces/ITreasury.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/Pausable.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-import "./interfaces/ITreasury.sol";
-
-
-contract ShareWrapper {
-    using SafeERC20 for IERC20;
-
-    IERC20 public esteem;
-
-    uint256 private _totalSupply;
-    mapping(address => uint256) private _balances;
-
-    function totalSupply() public view returns (uint256) {
-        return _totalSupply;
-    }
-
-    function balanceOf(address account) public view returns (uint256) {
-        return _balances[account];
-    }
-
-    function stake(uint256 amount) public virtual {
-        _totalSupply += amount;
-        _balances[msg.sender] += amount;
-        esteem.safeTransferFrom(msg.sender, address(this), amount);
-    }
-
-    function withdraw(uint256 amount) public virtual {
-        uint256 groveUserEsteem = _balances[msg.sender];
-        require(groveUserEsteem >= amount, "Grove: withdraw request greater than staked amount");
-        _totalSupply -= amount;
-        _balances[msg.sender] = groveUserEsteem - amount;
-        esteem.safeTransfer(msg.sender, amount);
-    }
-}
+import "@openzeppelin/contracts/utils/Pausable.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {IFavorToken} from "./interfaces/IFavorToken.sol";
 
 contract Staking is ShareWrapper, Ownable, ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;
@@ -89,7 +59,7 @@ contract Staking is ShareWrapper, Ownable, ReentrancyGuard, Pausable {
         if (groveUser != address(0)) {
             GroveSeat storage seat = grovers[groveUser];
             seat.rewardEarned = earned(groveUser);
-            seat.lastSnapshotIndex  = latestSnapshotIndex();
+            seat.lastSnapshotIndex = latestSnapshotIndex();
         }
         _;
     }
@@ -103,20 +73,21 @@ contract Staking is ShareWrapper, Ownable, ReentrancyGuard, Pausable {
     {}
 
     function initialize(
-        IERC20 _favor,
+        address _favor,
         IERC20 _esteem,
         ITreasury _treasury
     ) public notInitialized onlyOwner {
         require(address(_favor) != address(0), "Invalid Favor address");
         require(address(_esteem) != address(0), "Invalid Esteem address");
         require(address(_treasury) != address(0), "Invalid Treasury address");
+        require(IFavorToken(_favor).isTaxExempt(address(this)), "Grove: not tax exempt");
 
-        favor = _favor;
+        favor = IERC20(_favor);
         esteem = _esteem;
         treasury = _treasury;
         treasuryOperator = address(_treasury);
 
-        GroveSnapshot memory genesis = GroveSnapshot({ time: block.timestamp, rewardReceived: 0, rewardPerShare: 0 });
+        GroveSnapshot memory genesis = GroveSnapshot({time: block.timestamp, rewardReceived: 0, rewardPerShare: 0});
         groveHistory[0] = genesis;
         historyStart = 0;
         historyEnd = 0;
@@ -135,7 +106,7 @@ contract Staking is ShareWrapper, Ownable, ReentrancyGuard, Pausable {
 
     function getLastSnapshotOf(address user) internal view returns (GroveSnapshot storage) {
         uint256 idx = grovers[user].lastSnapshotIndex;
-        if (idx < historyStart) { idx = historyStart; }
+        if (idx < historyStart) {idx = historyStart;}
         return groveHistory[idx];
     }
 
@@ -198,7 +169,7 @@ contract Staking is ShareWrapper, Ownable, ReentrancyGuard, Pausable {
         uint256 nextRPS = prevRPS + ((amount * 1e18) / totalSupply());
 
         historyEnd += 1;
-        groveHistory[historyEnd] = GroveSnapshot({ time: block.timestamp, rewardReceived: amount, rewardPerShare: nextRPS });
+        groveHistory[historyEnd] = GroveSnapshot({time: block.timestamp, rewardReceived: amount, rewardPerShare: nextRPS});
 
         if (historyEnd - historyStart + 1 > MAX_HISTORY) {
             delete groveHistory[historyStart];

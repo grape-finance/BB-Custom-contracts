@@ -1,8 +1,6 @@
 import {expect} from "chai";
 import {network} from "hardhat";
-import {ZeroAddress} from "ethers";
 import {createToken, createUSV2Factory, createUSV2Router} from "./utils/contractUtils.js";
-import {fail} from "node:assert";
 
 const {ethers} = await network.connect();
 
@@ -149,4 +147,12 @@ describe('LPOracle.sol', () => {
         })
     })
 
+    describe('possible issues', () => {
+
+        //  Zokyo expresses concern: what happens in case staker is not set to be tax-exempt
+        //  this could prevent proper aallocation of favor to it
+        it('shall behave properly in case  tax exemt misconfiguration', async () => {
+
+        })
+    })
 });
