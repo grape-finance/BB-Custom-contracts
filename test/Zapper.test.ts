@@ -378,6 +378,9 @@ describe("Zapper.sol", () => {
             const [deployer, owner] = await ethers.getSigners();
             let {zapper, favorEth, weth, favorWethPair, esteem, mockPool} = await deployContracts();
 
+            //  add some extra tokens to the zapper to check  that dust is refunded
+            await favorEth.transfer(zapper, 1000n);
+            await weth.transfer(zapper, 1000n);
 
             // approve 10000 weth to zapper
             await weth.approve(zapper, 10000n);
@@ -405,18 +408,30 @@ describe("Zapper.sol", () => {
             expect(await esteem.balanceOf(await favorEth.treasury())).to.equal(19140n);
             //  and pending esteem bonus for owner
             expect(await favorEth.pendingBonus(owner)).to.equal(76560n);
+
+
+
+            //  shall refund everything
+            expect(await ethers.provider.getBalance(zapper)).to.be.equal(0n);
+            expect(await favorEth.balanceOf(zapper)).to.be.equal(0n);
+            expect(await weth.balanceOf(zapper)).to.be.equal(0n);
+
         })
 
         it('zap  PLS  into LP', async () => {
             const [deployer, owner] = await ethers.getSigners();
             let {zapper, favorEth, weth, favorWethPair, esteem, mockPool} = await deployContracts();
 
+            //  add some extra tokens to the zapper to check  that dust is refunded
+            await favorEth.transfer(zapper, 1000n);
+            await weth.transfer(zapper, 1000n);
 
             //  shall take 10000 weth, change 5000 to  2500  favor,   and supply liquidity
+            //  we are sending more, to test that dust is returned
             await expect(zapper.zapPLS(Date.now() + 10000, {value: 10000})).to.not.be.revert(ethers);
 
 
-            // there shall be  balance, in real life it would be transferred away
+            // there shall be balance, in real life it would be transferred away
             expect(await favorWethPair.balanceOf(zapper)).to.equal(3523n);
 
             //  shall have supplied LP to mock pool
@@ -435,6 +450,14 @@ describe("Zapper.sol", () => {
             expect(await esteem.balanceOf(await favorEth.treasury())).to.equal(19140n);
             //  and pending esteem bonus for owner
             expect(await favorEth.pendingBonus(owner)).to.equal(76560n);
+
+
+
+            //  shall refund evertything
+            expect(await ethers.provider.getBalance(zapper)).to.be.equal(0n);
+            expect(await favorEth.balanceOf(zapper)).to.be.equal(0n);
+            expect(await weth.balanceOf(zapper)).to.be.equal(0n);
+
         })
 
     })
