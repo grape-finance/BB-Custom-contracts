@@ -1,6 +1,7 @@
 import {network, tasks} from "hardhat";
 import {createToken, createUSV2Factory, createUSV2Router} from "./utils/contractUtils.js";
 import {expect} from "chai";
+import {fail} from "node:assert";
 
 const {ethers, networkHelpers} = await network.connect();
 
