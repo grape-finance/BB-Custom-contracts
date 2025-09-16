@@ -9,7 +9,7 @@ import "@uniswap/v2-periphery/contracts/libraries/UniswapV2OracleLibrary.sol";
 
 // fixed window oracle that recomputes the average price for the entire period once every period
 // note that the price average is only guaranteed to be over at least 1 period, but may be over a longer period
-contract Oracle is Epoch {
+contract UniTWAPOracle is Epoch {
     using FixedPoint for *;
 
     /* ========== STATE VARIABLES ========== */
