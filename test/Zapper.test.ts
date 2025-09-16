@@ -107,10 +107,15 @@ describe("Zapper.sol", () => {
 
         it("Should be able to create contract", async () => {
             const [deployer, owner] = await ethers.getSigners();
-            let {zapper, v2router} = await deployContracts();
+            let {zapper, v2router, favorBase, favorEth, weth, baseToken} = await deployContracts();
 
             await expect(await zapper.router()).to.be.equal(v2router);
 
+            //  favors and bases shall be registered  as dust tokens
+            expect(await zapper.isDustToken(favorBase)).to.be.equal(true);
+            expect(await zapper.isDustToken(favorEth)).to.be.equal(true);
+            expect(await zapper.isDustToken(weth)).to.be.equal(true);
+            expect(await zapper.isDustToken(baseToken)).to.be.equal(true);
         })
 
 
@@ -119,7 +124,7 @@ describe("Zapper.sol", () => {
             let {zapper} = await deployContracts();
 
             await expect(zapper.setPool(whatever)).to.not.be.revert(ethers);
-            expect( await  zapper.POOL()).to.be.equal(whatever);
+            expect(await zapper.POOL()).to.be.equal(whatever);
 
         })
     })
@@ -393,8 +398,8 @@ describe("Zapper.sol", () => {
 
             //  shall not withdraw favor tokens
             expect(await favorEth.balanceOf(owner)).to.equal(122999999999999999999000000n);
-            // but 10000 weth shall be withdrawn
-            expect(await weth.balanceOf(owner)).to.equal(999999999999999999997990000n);
+            // but 10000 weth shall be withdrawn, and there was some dust returned
+            expect(await weth.balanceOf(owner)).to.equal(999999999999999999997990004n);
 
             // there shall be esteem minting to treasury
             expect(await esteem.balanceOf(await favorEth.treasury())).to.equal(19140n);
@@ -423,14 +428,15 @@ describe("Zapper.sol", () => {
 
             //  shall not withdraw favor tokens
             expect(await favorEth.balanceOf(owner)).to.equal(122999999999999999999000000n);
-            // and did not touch weth tokens!
-            expect(await weth.balanceOf(owner)).to.equal(999999999999999999998000000n);
+            // not withdraw eth and return some dust
+            expect(await weth.balanceOf(owner)).to.equal(999999999999999999998000004n);
 
             // there shall be esteem minting to treasury
             expect(await esteem.balanceOf(await favorEth.treasury())).to.equal(19140n);
             //  and pending esteem bonus for owner
             expect(await favorEth.pendingBonus(owner)).to.equal(76560n);
         })
+
     })
 
     describe('buy and sell', () => {
@@ -474,7 +480,7 @@ describe("Zapper.sol", () => {
             await expect(zapper.connect(receiver).sell(favorEth, 1000n, Date.now() + 100000)).to.not.be.revert(ethers);
 
             // treasury team shall receive 20% of tax directly in base token
-            
+
             expect(await weth.balanceOf(teamAddress)).to.equal(199n);
 
             // and 80% of tax deposited to the pool for holding address
@@ -493,7 +499,7 @@ describe("Zapper.sol", () => {
             const [deployer, owner, receiver] = await ethers.getSigners();
             let {zapper, favorEth, weth} = await deployContracts();
 
-            await expect( zapper.buy(receiver,123n,  0n, Date.now() + 100000)).to.be.revertedWith('Zapper: unsupported token');
+            await expect(zapper.buy(receiver, 123n, 0n, Date.now() + 100000)).to.be.revertedWith('Zapper: unsupported token');
         })
 
         it('shall buy favor, and give out bonuses to treasury and receiver', async () => {
@@ -502,7 +508,7 @@ describe("Zapper.sol", () => {
 
             //  shall buy favor
             await weth.approve(zapper, 1000n);
-            await expect(zapper.buyTo(receiver, weth, 1000, 0n, Date.now() + 100000 )).to.not.be.revert(ethers);
+            await expect(zapper.buyTo(receiver, weth, 1000, 0n, Date.now() + 100000)).to.not.be.revert(ethers);
 
             // receiver shall ge favor and pending esteem bonus
             expect(await favorEth.balanceOf(receiver)).to.equal(498n);
@@ -519,10 +525,10 @@ describe("Zapper.sol", () => {
 
             //  shall not buy if not enough favor out
             await weth.approve(zapper, 1000n);
-            await expect(zapper.buy(weth, 1000, 499n, Date.now() + 100000 )).to.be.revertedWith('UniswapV2Router: INSUFFICIENT_OUTPUT_AMOUNT');
+            await expect(zapper.buy(weth, 1000, 499n, Date.now() + 100000)).to.be.revertedWith('UniswapV2Router: INSUFFICIENT_OUTPUT_AMOUNT');
 
             //  now it is enough
-            await expect(zapper.buyTo(receiver, weth, 1000, 498n, Date.now() + 100000 )).to.not.be.revert(ethers);
+            await expect(zapper.buyTo(receiver, weth, 1000, 498n, Date.now() + 100000)).to.not.be.revert(ethers);
 
         })
 
@@ -560,15 +566,69 @@ describe("Zapper.sol", () => {
 
         it('shall add  eth to registered favor LP', async () => {
             const [deployer, owner, somethingStrange] = await ethers.getSigners();
-            let {zapper, favorEth,favorWethPair} = await deployContracts();
+            let {zapper, favorEth, favorWethPair} = await deployContracts();
 
             await favorEth.approve(zapper, 1000n);
 
-            await expect(zapper.addLiquidityETH(favorEth,1000, 1000, 2000, owner, Date.now() + 10000,{value: 2000})).to.not.be.revert(ethers);
+            await expect(zapper.addLiquidityETH(favorEth, 1000, 1000, 2000, owner, Date.now() + 10000, {value: 2000})).to.not.be.revert(ethers);
 
             expect(await favorWethPair.balanceOf(owner)).to.equal(1414627n);
 
         })
 
+
+        // issue mitigation of discovery by zokyo.   ETH dust shall be refunded to user after
+        // liquidity addition
+        it('shall refund leftovers after liquidity addition via ETH', async () => {
+            const [deployer, owner] = await ethers.getSigners();
+            let {zapper, favorEth, weth, favorWethPair, esteem, mockPool} = await deployContracts();
+
+
+            let balanceBefore = await ethers.provider.getBalance(owner);
+
+            // transfer excess favor to zapper, ought to be refunded too
+            await favorEth.transfer(zapper, 1000n);
+
+            await favorEth.approve(zapper, 1000n);
+            await expect(zapper.addLiquidityETH(favorEth, 1000, 1000, 2000, owner, Date.now() + 10000, {value: 10002000})).to.not.be.revert(ethers);
+
+            //  shall refund evertything
+            expect(await ethers.provider.getBalance(zapper)).to.be.equal(0n);
+            expect(await favorEth.balanceOf(zapper)).to.be.equal(0n);
+
+            //  we do not have exact gas estimation, but we put 1000000 into so it is bigger than used gas.
+            // this way we can see thatrefund happened to caller
+            expect(balanceBefore - await ethers.provider.getBalance(owner)).to.lessThan(10000000n);
+        })
+
+
+        // issue mitigation of discovery by zokyo.   ETH dust shall be refunded to user after
+        // liquidity addition
+        it('shall refund leftovers after liquidity addition', async () => {
+            const [deployer, owner] = await ethers.getSigners();
+            let {zapper, favorBase, baseToken} = await deployContracts();
+
+
+            let balanceFavorBefore = await favorBase.balanceOf(owner);
+            let balanceBaseBefore = await baseToken.balanceOf(owner);
+
+            // transfer excess favor to zapper, ought to be refunded too
+            await favorBase.transfer(zapper, 123n);
+            await baseToken.transfer(zapper, 234n);
+
+            await favorBase.approve(zapper, 1000n);
+            await baseToken.approve(zapper, 2000n);
+            await expect(zapper.addLiquidity(favorBase, baseToken, 1000, 2000, 1000, 2000, owner, Date.now() + 10000)).to.not.be.revert(ethers);
+
+            //  shall refund evertything
+            expect(await favorBase.balanceOf(zapper)).to.be.equal(0n);
+            expect(await baseToken.balanceOf(zapper)).to.be.equal(0n);
+
+            // this way we can see that refund happened to caller
+            expect(await favorBase.balanceOf(owner)).to.be.equal(balanceFavorBefore - 1000n);
+            expect(await baseToken.balanceOf(owner)).to.be.equal(balanceBaseBefore - 2000n);
+        })
     })
+
+
 })

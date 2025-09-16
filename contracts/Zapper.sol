@@ -37,7 +37,7 @@ contract LPZapper is Ownable {
     mapping(address => address) public favorToLp;
     mapping(address => address) public tokenToFavor;
 
-    
+
     event NewPOOL(address indexed poolAddress);
     event FavorRemoved(address indexed favorToken);
     event DustTokenAdded(address indexed token);
@@ -50,7 +50,7 @@ contract LPZapper is Ownable {
     event TokenZapped(address indexed user, address indexed tokenIn, address indexed favor, uint256 amountIn, uint256 lpAmount);
     event FavorSold(address indexed seller, address indexed receiver, address indexed favor, uint256 amountSold, uint256 baseReceived, uint256 taxPaid);
     event FavorBought(address indexed buyer, address indexed receiver, address indexed baseToken, uint256 amountSpent, uint256 favorReceived);
-    
+
     receive() external payable {}
 
 
@@ -144,7 +144,7 @@ contract LPZapper is Ownable {
 
         uint256 half = _amount / 2;
 
-        uint256 balFavor = _swap(_token, favor, half, 0,  _deadline);
+        uint256 balFavor = _swap(_token, favor, half, 0, _deadline);
         IFavorToken(favor).logBuy(msg.sender, balFavor);
 
         _addLiquidity(_token, favor, half, balFavor, address(this), _deadline);
@@ -232,7 +232,7 @@ contract LPZapper is Ownable {
             _depositToStrongholdForTreasury(base, taxSold);
         }
 
-        uint256 userSold = _swap(_favor, base, _amount - tax, 0,_deadline);
+        uint256 userSold = _swap(_favor, base, _amount - tax, 0, _deadline);
 
         //  return token balance to _receiver
         IERC20(base).safeTransfer(address(_receiver), userSold);
@@ -248,7 +248,7 @@ contract LPZapper is Ownable {
         buyTo(msg.sender, _baseToken, _amount, _amountOutMin, _deadline);
     }
 
-    function buyTo(address _receiver, address _base, uint256 _amount,  uint256 _amountOutMin,uint256 _deadline) public {
+    function buyTo(address _receiver, address _base, uint256 _amount, uint256 _amountOutMin, uint256 _deadline) public {
 
         address favor = tokenToFavor[_base];
         require(favor != address(0), "Zapper: unsupported token");
@@ -308,33 +308,36 @@ contract LPZapper is Ownable {
             to,
             deadline
         );
+
+        _refundDust(msg.sender);
     }
 
-    //  wrapper for the router call to a coin taxation
+    //  wrapper for the router call to aavoid  coin taxation
     function addLiquidityETH(
-        address token,
-        uint amountTokenDesired,
-        uint amountTokenMin,
-        uint amountETHMin,
-        address to,
-        uint deadline
+        address _token,
+        uint _amountTokenDesired,
+        uint _amountTokenMin,
+        uint _amountETHMin,
+        address _to,
+        uint _deadline
     ) external payable {
-        require(favorToToken[token] == router.WETH(), "Zapper: Not listed to make LP");
-        IERC20(token).transferFrom(
+        require(favorToToken[_token] == router.WETH(), "Zapper: Not listed to make LP");
+        IERC20(_token).transferFrom(
             msg.sender,
             address(this),
-            amountTokenDesired
+            _amountTokenDesired
         );
-        IERC20(token).forceApprove(address(router), amountTokenDesired);
+        IERC20(_token).forceApprove(address(router), _amountTokenDesired);
 
         router.addLiquidityETH{value: msg.value}(
-            token,
-            amountTokenDesired,
-            amountTokenMin,
-            amountETHMin,
-            to,
-            deadline
+            _token,
+            _amountTokenDesired,
+            _amountTokenMin,
+            _amountETHMin,
+            _to,
+            _deadline
         );
+        _refundDust(msg.sender);
     }
 
     function _refundDust(address recipient) internal {
@@ -422,6 +425,9 @@ contract LPZapper is Ownable {
         favorToToken[_favor] = _token;
         favorToLp[_favor] = _lp;
         tokenToFavor[_token] = _favor;
+
+        addDustToken(_favor);
+        addDustToken(_token);
         emit ActiveFavorTokenSet(_favor, _lp, _token);
     }
 
