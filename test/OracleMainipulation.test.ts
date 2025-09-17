@@ -11,6 +11,10 @@ describe('OracleManipulator', () => {
     async function deployContracts() {
         const [owner, treasury, alice, bob] = await ethers.getSigners();
 
+        //  as we do not have fetsh orcle here, use mock
+        let mockOracle = await ethers.deployContract("MockMasterOracle");
+
+
         let startTime = Math.floor(Date.now() / 1000);
 
         const esteem = await ethers.deployContract("Esteem", [owner]);
@@ -24,6 +28,8 @@ describe('OracleManipulator', () => {
 
 
         let weth = await createToken(owner, 'wethweth', "t0");
+        await minter.setPriceOracle(weth, mockOracle);
+        await mockOracle.setLastPrice(weth, 1_000_000_000_000_000_000n);
 
         let v2factory = await createUSV2Factory(owner);
         let v2router = await createUSV2Router(owner, v2factory, weth);
@@ -40,13 +46,16 @@ describe('OracleManipulator', () => {
         await zapper.setPool(mockPool);
 
 
-        const favorInstance = await ethers.deployContract("Favor", [owner, "FavorPLS", "fPLS", 123_000_000_000_000_000_000_000_000n, treasury, esteem]);
-        let favorEth = favorInstance.connect(owner);
+        const favorEth = await ethers.deployContract("Favor", [owner, "FavorPLS", "fPLS", 123_000_000_000_000_000_000_000_000n, treasury, esteem]);
         await favorEth.setPriceProvider(minter);
         await esteem.addMinter(favorEth);
 
-        //  give alice a shitload of favor
+        await minter.setPriceOracle(favorEth, mockOracle);
+
+
+        //  alice is a rich girl
         await favorEth.transfer(alice, 1_000_000_000_000n);
+        await weth.transfer(alice, 1_000_000_000_000n);
 
         await favorEth.setTaxExempt(zapper, true);
         // to be able to create LPs for test pusposes
@@ -75,6 +84,7 @@ describe('OracleManipulator', () => {
 
 
         const uniTwapOracle = await ethers.deployContract("UniTWAPOracle", [favorWethPair, 3600, startTime, 1000_000_000_000_000_000_000n]);
+        await mockOracle.setTwapOracle(favorEth, uniTwapOracle);
 
 
         //  create grove
@@ -104,7 +114,13 @@ describe('OracleManipulator', () => {
         await favorEth.addMinter(favorTreasury);
 
         //  treasury is aithorised to allocate seigniorage
-        grove.setTreasuryOperator(favorTreasury);
+        await grove.setTreasuryOperator(favorTreasury);
+
+
+        //  oracle is updated
+        await expect(uniTwapOracle.update()).to.not.be.revert(ethers);
+        // seignoreage allocated
+        await favorTreasury.allocateSeigniorage();
 
         return {
             zapper,
@@ -116,7 +132,8 @@ describe('OracleManipulator', () => {
             favorTreasury,
             uniTwapOracle,
             mockPool,
-             grove
+            grove,
+            mockOracle,
         };
     }
 
@@ -124,24 +141,15 @@ describe('OracleManipulator', () => {
 
 
         it('shall be able to resist maipulation', async () => {
-            const [owner, tresury , alice, bob] = await ethers.getSigners();
+            const [owner, tresury, alice, bob] = await ethers.getSigners();
             let {
                 zapper,
-                v2router,
-                esteem,
                 weth,
                 favorWethPair,
                 favorEth,
                 favorTreasury,
                 uniTwapOracle,
-                grove
-            } = await deployContracts()
-
-            //  try update oracle
-            await expect(uniTwapOracle.update()).to.not.be.revert(ethers);
-
-            //  initial state,  1sr epoch
-            await favorTreasury.allocateSeigniorage();
+            } = await networkHelpers.loadFixture(deployContracts);
 
             let favorPriceBefore = await favorTreasury.getFavorPrice();
             console.log("favorPriceBefore:", favorPriceBefore.toString());
@@ -186,15 +194,106 @@ describe('OracleManipulator', () => {
             expect(price0After).to.be.equal(price0);
             expect(price1After).to.be.equal(price1);
 
-           await networkHelpers.time.increaseTo(nextEpochPoint + 10n);
+            await networkHelpers.time.increaseTo(nextEpochPoint + 10n);
             //  next epoch
             await favorTreasury.allocateSeigniorage();
 
-              let favorPriceAfter = await  favorTreasury.getFavorPrice();
+            let favorPriceAfter = await favorTreasury.getFavorPrice();
 
             console.log("favorPriceAfter:", favorPriceAfter.toString());
         })
 
+    })
+
+
+    it('test dumping a shitkiad of WETH', async () => {
+        const [owner, tresury, alice, bob] = await ethers.getSigners();
+        let {
+            zapper,
+            weth,
+            favorWethPair,
+            favorEth,
+            favorTreasury,
+            uniTwapOracle,
+            mockOracle
+        } = await networkHelpers.loadFixture(deployContracts);
+
+
+        let favorPriceBefore = await favorTreasury.getFavorPrice();
+        console.log("favorPriceBefore:", favorPriceBefore.toString());
+
+
+        await expect(uniTwapOracle.update()).to.not.be.revert(ethers);
+
+        let nextEpochPoint = await favorTreasury.nextEpochPoint();
+        console.log(nextEpochPoint);
+
+        expect(await uniTwapOracle.getCurrentEpoch()).to.be.equal(1);
+
+        console.log("favor:", await favorEth.getAddress());
+        console.log("weth:", await weth.getAddress());
+        let t0Adr = await favorWethPair.token0();
+        let t1Adr = await favorWethPair.token1();
+
+        console.log("t0:", t0Adr, "t1:", t1Adr);
+
+        let price0 = await uniTwapOracle.price0Average();
+        let price1 = await uniTwapOracle.price1Average();
+
+        console.log("price0", price0.toString());
+        console.log("price1", price1.toString());
+
+
+        await weth.connect(alice).approve(zapper, 10_000_000_000n);
+        //  now go 1 minute before the current epoch
+        networkHelpers.time.increaseTo(nextEpochPoint - 60n);
+
+        // before bying, simulate favor price logic
+        // as our pool is balanced,  favor proce is equal to  weth
+        await mockOracle.setLastPrice(favorEth, 1_000_000_000_000_000_000n);
+
+
+        //  alice bys a lot of favor, by dumping a shitload of weth
+        console.log("alice has weth:", await weth.balanceOf(alice));
+        await zapper.connect(alice).buy(weth, 10_000_000n, 0n, Date.now());
+
+        let [r0, r1] = await favorWethPair.getReserves();
+        console.log("r0:", r0.toString(), "r1:", r1.toString());
+        // now we have to adjust mock proce orcale!!!!
+        console.log("consult favor: ", await uniTwapOracle.consult(favorEth, 1_000_000_000_000_000_000n));
+
+        //  and this should not have an effect on the price
+        let price0After = await uniTwapOracle.price0Average();
+        let price1After = await uniTwapOracle.price1Average();
+
+        console.log("price0After", price0After.toString());
+        console.log("price1After", price1After.toString());
+
+        expect(price0After).to.be.equal(price0);
+        expect(price1After).to.be.equal(price1);
+
+        //  advance to the next epoch
+        await networkHelpers.time.increaseTo(nextEpochPoint + 10n);
+        console.log('-----------epoch -----------')
+        await favorTreasury.allocateSeigniorage();
+        let favorTwapAfter = await uniTwapOracle.consult(favorEth, 1_000_000_000_000_000_000n);
+        console.log("favor TWAP: ", favorTwapAfter);
+
+        let snapshotFavorPrice = 0n;
+        if (t0Adr.toLowerCase() == (await favorEth.getAddress()).toLowerCase()) {
+            snapshotFavorPrice = 1_000_000_000_000_000_000n * r1 / r0;
+        } else {
+            snapshotFavorPrice = 1_000_000_000_000_000_000n * r0 / r1;
+        }
+        console.log("favor snapshot: ", snapshotFavorPrice);
+
+        //  simulate favor price logic
+        let newFavorPrice = 1_000_000_000_000_000_000n / favorTwapAfter * 1_000_000_000_000_000_000n;
+        await mockOracle.setLastPrice(favorEth, newFavorPrice);
+
+        let favorPriceAfter = await favorTreasury.getFavorPrice();
+
+        console.log("favorPriceAfter:", favorPriceAfter.toString());
     })
 
 

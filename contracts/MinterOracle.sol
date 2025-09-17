@@ -5,8 +5,9 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 
 import "./usingFetch/usingFetch.sol";
 import "./interfaces/IOracle.sol";
+import {IMasterOracle} from "./interfaces/IMasterOracle.sol";
 
-contract MinterOracle is UsingFetch, Ownable {
+contract MinterOracle is UsingFetch, Ownable,  IMasterOracle {
 
     //fetch oracle feed testnet 0xe5284f722a509659ec70aa236BA08E10B263bCB2
     //fetch oracle feed mainnet 0xCe9DEa26eB6bEaEc73CFf3BACdF3F9e42BB89951
