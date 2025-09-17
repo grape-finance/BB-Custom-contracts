@@ -9,14 +9,16 @@ describe('OracleManipulator', () => {
 
 
     async function deployContracts() {
-        const [owner, treasury, grove, alice, bob] = await ethers.getSigners();
+        const [owner, treasury, alice, bob] = await ethers.getSigners();
 
-        let startTime = Math.ceil(Date.now() / 1000);
+        let startTime = Math.floor(Date.now() / 1000);
 
-        const esteemInstance = await ethers.deployContract("Esteem", [owner]);
-        let esteem = esteemInstance.connect(owner);
+        const esteem = await ethers.deployContract("Esteem", [owner]);
+        await esteem.addMinter(owner);
+        await esteem.mint(owner, 1000n);
 
-        const minter = await ethers.deployContract("MintRedeemer", [esteem, startTime, owner]);
+
+        const minter = await ethers.deployContract("MintRedeemer", [esteem, startTime + 10, owner]);
         // 0.1 ,  18 digitts fixed decimal point
         await minter.setEsteemRate(100000000000000000n)
 
@@ -71,15 +73,38 @@ describe('OracleManipulator', () => {
         // remove tax-exempt status from owner
         await favorEth.setTaxExempt(owner, false);
 
-        const uniTwapOracle = await ethers.deployContract("UniTWAPOracle", [favorWethPair, 3600, startTime, 10000n]);
+
+        const uniTwapOracle = await ethers.deployContract("UniTWAPOracle", [favorWethPair, 3600, startTime, 1000_000_000_000_000_000_000n]);
 
 
+        //  create grove
+        let grove = await ethers.deployContract("Staking", [owner]);
+        // groove shall be tax exempt
+        await favorEth.setTaxExempt(grove, true);
+
+        //  create and inialise favor treasury,
         const favorTreasury = await ethers.deployContract("FavorTreasury", [owner]);
+        favorEth.setTaxExempt(favorTreasury, true);
 
         let ts = (await ethers.provider.getBlock('latest'))?.timestamp || 0;
-        console.log("ts", ts);
-        await favorTreasury.initialize(favorEth, uniTwapOracle, grove, ts + 100);
+        await favorTreasury.initialize(favorEth, uniTwapOracle, grove, ts + 10);
+        await networkHelpers.time.increaseTo(ts + 20);
 
+
+        //  initialise staking and stack some favor
+        await grove.initialize(favorEth, esteem, favorTreasury);
+        // and ensure that something is stacked
+        await esteem.approve(grove, 1000n);
+        await grove.stake(1000n);
+
+        //  favor treasury is allowed to consult and update  oracle
+        await uniTwapOracle.setApprovedUser(favorTreasury, true);
+
+        //  favro treasury shall be a minter  for favor
+        await favorEth.addMinter(favorTreasury);
+
+        //  treasury is aithorised to allocate seigniorage
+        grove.setTreasuryOperator(favorTreasury);
 
         return {
             zapper,
@@ -91,6 +116,7 @@ describe('OracleManipulator', () => {
             favorTreasury,
             uniTwapOracle,
             mockPool,
+             grove
         };
     }
 
@@ -98,7 +124,7 @@ describe('OracleManipulator', () => {
 
 
         it('shall be able to resist maipulation', async () => {
-            const [deployer, owner, grove, alice] = await ethers.getSigners();
+            const [owner, tresury , alice, bob] = await ethers.getSigners();
             let {
                 zapper,
                 v2router,
@@ -107,13 +133,23 @@ describe('OracleManipulator', () => {
                 favorWethPair,
                 favorEth,
                 favorTreasury,
-                uniTwapOracle
+                uniTwapOracle,
+                grove
             } = await deployContracts()
+
+            //  try update oracle
+            await expect(uniTwapOracle.update()).to.not.be.revert(ethers);
+
+            //  initial state,  1sr epoch
+            await favorTreasury.allocateSeigniorage();
+
+            let favorPriceBefore = await favorTreasury.getFavorPrice();
+            console.log("favorPriceBefore:", favorPriceBefore.toString());
 
 
             await expect(uniTwapOracle.update()).to.not.be.revert(ethers);
 
-            let nextEpochPoint = await uniTwapOracle.nextEpochPoint();
+            let nextEpochPoint = await favorTreasury.nextEpochPoint();
             console.log(nextEpochPoint);
 
             expect(await uniTwapOracle.getCurrentEpoch()).to.be.equal(1);
@@ -137,17 +173,26 @@ describe('OracleManipulator', () => {
             networkHelpers.time.increaseTo(nextEpochPoint - 60n);
 
             //  alice sells a lot of favor, say 10m
-            await zapper.connect(alice).sell(favorEth, 10_000_000n, Date.now());
+            console.log("alice has favor:", await favorEth.balanceOf(alice));
+            await expect(zapper.connect(alice).sell(favorEth, 10_000_000n, Date.now())).to.not.be.revert(ethers);
 
-            //  and this should not have effect on the price
+            //  and this should not have an effect on the price
             let price0After = await uniTwapOracle.price0Average();
             let price1After = await uniTwapOracle.price1Average();
 
             console.log("price0After", price0After.toString());
             console.log("price1After", price1After.toString());
 
+            expect(price0After).to.be.equal(price0);
+            expect(price1After).to.be.equal(price1);
 
-            fail('implement epoch change and demonstre skewing like zokyo described');
+           await networkHelpers.time.increaseTo(nextEpochPoint + 10n);
+            //  next epoch
+            await favorTreasury.allocateSeigniorage();
+
+              let favorPriceAfter = await  favorTreasury.getFavorPrice();
+
+            console.log("favorPriceAfter:", favorPriceAfter.toString());
         })
 
     })

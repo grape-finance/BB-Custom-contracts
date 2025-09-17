@@ -25,7 +25,7 @@ contract FavorTreasury is Ownable, ReentrancyGuard, Pausable {
     uint256 public startTime;
     uint256 public epoch = 0;
 
-    /* Addresses and LPs to exclude from supply calculation */ 
+    /* Addresses and LPs to exclude from supply calculation */
     address[] public excludedAddresses;
     address[] public lpPairsToExclude;
     mapping(address => bool) public excludedFromTotalSupply;
@@ -163,18 +163,18 @@ contract FavorTreasury is Ownable, ReentrancyGuard, Pausable {
     function addExcludedAddress(address _address) external onlyOwner {
         require(_address != address(0), "Cannot exclude zero address");
         require(!excludedFromTotalSupply[_address], "Address already excluded");
-        
+
         excludedFromTotalSupply[_address] = true;
         excludedAddresses.push(_address);
 
         emit ExcludedAddressAdded(_address);
     }
-    
+
     function removeExcludedAddress(address _address) external onlyOwner {
         require(excludedFromTotalSupply[_address], "Address not excluded");
-        
+
         excludedFromTotalSupply[_address] = false;
-        
+
         // Remove from array
         uint256 n = excludedAddresses.length;
         for (uint256 i = 0; i < n; i++) {
@@ -184,7 +184,7 @@ contract FavorTreasury is Ownable, ReentrancyGuard, Pausable {
                 break;
             }
         }
-        
+
         emit ExcludedAddressRemoved(_address);
     }
 
@@ -220,9 +220,8 @@ contract FavorTreasury is Ownable, ReentrancyGuard, Pausable {
 
         emit LpPairToExcludeRemoved(pair);
     }
-    
 
-     /// @notice Gas intensive if many addresses are added to the list, planned usage is for ~10 protocol wallets/contracts & 2 LPs at most
+    /// @notice Gas intensive if many addresses are added to the list, planned usage is for ~10 protocol wallets/contracts & 2 LPs at most
     function getFavorCirculatingSupply() public view returns (uint256) {
         uint256 totalSupply = IERC20(favor).totalSupply();
 
@@ -240,11 +239,11 @@ contract FavorTreasury is Ownable, ReentrancyGuard, Pausable {
         // Loop through LP pairs excluded and calculate Favor reserves in each
         for (uint256 j = 0; j < pairsLen; j++) {
             address pair = lpPairsToExclude[j];
-            if (!isLpPairToExclude[pair]) continue; 
+            if (!isLpPairToExclude[pair]) continue;
 
             IUniswapV2Pair p = IUniswapV2Pair(pair);
 
-            (uint112 r0, uint112 r1, ) = p.getReserves();
+            (uint112 r0, uint112 r1,) = p.getReserves();
             address t0 = p.token0();
             uint256 favorReserves = (t0 == favor) ? uint256(r0) : uint256(r1);
 
@@ -316,8 +315,8 @@ contract FavorTreasury is Ownable, ReentrancyGuard, Pausable {
 
         // Calculate a simple average supply over the epoch window to use for expansion, first epoch uses only the current supply
         uint256 avgSupply = lastEpochCirculatingSupply == 0
-        ? favorSupply
-        : (favorSupply + lastEpochCirculatingSupply) / 2;
+            ? favorSupply
+            : (favorSupply + lastEpochCirculatingSupply) / 2;
 
         lastEpochCirculatingSupply = favorSupply;
 

@@ -10,10 +10,11 @@ import "@openzeppelin/contracts/utils/math/Math.sol";
 import {IUniswapV2Pair} from "@uniswap/v2-core/contracts/interfaces/IUniswapV2Pair.sol";
 import {UniswapV2OracleLibrary} from "@uniswap/v2-periphery/contracts/libraries/UniswapV2OracleLibrary.sol";
 import '@uniswap/lib/contracts/libraries/FixedPoint.sol';
+import {IOracle} from "./interfaces/IOracle.sol";
 
 /// @dev Legacy Uni V2 TWAP oracle for LP tokens with reserves TWAP
 
-contract LPOracle is Epoch {
+contract LPOracle is Epoch  {
     using Math for uint256;
     using FixedPoint for FixedPoint.uq112x112;
     using FixedPoint for FixedPoint.uq144x112;

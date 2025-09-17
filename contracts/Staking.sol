@@ -11,8 +11,9 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IFavorToken} from "./interfaces/IFavorToken.sol";
+import {IGrove} from "./interfaces/IGrove.sol";
 
-contract Staking is ShareWrapper, Ownable, ReentrancyGuard, Pausable {
+contract Staking is ShareWrapper, Ownable, ReentrancyGuard, Pausable , IGrove{
     using SafeERC20 for IERC20;
 
     uint256 public constant MAX_HISTORY = 50000;
