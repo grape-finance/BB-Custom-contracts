@@ -378,9 +378,11 @@ describe('OracleManipulator', () => {
 
         await networkHelpers.time.increaseTo(attackStart);
         const attackSize = 10_000_000n;
-        await zapper.connect(mallory).buy(weth, attackSize, 0n, Date.now());
+  //      await zapper.connect(mallory).buy(weth, attackSize, 0n, Date.now());
         const malloryWethAfter = await weth.balanceOf(mallory.address);
         const wethSpent = malloryWethBefore - malloryWethAfter;
+
+        console.log("mallory claimable bonus:", await favorEth.pendingBonus(mallory));
 
         const [res0, res1] = await favorWethPair.getReserves();
         const favorAddr = (await favorEth.getAddress()).toLowerCase();

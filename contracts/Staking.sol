@@ -140,7 +140,7 @@ contract Staking is ShareWrapper, Ownable, ReentrancyGuard, Pausable , IGrove{
         emit Staked(msg.sender, amount);
     }
 
-    function withdraw(uint256 amount) public override nonReentrant groveUserExists updateReward(msg.sender) whenNotPaused {
+    function withdraw(uint256 amount) public override whenNotPaused nonReentrant groveUserExists updateReward(msg.sender)  {
         require(amount > 0, "Grove: Cannot withdraw 0");
         claimReward();
         super.withdraw(amount);
@@ -151,7 +151,7 @@ contract Staking is ShareWrapper, Ownable, ReentrancyGuard, Pausable , IGrove{
         withdraw(balanceOf(msg.sender));
     }
 
-    function claimReward() public updateReward(msg.sender) {
+    function claimReward() public  updateReward(msg.sender)  whenNotPaused {
         uint256 reward = grovers[msg.sender].rewardEarned;
         if (reward > 0) {
             grovers[msg.sender].rewardEarned = 0;

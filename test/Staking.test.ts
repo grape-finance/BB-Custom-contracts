@@ -51,6 +51,22 @@ describe('Staking.sol', () => {
             await expect(notOwned.allocateSeigniorage(123n)).to.be.revertedWith("Not authorized");
 
         })
+
+        it('shall not allow to call those methods when paused', async () => {
+
+            const [deployer, owner, notOwner, treasuryOperator] = await ethers.getSigners();
+            let {staking} = await deployContracts();
+
+            //  staking shall be paused
+            await expect(staking.pause()).to.emit(staking, "Paused");
+            expect(await staking.paused()).to.equal(true);
+
+            //  shall not be able to invoke those methods
+            await expect( staking.stake(12n)).to.be.revertedWithCustomError(staking,"EnforcedPause");
+            await expect( staking.withdraw(12n)).to.be.revertedWithCustomError(staking,"EnforcedPause");
+            await expect( staking.claimReward()).to.be.revertedWithCustomError(staking,"EnforcedPause");
+            await expect( staking.allocateSeigniorage(123)).to.be.revertedWithCustomError(staking,"EnforcedPause");
+        })
     })
 
     describe('settings and initialisation', () => {
