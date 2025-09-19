@@ -2,22 +2,22 @@
 
 pragma solidity 0.8.20;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/Pausable.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Pair.sol";
-
-import "./interfaces/IOracle.sol";
+import "./Epoch.sol";
 import "./interfaces/IBasisAsset.sol";
 import "./interfaces/IGrove.sol";
+import "./interfaces/IOracle.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/utils/Pausable.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Pair.sol";
 
 
-contract FavorTreasury is Ownable, ReentrancyGuard, Pausable {
+contract FavorTreasury is Epoch, ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;
 
-    uint256 public constant PERIOD = 1 hours;
     uint256 public constant BASIS_DIVISOR = 100000; // 100%
 
     bool public initialized = false;
@@ -60,20 +60,11 @@ contract FavorTreasury is Ownable, ReentrancyGuard, Pausable {
     event RecoveredUnsupportedToken(address indexed token, address indexed to, uint256 amount);
 
 
-    constructor(address _owner)  Ownable(_owner)
+    constructor(EpochKeeper _keeper, address _owner)
+    Epoch(_keeper, _owner)
     {}
 
-    modifier checkCondition {
-        require(block.timestamp >= startTime, "Treasury: not started yet");
-        _;
-    }
 
-    modifier checkEpoch {
-        require(block.timestamp >= nextEpochPoint(), "Treasury: not opened yet");
-        _;
-
-        epoch = epoch + 1;
-    }
 
     modifier notInitialized {
         require(!initialized, "Treasury: already initialized");
@@ -84,9 +75,6 @@ contract FavorTreasury is Ownable, ReentrancyGuard, Pausable {
         return initialized;
     }
 
-    function nextEpochPoint() public view returns (uint256) {
-        return startTime + (epoch * PERIOD);
-    }
 
     function getAddressesExcluded() external view returns (address[] memory) {
         return excludedAddresses;
@@ -116,20 +104,17 @@ contract FavorTreasury is Ownable, ReentrancyGuard, Pausable {
     function initialize(
         address _favor,
         address _favorOracle,
-        address _grove,
-        uint256 _startTime
+        address _grove
     ) public notInitialized onlyOwner {
         require(_favor != address(0), "Invalid Favor address");
         require(_favorOracle != address(0), "Invalid Oracle address");
         require(_grove != address(0), "Invalid Grove address");
-        require(_startTime > block.timestamp, "Must start in future");
 
         favor = _favor;
         favorOracle = _favorOracle;
         grove = _grove;
-        startTime = _startTime;
-
         initialized = true;
+
         emit Initialized(msg.sender, block.timestamp);
     }
 
@@ -308,7 +293,8 @@ contract FavorTreasury is Ownable, ReentrancyGuard, Pausable {
         emit GroveFunded(block.timestamp, _amount);
     }
 
-    function allocateSeigniorage() external nonReentrant checkCondition checkEpoch whenNotPaused {
+    function allocateSeigniorage() external nonReentrant checkEpoch whenNotPaused {
+        _updateEpoch();
         _updateFavorPrice();
 
         uint256 favorSupply = getFavorCirculatingSupply();

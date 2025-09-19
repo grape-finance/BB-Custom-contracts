@@ -2,13 +2,13 @@ import {expect} from "chai";
 import {network} from "hardhat";
 import {createToken, createUSV2Factory, createUSV2Router} from "./utils/contractUtils.js";
 
-const {ethers} = await network.connect();
+const {ethers, networkHelpers} = await network.connect();
 
 describe('LPOracle.sol', () => {
 
     async function deployContracts() {
 
-        const [deployer, owner] = await ethers.getSigners();
+        const [owner] = await ethers.getSigners();
 
         //  tokens
         let favor = await createToken(owner, 'favor', "f0");
@@ -39,24 +39,31 @@ describe('LPOracle.sol', () => {
         await masterOracle.setLastPrice(base, 234n);
 
 
+        let genesis = (await ethers.provider.getBlock('latest'))?.timestamp || 0;
+        const epochKeeper = await ethers.deployContract("EpochKeeper", [genesis, 3600, owner]);
+
         let originTime = Date.now();
-        const lpOracleOnstance = await ethers.deployContract("LPOracle", [favorBasePair, masterOracle, 3600, originTime, 10000n]);
-        const deployTimestamp = (await ethers.provider.getBlock("latest")).timestamp;
+        const lpOracle = await ethers.deployContract("LPOracle", [favorBasePair, masterOracle, 10000n, epochKeeper, owner]);
 
-        await lpOracleOnstance.transferOwnership(owner);
-
-        let lpOracle = lpOracleOnstance.connect(owner);
+        const deployTimestamp = (await ethers.provider.getBlock("latest"))?.timestamp || 0;
 
 
-        return {lpOracle, favor, base, favorBasePair, masterOracle, originTime, deployTimestamp};
+        return {lpOracle, favor, base, favorBasePair, masterOracle, originTime, deployTimestamp, epochKeeper};
     }
 
     describe('deployment', () => {
         // shall be able to depoy contract,  basic settings shall be set
         it('shall be able to deploy', async () => {
 
-            const [deployer, owner] = await ethers.getSigners();
-            let {lpOracle, masterOracle, base, favor, favorBasePair, deployTimestamp} = await deployContracts()
+            const [owner] = await ethers.getSigners();
+            let {
+                lpOracle,
+                masterOracle,
+                base,
+                favor,
+                favorBasePair,
+                deployTimestamp
+            } = await networkHelpers.loadFixture(deployContracts);
             // shall deploy
             expect(lpOracle).to.not.equal(null);
 
@@ -100,20 +107,18 @@ describe('LPOracle.sol', () => {
     describe('access control', () => {
         it('only owner shall be able to do this', async () => {
 
-            const [deployer, owner, somebody] = await ethers.getSigners();
-            let {lpOracle} = await deployContracts()
+            const [owner, somebody] = await ethers.getSigners();
+            let {lpOracle} = await networkHelpers.loadFixture(deployContracts);
 
             await expect(lpOracle.connect(somebody).setApprovedUser(somebody, true)).to.be.revertedWithCustomError(lpOracle, "OwnableUnauthorizedAccount");
             await expect(lpOracle.connect(somebody).setMasterOracle(somebody)).to.be.revertedWithCustomError(lpOracle, "OwnableUnauthorizedAccount");
-            await expect(lpOracle.connect(somebody).setPeriod(123)).to.be.revertedWithCustomError(lpOracle, "OwnableUnauthorizedAccount");
-            await expect(lpOracle.connect(somebody).setEpoch(123)).to.be.revertedWithCustomError(lpOracle, "OwnableUnauthorizedAccount");
 
         })
 
         it('only approved shall be able to this', async () => {
 
             const [deployer, owner, somebody] = await ethers.getSigners();
-            let {lpOracle} = await deployContracts()
+            let {lpOracle} = await networkHelpers.loadFixture(deployContracts);
 
             await expect(lpOracle.connect(somebody).update()).to.be.revertedWith("Epoch: caller not approved");
 
@@ -135,24 +140,40 @@ describe('LPOracle.sol', () => {
         })
 
 
-        it('approved user shall trigger update', async () => {
+        it('even approved user shall not trigger update before epoch is changed', async () => {
 
-            const [deployer, owner, somebody] = await ethers.getSigners();
+            const [owner, somebody] = await ethers.getSigners();
             let {lpOracle} = await deployContracts();
 
             await lpOracle.setApprovedUser(somebody, true);
-
-            await expect(lpOracle.connect(somebody).update()).to.emit(lpOracle, "Updated");
-
+            await expect(lpOracle.connect(somebody).update()).to.not.emit(lpOracle, "Updated");
         })
     })
 
-    describe('possible issues', () => {
 
-        //  Zokyo expresses concern: what happens in case staker is not set to be tax-exempt
-        //  this could prevent proper aallocation of favor to it
-        it('shall behave properly in case  tax exemt misconfiguration', async () => {
+    describe('updating', () => {
+
+        it('shall update epoch when time comes', async () => {
+            const [owner, somebody] = await ethers.getSigners();
+            let {lpOracle, epochKeeper} = await networkHelpers.loadFixture(deployContracts);
+
+            let [current, from, to] = await epochKeeper.currentEpochBoundary();
+            expect(await lpOracle.currentEpoch()).to.be.equal(current);
+            expect(await lpOracle.activeEpochStart()).to.be.equal(from);
+            expect(await lpOracle.activeEpochEnd()).to.be.equal(to);
+
+            await networkHelpers.time.increaseTo(to + 1n);
+            await expect(lpOracle.update()).to.emit(lpOracle, "Updated");
+
+            expect(await lpOracle.currentEpoch()).to.be.equal(current + 1n);
+
+            [current, from, to] = await epochKeeper.currentEpochBoundary();
+            expect(await lpOracle.currentEpoch()).to.be.equal(current);
+            expect(await lpOracle.activeEpochStart()).to.be.equal(from);
+            expect(await lpOracle.activeEpochEnd()).to.be.equal(to);
 
         })
+
     })
+
 });

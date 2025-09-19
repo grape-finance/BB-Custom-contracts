@@ -12,20 +12,29 @@ describe('FavorTreasury.sol', () => {
 
         const [deployer, owner] = await ethers.getSigners();
 
-        const favorTreasuryInstance = await ethers.deployContract("FavorTreasury", [owner]);
+
+        let genesis = (await ethers.provider.getBlock('latest'))?.timestamp || 0;
+        const epochKeeper = await ethers.deployContract("EpochKeeper", [genesis, 3600, owner]);
+
+        const favorTreasuryInstance = await ethers.deployContract("FavorTreasury", [epochKeeper, owner]);
         let favorTreasury = favorTreasuryInstance.connect(owner);
 
-        return {favorTreasury};
+        return {favorTreasury,  epochKeeper};
     }
 
     describe('deployment', () => {
 
         it("shall be able to deploy", async () => {
             const [deployer, owner] = await ethers.getSigners();
-            let {favorTreasury} = await deployContracts();
+            let {favorTreasury, epochKeeper} = await deployContracts();
 
             expect(favorTreasury).to.not.equal(null);
             expect(await favorTreasury.owner()).to.equal(owner.address);
+
+            let [current, from, to] = await epochKeeper.currentEpochBoundary();
+
+            //  epoch 0  upon initalisation
+            expect(await favorTreasury.nextEpochPoint()).to.equal(to);
         })
     })
 
@@ -38,7 +47,7 @@ describe('FavorTreasury.sol', () => {
             let notOwned = favorTreasury.connect(notOwner);
 
             // all those all shall fail
-            await expect(notOwned.initialize(owner, owner, owner, 12345n)).to.be.revertedWithCustomError(favorTreasury, "OwnableUnauthorizedAccount");
+            await expect(notOwned.initialize(owner, owner, owner)).to.be.revertedWithCustomError(favorTreasury, "OwnableUnauthorizedAccount");
             await expect(notOwned.setGrove(owner)).to.be.revertedWithCustomError(favorTreasury, "OwnableUnauthorizedAccount");
             await expect(notOwned.setFavorOracle(owner)).to.be.revertedWithCustomError(favorTreasury, "OwnableUnauthorizedAccount");
             await expect(notOwned.setMaxSupplyExpansionPercents(123)).to.be.revertedWithCustomError(favorTreasury, "OwnableUnauthorizedAccount");
@@ -58,15 +67,24 @@ describe('FavorTreasury.sol', () => {
     describe('settings and initialisation', () => {
         it("shall initialise treasury", async () => {
             const [deployer, owner, favor, oracle, groove] = await ethers.getSigners();
-            let {favorTreasury} = await deployContracts();
+            let {favorTreasury, epochKeeper} = await deployContracts();
 
-            let currentTime = Math.ceil(Date.now() / 1000);
+            let [current, from, to] = await epochKeeper.currentEpochBoundary();
 
-            await expect(favorTreasury.initialize(favor, oracle, groove, currentTime)).to.emit(favorTreasury, "Initialized");
+
+            await expect(favorTreasury.initialize(favor, oracle, groove)).to.emit(favorTreasury, "Initialized");
 
             expect(await favorTreasury.isInitialized()).to.equal(true);
-            //  epoch 0  upon initalisation
-            expect(await favorTreasury.nextEpochPoint()).to.equal(currentTime);
+
+        })
+    })
+
+    describe('epoch transition', () => {
+        it("seignorage allocation shall not happen before expoh end", async () => {
+            const [deployer, owner, favor, oracle, groove] = await ethers.getSigners();
+            let {favorTreasury, epochKeeper} = await deployContracts();
+
+            expect(await favorTreasury.allocateSeigniorage()).to.not.be.revert(ethers);
         })
     })
 })

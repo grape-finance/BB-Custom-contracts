@@ -104,4 +104,12 @@ describe('Staking.sol', () => {
             expect(await staking.treasuryOperator()).to.equal(treasury.address);
         })
     })
+
+    describe('possible issues', () => {
+
+        //  Zokyo expresses concern: what happens in case staker is not set to be tax-exempt
+        //  this could prevent proper allocation of favor to it
+        it('shall behave properly in case  tax exemt misconfiguration', async () => {
+        })
+    })
 })

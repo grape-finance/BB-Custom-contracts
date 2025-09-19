@@ -14,7 +14,7 @@ import {IOracle} from "./interfaces/IOracle.sol";
 
 /// @dev Legacy Uni V2 TWAP oracle for LP tokens with reserves TWAP
 
-contract LPOracle is Epoch  {
+contract LPOracle is Epoch {
     using Math for uint256;
     using FixedPoint for FixedPoint.uq112x112;
     using FixedPoint for FixedPoint.uq144x112;
@@ -64,11 +64,10 @@ contract LPOracle is Epoch  {
     constructor(
         IUniswapV2Pair _pair,
         IMasterOracle _masterOracle,
-        uint256 _period,
-        uint256 _startTime,
-        uint256 _priceCap
-    ) Epoch(_period, _startTime, 0) {
-        require(_period >= 15 minutes && _period <= 24 hours, "_period: out of range");
+        uint256 _priceCap,
+        EpochKeeper _keeper,
+        address _owner
+    ) Epoch(_keeper, _owner) {
 
         pair = _pair;
         token0 = _pair.token0();
@@ -102,7 +101,9 @@ contract LPOracle is Epoch  {
     }
 
     /// @notice Update TWAPs: Uniswap prices, √K, and USD feeds
-    function update() external  onlyApproved checkEpoch {
+    function update() external onlyApproved checkEpoch {
+        _updateEpoch();
+
         // 1) token0/token1 price TWAPs (Uniswap cumulative)
         {
             (uint256 p0C, uint256 p1C, uint32 blockTs) = UniswapV2OracleLibrary

@@ -11,9 +11,7 @@ describe('EpochKeeper', () => {
         const [deployer, owner] = await ethers.getSigners();
 
         let genesis = (await ethers.provider.getBlock('latest'))?.timestamp || 0;
-
-        const epochKeeperInstance = await ethers.deployContract("EpochKeeper", [genesis, 1000, owner]);
-        let epochKeeper = epochKeeperInstance.connect(owner);
+        const epochKeeper = await ethers.deployContract("EpochKeeper", [genesis, 1000, owner]);
         return {epochKeeper, genesis};
     }
 
@@ -39,7 +37,7 @@ describe('EpochKeeper', () => {
         let {epochKeeper} = await networkHelpers.loadFixture(deployContracts);
 
         //  shalll do
-        await expect(epochKeeper.setEpochDuration(2000)).to.not.be.revert(ethers);
+        await expect(epochKeeper.connect(owner).setEpochDuration(2000)).to.not.be.revert(ethers);
         expect(await epochKeeper.epochDuration()).to.equal(2000);
 
         // shall fail

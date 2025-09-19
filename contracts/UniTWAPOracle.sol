@@ -10,7 +10,7 @@ import {IOracle} from "./interfaces/IOracle.sol";
 
 // fixed window oracle that recomputes the average price for the entire period once every period
 // note that the price average is only guaranteed to be over at least 1 period, but may be over a longer period
-contract UniTWAPOracle is Epoch , IOracle {
+contract UniTWAPOracle is Epoch, IOracle {
     using FixedPoint for *;
 
     /* ========== STATE VARIABLES ========== */
@@ -32,11 +32,10 @@ contract UniTWAPOracle is Epoch , IOracle {
 
     constructor(
         IUniswapV2Pair _pair,
-        uint256 _period,
-        uint256 _startTime,
-        uint256 _priceCap
-    ) Epoch(_period, _startTime, 0) {
-        require(_period >= 15 minutes && _period <= 24 hours, '_period: out of range');
+        uint256 _priceCap,
+        EpochKeeper _keeper,
+        address _owner
+    ) Epoch(_keeper, _owner) {
         pair = _pair;
         token0 = pair.token0();
         token1 = pair.token1();
@@ -54,11 +53,11 @@ contract UniTWAPOracle is Epoch , IOracle {
     /// @dev Updates TWAP price from Uniswap 
     function update() public onlyApproved checkEpoch {
         (uint256 price0Cumulative, uint256 price1Cumulative, uint32 blockTimestamp) =
-            UniswapV2OracleLibrary.currentCumulativePrices(address(pair));
+                            UniswapV2OracleLibrary.currentCumulativePrices(address(pair));
 
         uint32 timeElapsed;
         unchecked {
-            // Overflow desired wrapped in unchecked
+        // Overflow desired wrapped in unchecked
             timeElapsed = blockTimestamp - blockTimestampLast;
         }
         if (timeElapsed == 0) return; // prevent divide-by-zero
@@ -66,7 +65,7 @@ contract UniTWAPOracle is Epoch , IOracle {
         uint256 price0Delta;
         uint256 price1Delta;
         unchecked {
-            // Overflow desired wrapped in unchecked
+        // Overflow desired wrapped in unchecked
             price0Delta = price0Cumulative - price0CumulativeLast;
             price1Delta = price1Cumulative - price1CumulativeLast;
         }
@@ -100,21 +99,21 @@ contract UniTWAPOracle is Epoch , IOracle {
     /// @notice Returns rolling TWAP price which is more likely to be prone to short term price fluctuations. Only used on UI for informational purposes.
     function twap(address _token, uint256 _amountIn) external view returns (uint256 _amountOut) {
         (uint256 price0Cumulative, uint256 price1Cumulative, uint32 blockTimestamp) =
-            UniswapV2OracleLibrary.currentCumulativePrices(address(pair));
+                            UniswapV2OracleLibrary.currentCumulativePrices(address(pair));
 
         uint32 timeElapsed;
-        unchecked { timeElapsed = blockTimestamp - blockTimestampLast; } // Overflow desired wrapped in unchecked
+        unchecked {timeElapsed = blockTimestamp - blockTimestampLast;} // Overflow desired wrapped in unchecked
         if (timeElapsed == 0) return 0;
 
         if (_token == token0) {
             uint256 price0Delta;
-            unchecked { price0Delta = price0Cumulative - price0CumulativeLast; }
+            unchecked {price0Delta = price0Cumulative - price0CumulativeLast;}
             _amountOut = uint256(
                 FixedPoint.uq112x112(uint224(price0Delta / timeElapsed)).mul(_amountIn).decode144()
             );
         } else if (_token == token1) {
             uint256 price1Delta;
-            unchecked { price1Delta = price1Cumulative - price1CumulativeLast; }
+            unchecked {price1Delta = price1Cumulative - price1CumulativeLast;}
             _amountOut = uint256(
                 FixedPoint.uq112x112(uint224(price1Delta / timeElapsed)).mul(_amountIn).decode144()
             );
