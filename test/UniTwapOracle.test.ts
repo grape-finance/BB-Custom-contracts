@@ -93,7 +93,7 @@ describe('UniTWAPOracle.sol', () => {
             } = await networkHelpers.loadFixture(deployContracts);
 
 
-            await expect(uniTWAPOracle.connect(somebody).setApprovedUser(somebody, true)).to.be.revertedWithCustomError(lpOracle, "OwnableUnauthorizedAccount");
+            await expect(uniTWAPOracle.connect(somebody).setApprovedUser(somebody, true)).to.be.revertedWithCustomError(uniTWAPOracle, "OwnableUnauthorizedAccount");
 
         })
 
@@ -115,7 +115,7 @@ describe('UniTWAPOracle.sol', () => {
 
             expect(await uniTWAPOracle.isApprovedUser(somebody)).to.equal(false);
 
-            await expect(uniTWAPOracle.setApprovedUser(somebody, true)).to.emit(lpOracle, "ApprovedUserSet").withArgs(somebody, true);
+            await expect(uniTWAPOracle.setApprovedUser(somebody, true)).to.emit(uniTWAPOracle, "ApprovedUserSet").withArgs(somebody, true);
 
             expect(await uniTWAPOracle.isApprovedUser(somebody)).to.equal(true);
 
@@ -128,7 +128,7 @@ describe('UniTWAPOracle.sol', () => {
             let {uniTWAPOracle} = await deployContracts();
 
             await uniTWAPOracle.setApprovedUser(somebody, true);
-            await expect(uniTWAPOracle.connect(somebody).update()).to.not.emit(lpOracle, "Updated");
+            await expect(uniTWAPOracle.connect(somebody).update()).to.not.emit(uniTWAPOracle, "Updated");
         })
     })
 
@@ -140,11 +140,22 @@ describe('UniTWAPOracle.sol', () => {
             let {uniTWAPOracle, epochKeeper} = await networkHelpers.loadFixture(deployContracts);
 
             let [current, from, to] = await epochKeeper.currentEpochBoundary();
+            expect(await uniTWAPOracle.currentEpoch()).to.be.equal(current);
+            expect(await uniTWAPOracle.activeEpochStart()).to.be.equal(from);
+            expect(await uniTWAPOracle.activeEpochEnd()).to.be.equal(to);
 
-            await networkHelpers.time.increaseTo(to + 1n);
-            await expect(uniTWAPOracle.update()).to.emit(lpOracle, "Updated");
+            await networkHelpers.time.increaseTo(to + 10n);
+            await expect(uniTWAPOracle.update()).to.emit(uniTWAPOracle, "Updated");
 
+            console.log(await uniTWAPOracle.currentEpoch());
             expect(await uniTWAPOracle.currentEpoch()).to.be.equal(current + 1n);
+
+            [current, from, to] = await epochKeeper.currentEpochBoundary();
+
+            expect(await uniTWAPOracle.currentEpoch()).to.be.equal(current);
+            expect(await uniTWAPOracle.activeEpochStart()).to.be.equal(from);
+            expect(await uniTWAPOracle.activeEpochEnd()).to.be.equal(to);
+
         })
 
     })

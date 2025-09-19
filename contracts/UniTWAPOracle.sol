@@ -52,6 +52,9 @@ contract UniTWAPOracle is Epoch, IOracle {
 
     /// @dev Updates TWAP price from Uniswap 
     function update() public onlyApproved checkEpoch {
+
+        _updateEpoch();
+
         (uint256 price0Cumulative, uint256 price1Cumulative, uint32 blockTimestamp) =
                             UniswapV2OracleLibrary.currentCumulativePrices(address(pair));
 

@@ -22,9 +22,9 @@ describe('OracleManipulator', () => {
         await esteem.mint(owner, 1000n);
 
 
-        const minter = await ethers.deployContract("MintRedeemer", [esteem, startTime + 10, owner]);
+        const minter = await ethers.deployContract("MintRedeemer", [esteem, startTime + 100, owner]);
         // 0.1 ,  18 digitts fixed decimal point
-        await minter.setEsteemRate(100000000000000000n)
+        await minter.setEsteemRate(100_000_000_000_000_000n)
 
 
         let weth = await createToken(owner, 'wethweth', "t0");
@@ -83,7 +83,10 @@ describe('OracleManipulator', () => {
         await favorEth.setTaxExempt(owner, false);
 
 
-        const uniTwapOracle = await ethers.deployContract("UniTWAPOracle", [favorWethPair, 3600, startTime, 1000_000_000_000_000_000_000n]);
+        let genesis = (await ethers.provider.getBlock('latest'))?.timestamp || 0;
+        const epochKeeper = await ethers.deployContract("EpochKeeper", [genesis, 3600, owner]);
+
+        const uniTwapOracle = await ethers.deployContract("UniTWAPOracle", [favorWethPair, 1000_000_000_000_000_000_000n, epochKeeper, owner]);
         await mockOracle.setTwapOracle(favorEth, uniTwapOracle);
 
 
@@ -93,12 +96,10 @@ describe('OracleManipulator', () => {
         await favorEth.setTaxExempt(grove, true);
 
         //  create and inialise favor treasury,
-        const favorTreasury = await ethers.deployContract("FavorTreasury", [owner]);
-        favorEth.setTaxExempt(favorTreasury, true);
+        const favorTreasury = await ethers.deployContract("FavorTreasury", [epochKeeper, owner]);
+        await favorEth.setTaxExempt(favorTreasury, true);
 
-        let ts = (await ethers.provider.getBlock('latest'))?.timestamp || 0;
-        await favorTreasury.initialize(favorEth, uniTwapOracle, grove, ts + 10);
-        await networkHelpers.time.increaseTo(ts + 20);
+        await favorTreasury.initialize(favorEth, uniTwapOracle, grove);
 
 
         //  initialise staking and stack some favor
@@ -122,6 +123,9 @@ describe('OracleManipulator', () => {
         // seignoreage allocated
         await favorTreasury.allocateSeigniorage();
 
+        //  advance to the next epoch
+        await networkHelpers.time.increaseTo(await epochKeeper.currentEpochEndTime() + 10n);
+
         return {
             zapper,
             favorEth,
@@ -134,6 +138,7 @@ describe('OracleManipulator', () => {
             mockPool,
             grove,
             mockOracle,
+            epochKeeper,
         };
     }
 
@@ -310,6 +315,8 @@ describe('OracleManipulator', () => {
         console.log('----------- alice has claimed bonus -----------')
         await favorEth.connect(alice).claimBonus();
         console.log('alice has got esteem:', await esteem.balanceOf(alice));
+
+
     })
 
 
@@ -378,7 +385,7 @@ describe('OracleManipulator', () => {
 
         await networkHelpers.time.increaseTo(attackStart);
         const attackSize = 10_000_000n;
-  //      await zapper.connect(mallory).buy(weth, attackSize, 0n, Date.now());
+        //      await zapper.connect(mallory).buy(weth, attackSize, 0n, Date.now());
         const malloryWethAfter = await weth.balanceOf(mallory.address);
         const wethSpent = malloryWethBefore - malloryWethAfter;
 

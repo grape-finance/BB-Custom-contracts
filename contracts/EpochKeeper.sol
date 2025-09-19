@@ -12,7 +12,6 @@ contract EpochKeeper is Ownable {
 
     /// @notice The timestamp when the epoch system started.
     uint256 public immutable epochStartTime;
-
     /// @notice The duration of each epoch in seconds. In this case, one day (86400 seconds).
     uint256 public epochDuration;
 
@@ -47,5 +46,15 @@ contract EpochKeeper is Ownable {
         current_ = elapsed / epochDuration;
         from_ = epochStartTime + current_ * epochDuration;
         to_ = from_ + epochDuration;
+    }
+
+    function currentEpochStartTime() public view returns (uint256) {
+        (uint256 current, uint256 from,  uint256 to)  = currentEpochBoundary();
+        return from;
+    }
+
+    function currentEpochEndTime() public view returns (uint256){
+        (uint256 current, uint256 from,  uint256 to)  = currentEpochBoundary();
+        return to;
     }
 }
