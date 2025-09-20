@@ -6,7 +6,7 @@ import {createToken, createUSV2Factory, createUSV2Router} from "./utils/contract
 const {ethers} = await network.connect();
 
 
-describe("Zapper.sol", () => {
+describe("LPZapper.sol", () => {
 
     async function deployContracts() {
         const [deployer, owner, treasury] = await ethers.getSigners();
