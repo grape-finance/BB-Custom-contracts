@@ -147,22 +147,32 @@ describe('Staking.sol', () => {
 
             //  there shall be a stacking lock in place after deposit
 
-            await expect(esteem.approve(staking, 12345n)).to.not.be.revert(ethers);
+            await expect(esteem.approve(staking, 10000000n)).to.not.be.revert(ethers);
             await expect(staking.stake(12345n)).to.not.be.revert(ethers);
             //  stake shall be in place
             expect(await staking.balanceOf(owner)).to.equal(12345n);
 
             // there shall be a lock till the end of epoch 2
+
+
             expect(await staking.isLocked()).to.equal(true);
             expect(await staking.stakeLock(owner)).to.equal(2n);
             await expect(staking.withdraw(124n)).to.be.revertedWith("Deposit locked");
 
-            // epoch 3 shall have no restriction
-            let epoch3Start = await epochKeeper.epochStart(3n);
-            await networkHelpers.time.increaseTo(epoch3Start + 1n);
+            // lock shall be extended with a new deposit
+            let epoch2Start = await epochKeeper.epochStart(2n);
+            await networkHelpers.time.increaseTo(epoch2Start + 1n);
+            await expect(staking.stake(12345n)).to.not.be.revert(ethers);
+
+            expect(await staking.stakeLock(owner)).to.equal(3n);
+
+
+            // epoch 4 shall have no restriction
+            let epoch4Start = await epochKeeper.epochStart(4n);
+            await networkHelpers.time.increaseTo(epoch4Start + 1n);
 
             await expect(staking.withdraw(1000n)).to.not.be.revert(ethers);
-            expect(await staking.balanceOf(owner)).to.equal(11345n);
+            expect(await staking.balanceOf(owner)).to.equal(23690n);
 
         })
 
