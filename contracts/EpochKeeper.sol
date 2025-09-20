@@ -49,12 +49,17 @@ contract EpochKeeper is Ownable {
     }
 
     function currentEpochStartTime() public view returns (uint256) {
-        (uint256 current, uint256 from,  uint256 to)  = currentEpochBoundary();
+        (, uint256 from,) = currentEpochBoundary();
         return from;
     }
 
     function currentEpochEndTime() public view returns (uint256){
-        (uint256 current, uint256 from,  uint256 to)  = currentEpochBoundary();
+        (, ,  uint256 to) = currentEpochBoundary();
         return to;
+    }
+
+
+    function epochStart(uint256 epoch) public view returns (uint256) {
+        return epochStartTime + epoch * epochDuration;
     }
 }

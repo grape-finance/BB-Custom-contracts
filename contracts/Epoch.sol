@@ -6,6 +6,9 @@ pragma solidity 0.8.20;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import {EpochKeeper} from "./EpochKeeper.sol";
 
+// Epoch is abstract class for thise who wants to keep track on current epoch and keep  and update some
+// state based on epoch
+// simple use classes can just use epoch keeper to have a notion of current epoch
 abstract contract Epoch is Ownable {
 
     // Approved users mapping

@@ -1,7 +1,6 @@
 import {network, tasks} from "hardhat";
 import {createToken, createUSV2Factory, createUSV2Router} from "./utils/contractUtils.js";
 import {expect} from "chai";
-import {fail} from "node:assert";
 
 const {ethers, networkHelpers} = await network.connect();
 
@@ -91,7 +90,7 @@ describe('OracleManipulator', () => {
 
 
         //  create grove
-        let grove = await ethers.deployContract("Staking", [owner]);
+        let grove = await ethers.deployContract("Staking", [epochKeeper, owner]);
         // groove shall be tax exempt
         await favorEth.setTaxExempt(grove, true);
 

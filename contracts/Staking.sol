@@ -2,18 +2,19 @@
 
 pragma solidity 0.8.20;
 
+import "./Epoch.sol";
 import "./ShareWrapper.sol";
 import "./interfaces/ITreasury.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IFavorToken} from "./interfaces/IFavorToken.sol";
 import {IGrove} from "./interfaces/IGrove.sol";
 
-contract Staking is ShareWrapper, Ownable, ReentrancyGuard, Pausable , IGrove{
+contract Staking is ShareWrapper, Ownable, ReentrancyGuard, Pausable, IGrove {
     using SafeERC20 for IERC20;
 
     uint256 public constant MAX_HISTORY = 50000;
@@ -35,10 +36,12 @@ contract Staking is ShareWrapper, Ownable, ReentrancyGuard, Pausable , IGrove{
 
     IERC20 public favor;
     ITreasury public treasury;
+    EpochKeeper epochKeeper;
 
     mapping(uint256 => GroveSnapshot) public groveHistory;
     mapping(address => GroveSeat) public grovers;
-
+    // stake is locked until this epoch
+    mapping(address => uint256) public stakeLock;
     address public treasuryOperator;
 
     event Initialized(address indexed executor, uint256 at);
@@ -50,6 +53,8 @@ contract Staking is ShareWrapper, Ownable, ReentrancyGuard, Pausable , IGrove{
     event RecoveredUnsupportedToken(address indexed token, address indexed to, uint256 amount);
     event ContractPaused(address indexed admin);
     event ContractUnpaused(address indexed admin);
+
+    error DepositLocked(uint256 epoch);
 
     modifier groveUserExists {
         require(balanceOf(msg.sender) > 0, "Grove: The user does not exist");
@@ -70,8 +75,10 @@ contract Staking is ShareWrapper, Ownable, ReentrancyGuard, Pausable , IGrove{
         _;
     }
 
-    constructor(address _owner)  Ownable(_owner)
-    {}
+    constructor(EpochKeeper _epochKeeper, address _owner) Ownable(_owner)
+    {
+        epochKeeper = _epochKeeper;
+    }
 
     function initialize(
         address _favor,
@@ -111,14 +118,6 @@ contract Staking is ShareWrapper, Ownable, ReentrancyGuard, Pausable , IGrove{
         return groveHistory[idx];
     }
 
-    function epoch() external view returns (uint256) {
-        return treasury.epoch();
-    }
-
-    function nextEpochPoint() external view returns (uint256) {
-        return treasury.nextEpochPoint();
-    }
-
     function getFavorPrice() external view returns (uint256) {
         return treasury.getFavorPrice();
     }
@@ -136,12 +135,15 @@ contract Staking is ShareWrapper, Ownable, ReentrancyGuard, Pausable , IGrove{
 
     function stake(uint256 amount) public override nonReentrant updateReward(msg.sender) whenNotPaused {
         require(amount > 0, "Grove: Cannot stake 0");
+        // lock until the end of next epoch
+        stakeLock[_msgSender()] = epochKeeper.currentEpoch() + 1;
         super.stake(amount);
         emit Staked(msg.sender, amount);
     }
 
-    function withdraw(uint256 amount) public override whenNotPaused nonReentrant groveUserExists updateReward(msg.sender)  {
+    function withdraw(uint256 amount) public override whenNotPaused nonReentrant groveUserExists updateReward(msg.sender) {
         require(amount > 0, "Grove: Cannot withdraw 0");
+        require(!isLocked(), "Deposit locked");
         claimReward();
         super.withdraw(amount);
         emit Withdrawn(msg.sender, amount);
@@ -151,7 +153,7 @@ contract Staking is ShareWrapper, Ownable, ReentrancyGuard, Pausable , IGrove{
         withdraw(balanceOf(msg.sender));
     }
 
-    function claimReward() public  updateReward(msg.sender)  whenNotPaused {
+    function claimReward() public updateReward(msg.sender) whenNotPaused {
         uint256 reward = grovers[msg.sender].rewardEarned;
         if (reward > 0) {
             grovers[msg.sender].rewardEarned = 0;
@@ -202,5 +204,10 @@ contract Staking is ShareWrapper, Ownable, ReentrancyGuard, Pausable , IGrove{
     function unpause() external onlyOwner {
         _unpause();
         emit ContractUnpaused(msg.sender);
+    }
+
+    //  whether caller stake is locked
+    function isLocked() public view returns (bool) {
+        return epochKeeper.currentEpoch() <= stakeLock[_msgSender()];
     }
 }
