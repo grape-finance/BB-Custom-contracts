@@ -67,7 +67,7 @@ describe("LPZapper.sol", () => {
         await baseToken.approve(v2router, 1_000_000_000_000_000_000n);
 
         await v2factory.createPair(favorBase, baseToken);
-        pairAdr = await v2factory.getPair(favorEth, weth);
+        pairAdr = await v2factory.getPair(favorBase, baseToken);
         let favorBasePair = await ethers.getContractAt("IUniswapV2Pair", pairAdr, owner);
 
 
@@ -182,23 +182,21 @@ describe("LPZapper.sol", () => {
 
         it("manage favor tokens", async () => {
             const [deployer, owner, favor, lp, base] = await ethers.getSigners();
-            let {zapper} = await deployContracts();
+            let {zapper, favorEth, favorWethPair, weth} = await deployContracts();
 
-            // add favor token to favor
-            expect(await zapper.addFavor(favor, lp, base)).to.not.be.revert(ethers);
 
             // shall have set up mappings
-            expect(await zapper.tokenToFavor(base)).to.be.equal(favor);
-            expect(await zapper.favorToLp(favor)).to.be.equal(lp);
-            expect(await zapper.favorToToken(favor)).to.be.equal(base);
+            expect(await zapper.tokenToFavor(weth)).to.be.equal(favorEth);
+            expect(await zapper.favorToLp(favorEth)).to.be.equal(favorWethPair);
+            expect(await zapper.favorToToken(favorEth)).to.be.equal(weth);
 
             //  shall remove favor mapping
-            expect(await zapper.removeFavorToken(favor)).to.not.be.revert(ethers);
+            expect(await zapper.removeFavorToken(favorEth)).to.not.be.revert(ethers);
 
             // shall have removed mappings
-            expect(await zapper.tokenToFavor(base)).to.be.equal(ZeroAddress);
-            expect(await zapper.favorToLp(favor)).to.be.equal(ZeroAddress);
-            expect(await zapper.favorToToken(favor)).to.be.equal(ZeroAddress);
+            expect(await zapper.tokenToFavor(weth)).to.be.equal(ZeroAddress);
+            expect(await zapper.favorToLp(favorEth)).to.be.equal(ZeroAddress);
+            expect(await zapper.favorToToken(favorEth)).to.be.equal(ZeroAddress);
 
         })
 
@@ -235,6 +233,22 @@ describe("LPZapper.sol", () => {
             let afterSending = await ethers.provider.getBalance(receiver);
 
             expect(afterSending - beforeSending).to.equal(1000n);
+
+        })
+
+        // HAL-13 Add sanity check to favor registration, ovoid overwriting LP settings etc.
+        it("shall check for publicates when adding favor", async () => {
+            const [deployer, owner, favor , lp, base] = await ethers.getSigners();
+            let {zapper, favorEth, favorWethPair, weth, baseToken} = await deployContracts();
+
+            //  shall not add favor, is already added
+            await expect(zapper.addFavor(favorEth, lp, base)).to.be.revertedWith("Favor already registered");
+
+            //  shall not add favor, if  token is already used
+            await expect(zapper.addFavor(favor, favorWethPair, baseToken)).to.be.revertedWith("Token already registered");
+
+            //  shall not add favor, if LP does not have both tokens
+            await expect(zapper.addFavor(base, favorWethPair, base)).to.be.revertedWith("LP token mismatch");
 
         })
 
@@ -582,7 +596,7 @@ describe("LPZapper.sol", () => {
             await baseToken.approve(zapper, 2000n);
             await expect(zapper.addLiquidity(favorBase, baseToken, 1000, 2000, 1000, 2000, owner, Date.now() + 10000)).to.not.be.revert(ethers);
 
-            expect(await favorBasePair.balanceOf(owner)).to.equal(1413213n);
+            expect(await favorBasePair.balanceOf(owner)).to.equal(414n);
 
         })
 

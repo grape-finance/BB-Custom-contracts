@@ -372,14 +372,14 @@ contract LPZapper is Ownable, ReentrancyGuard {
     }
 
     function addDustToken(address token) public onlyOwner {
-        require(!isDustToken[token], "already added");
+        require(!isDustToken[token], "dust token already added");
         isDustToken[token] = true;
         dustTokens.push(token);
         emit DustTokenAdded(token);
     }
 
     function removeDustToken(address token) external onlyOwner {
-        require(isDustToken[token], "not registered");
+        require(isDustToken[token], "dust token not registered");
         isDustToken[token] = false;
         for (uint i = 0; i < dustTokens.length; i++) {
             if (dustTokens[i] == token) {
@@ -423,6 +423,14 @@ contract LPZapper is Ownable, ReentrancyGuard {
         require(_favor != address(0), "Invalid address");
         require(_lp != address(0), "Invalid address");
         require(_token != address(0), "Invalid address");
+        require(favorToLp[_favor] == address(0),"Favor already registered");
+        require(tokenToFavor[_token] == address(0),"Token already registered");
+
+        // LP shall match,   HAL-13
+        address t0 = IUniswapV2Pair(_lp).token0();
+        address t1 = IUniswapV2Pair(_lp).token1();
+        require( t0 == _favor && t1 == _token || t0 == _token && t1 == _favor, "LP token mismatch");
+
         favorToToken[_favor] = _token;
         favorToLp[_favor] = _lp;
         tokenToFavor[_token] = _favor;
