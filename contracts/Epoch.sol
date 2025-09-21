@@ -45,7 +45,7 @@ abstract contract Epoch is Ownable {
         _;
     }
 
-    // check whether new epoch is started,  if not -  just silently refuse doing enything
+    // check whether new epoch is started,  if not -  just silently refuse doing anything
     modifier checkEpoch {
         if (currentEpoch < keeper.currentEpoch()) {
             _;

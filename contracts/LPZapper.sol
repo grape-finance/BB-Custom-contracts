@@ -1,24 +1,25 @@
 //SPDX-License-Identifier: MIT
 pragma solidity 0.8.20;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/utils/Context.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
-
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-
-import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Pair.sol";
-import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Factory.sol";
-import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
-import "@uniswap/v2-periphery/contracts/interfaces/IWETH.sol";
-
+import "./interfaces/IFavorToken.sol";
 import "@aave/core-v3/contracts/flashloan/interfaces/IFlashLoanSimpleReceiver.sol";
 import "@aave/core-v3/contracts/interfaces/IPool.sol";
 
-import "./interfaces/IFavorToken.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/utils/Context.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+
+import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Factory.sol";
+import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Pair.sol";
+
+import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
+import "@uniswap/v2-periphery/contracts/interfaces/IWETH.sol";
 
 
-contract LPZapper is Ownable {
+contract LPZapper is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     IPool public POOL;
@@ -130,12 +131,12 @@ contract LPZapper is Ownable {
     }
 
     //  zap  token into LP with favor
-    function zapToken(address _token, uint _amount, uint256 _deadline) public {
+    function zapToken(address _token, uint _amount, uint256 _deadline) public nonReentrant {
         IERC20(_token).safeTransferFrom(msg.sender, address(this), _amount);
         _zapToken(_token, _amount, _deadline);
     }
 
-    function _zapToken(address _token, uint _amount, uint256 _deadline) public {
+    function _zapToken(address _token, uint _amount, uint256 _deadline) internal {
         address favor = tokenToFavor[_token];
         require(favor != address(0), "Zap: unsupported");
 
@@ -158,7 +159,7 @@ contract LPZapper is Ownable {
 
     }
 
-    function zapPLS(uint256 _deadline) public payable {
+    function zapPLS(uint256 _deadline) public payable nonReentrant {
         //  wrap
         IWETH(router.WETH()).deposit{value: msg.value}();
         _zapToken(router.WETH(), uint112(msg.value), _deadline);
@@ -215,7 +216,7 @@ contract LPZapper is Ownable {
         sellTo(msg.sender, _favor, _amount, _deadline);
     }
 
-    function sellTo(address _receiver, address _favor, uint256 _amount, uint256 _deadline) public {
+    function sellTo(address _receiver, address _favor, uint256 _amount, uint256 _deadline) public nonReentrant{
 
         address base = favorToToken[_favor];
         require(base != address(0), "Zapper: unsupported token");
@@ -248,7 +249,7 @@ contract LPZapper is Ownable {
         buyTo(msg.sender, _baseToken, _amount, _amountOutMin, _deadline);
     }
 
-    function buyTo(address _receiver, address _base, uint256 _amount, uint256 _amountOutMin, uint256 _deadline) public {
+    function buyTo(address _receiver, address _base, uint256 _amount, uint256 _amountOutMin, uint256 _deadline) public  nonReentrant{
 
         address favor = tokenToFavor[_base];
         require(favor != address(0), "Zapper: unsupported token");
@@ -290,7 +291,7 @@ contract LPZapper is Ownable {
         uint amountBMin,
         address to,
         uint deadline
-    ) external {
+    ) external nonReentrant {
         require(favorToToken[tokenA] == tokenB, "Zapper: Not listed to make LP");
         IERC20(tokenA).transferFrom(msg.sender, address(this), amountADesired);
         IERC20(tokenB).transferFrom(msg.sender, address(this), amountBDesired);
@@ -320,7 +321,7 @@ contract LPZapper is Ownable {
         uint _amountETHMin,
         address _to,
         uint _deadline
-    ) external payable {
+    ) external payable nonReentrant {
         require(favorToToken[_token] == router.WETH(), "Zapper: Not listed to make LP");
         IERC20(_token).transferFrom(
             msg.sender,
