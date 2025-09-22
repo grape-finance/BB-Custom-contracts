@@ -495,7 +495,7 @@ describe("LPZapper.sol", () => {
             const [deployer, owner, somethingStrange] = await ethers.getSigners();
             let {zapper, favorEth} = await deployContracts();
 
-            await expect(zapper.sell(somethingStrange, 123n, Date.now() + 100000)).to.be.revertedWith('Zapper: unsupported token');
+            await expect(zapper.sell(somethingStrange, 123n, 0n,  Date.now() + 100000)).to.be.revertedWith('Zapper: unsupported token');
 
         })
 
@@ -508,7 +508,7 @@ describe("LPZapper.sol", () => {
 
             await favorEth.approve(zapper, 1000n);
 
-            await expect(zapper.sellTo(receiver, favorEth, 1000n, Date.now() + 100000)).to.not.be.revert(ethers);
+            await expect(zapper.sellTo(receiver, favorEth, 1000n, 0n, Date.now() + 100000)).to.not.be.revert(ethers);
 
             console.log(await weth.balanceOf(zapper));
             //  uniswap fee applies
@@ -527,7 +527,7 @@ describe("LPZapper.sol", () => {
             await favorEth.transfer(receiver, 1000n);
             await favorEth.connect(receiver).approve(zapper, 1000n);
 
-            await expect(zapper.connect(receiver).sell(favorEth, 1000n, Date.now() + 100000)).to.not.be.revert(ethers);
+            await expect(zapper.connect(receiver).sell(favorEth, 1000n,  0n,Date.now() + 100000)).to.not.be.revert(ethers);
 
             // treasury team shall receive 20% of tax directly in base token
 
@@ -544,6 +544,23 @@ describe("LPZapper.sol", () => {
             expect(await weth.balanceOf(receiver)).to.equal(995n);
 
         })
+
+
+        it('min out amount shall be honored', async () => {
+            const [deployer, owner, treasury, receiver] = await ethers.getSigners();
+            let {zapper, favorEth, weth, mockPool} = await deployContracts();
+
+            const teamAddress = await zapper.team();
+            const holdingAddress = await zapper.holding();
+
+            //  give receiver some favor
+            await favorEth.transfer(receiver, 1000n);
+            await favorEth.connect(receiver).approve(zapper, 1000n);
+
+            await expect(zapper.connect(receiver).sell(favorEth, 1000n,  996n,Date.now() + 100000)).to.revertedWith('UniswapV2Router: INSUFFICIENT_OUTPUT_AMOUNT');
+
+        })
+
 
         it('shall not buy favor if not a registerred base token', async () => {
             const [deployer, owner, receiver] = await ethers.getSigners();

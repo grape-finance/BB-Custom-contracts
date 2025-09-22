@@ -212,11 +212,11 @@ contract LPZapper is Ownable2Step, ReentrancyGuard {
     /**
      * sell favor with taxation.   tax is sent to treasury in  base token
      */
-    function sell(address _favor, uint256 _amount, uint256 _deadline) public {
-        sellTo(msg.sender, _favor, _amount, _deadline);
+    function sell(address _favor, uint256 _amount, uint256 _amountOutMin, uint256 _deadline) public {
+        sellTo(msg.sender, _favor, _amount, _amountOutMin,_deadline);
     }
 
-    function sellTo(address _receiver, address _favor, uint256 _amount, uint256 _deadline) public nonReentrant{
+    function sellTo(address _receiver, address _favor, uint256 _amount,uint256 _amountOutMin, uint256 _deadline) public nonReentrant{
 
         address base = favorToToken[_favor];
         require(base != address(0), "Zapper: unsupported token");
@@ -233,7 +233,7 @@ contract LPZapper is Ownable2Step, ReentrancyGuard {
             _depositToStrongholdForTreasury(base, taxSold);
         }
 
-        uint256 userSold = _swap(_favor, base, _amount - tax, 0, _deadline);
+        uint256 userSold = _swap(_favor, base, _amount - tax, _amountOutMin, _deadline);
 
         //  return token balance to _receiver
         IERC20(base).safeTransfer(address(_receiver), userSold);
