@@ -201,6 +201,8 @@ contract LPOracle is Epoch {
                 uint256 maxAllowed = lastLpPrice * lpPriceCap / 1e18;
                 if (newLpPrice <= maxAllowed) {
                     lastLpPrice = newLpPrice;
+                } else {
+                    lastLpPrice = maxAllowed;
                 }
             }
         }
