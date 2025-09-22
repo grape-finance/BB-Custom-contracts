@@ -110,7 +110,7 @@ describe('OracleManipulator', () => {
         //  favor treasury is allowed to consult and update  oracle
         await uniTwapOracle.setApprovedUser(favorTreasury, true);
 
-        //  favro treasury shall be a minter  for favor
+        //  favor treasury shall be a minter for favor
         await favorEth.addMinter(favorTreasury);
 
         //  treasury is aithorised to allocate seigniorage
@@ -144,7 +144,7 @@ describe('OracleManipulator', () => {
     describe('manipulation  testing', () => {
 
 
-        it('shall be able to resist maipulation', async () => {
+        it('shall be able to resist manipulation', async () => {
             const [owner, tresury, alice, bob] = await ethers.getSigners();
             let {
                 zapper,
@@ -186,7 +186,7 @@ describe('OracleManipulator', () => {
 
             //  alice sells a lot of favor, say 10m
             console.log("alice has favor:", await favorEth.balanceOf(alice));
-            await expect(zapper.connect(alice).sell(favorEth, 10_000_000n, Date.now())).to.not.be.revert(ethers);
+            await expect(zapper.connect(alice).sell(favorEth, 10_000_000n, 0n, Date.now())).to.not.be.revert(ethers);
 
             //  and this should not have an effect on the price
             let price0After = await uniTwapOracle.price0Average();

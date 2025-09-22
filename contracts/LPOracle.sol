@@ -108,14 +108,26 @@ contract LPOracle is Epoch {
         {
             (uint256 p0C, uint256 p1C, uint32 blockTs) = UniswapV2OracleLibrary
                 .currentCumulativePrices(address(pair));
-            uint32 dt = blockTs - blockTimestampLast;
+            uint32 dt;
+            unchecked {
+                dt = blockTs - blockTimestampLast;
+            }
             require(dt > 0, "Oracle: ZERO_TIME");
 
+            uint256 price0Delta;
+            uint256 price1Delta;
+
+            unchecked {
+            // Overflow desired wrapped in unchecked
+                price0Delta = p0C - price0CumulativeLast;
+                price1Delta = p1C - price1CumulativeLast;
+            }
+
             price0Average = FixedPoint.uq112x112(
-                uint224((p0C - price0CumulativeLast) / dt)
+                uint224(price0Delta / dt)
             );
             price1Average = FixedPoint.uq112x112(
-                uint224((p1C - price1CumulativeLast) / dt)
+                uint224(price1Delta / dt)
             );
 
             price0CumulativeLast = p0C;
@@ -134,18 +146,25 @@ contract LPOracle is Epoch {
                 uint112(Math.sqrt(r0 * r1))).div(uint112(pair.totalSupply()))._x;
 
             // total time since last oracle update
-            uint32 dtFull = nowTs - kTimestampLast;
+            uint32 dtFull;
+
+            unchecked{
+                dtFull = nowTs - kTimestampLast;
+            }
             require(dtFull > 0, "Oracle: ZERO_TIME");
 
             // split into before/after reserve-change
             uint32 dt1;
             uint32 dt2;
-            if (tsReserve > kTimestampLast) {
-                dt1 = tsReserve - kTimestampLast;
-                dt2 = nowTs - tsReserve;
-            } else {
-                dt1 = dtFull;
-                dt2 = 0;
+
+            unchecked {
+                if (tsReserve > kTimestampLast) {
+                    dt1 = tsReserve - kTimestampLast;
+                    dt2 = nowTs - tsReserve;
+                } else {
+                    dt1 = dtFull;
+                    dt2 = 0;
+                }
             }
 
             // patch cumulative: old√K * dt1 + new√K * dt2
@@ -166,15 +185,22 @@ contract LPOracle is Epoch {
             uint32 nowTsU = uint32(block.timestamp);
             uint256 u0 = masterOracle.getLatestPrice(token0);
             uint256 u1 = masterOracle.getLatestPrice(token1);
-            uint32 dtU = nowTsU - usdTimestampLast;
+            uint32 dtU;
+
+            unchecked {
+                dtU = nowTsU - usdTimestampLast;
+            }
             require(dtU > 0, "Oracle: ZERO_TIME");
 
             uint256 newUsd0C = usd0CumulativeLast + u0 * dtU;
             uint256 newUsd1C = usd1CumulativeLast + u1 * dtU;
 
-            uint256 avg0Raw = (newUsd0C - usd0CumulativeLast) / dtU;
-            uint256 avg1Raw = (newUsd1C - usd1CumulativeLast) / dtU;
-
+            uint256 avg0Raw;
+            uint256 avg1Raw;
+            unchecked {
+                avg0Raw = (newUsd0C - usd0CumulativeLast) / dtU;
+                avg1Raw = (newUsd1C - usd1CumulativeLast) / dtU;
+            }
             uint256 avg0Q112 = (avg0Raw << 112) / 1e18;
             uint256 avg1Q112 = (avg1Raw << 112) / 1e18;
 
