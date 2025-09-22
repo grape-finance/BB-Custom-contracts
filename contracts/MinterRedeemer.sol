@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.20;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -15,7 +15,7 @@ import "./interfaces/IMasterOracle.sol";
 import {IPriceProvider} from "./interfaces/IPriceProvider.sol";
 
 
-contract MintRedeemer is Ownable, ReentrancyGuard, Pausable, IPriceProvider {
+contract MintRedeemer is Ownable2Step, ReentrancyGuard, Pausable, IPriceProvider {
     using SafeERC20 for IERC20;
 
     uint256 public constant PERIOD = 1 days;

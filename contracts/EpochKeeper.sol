@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.18;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/access/Ownable2Step.sol";
 
 /**
  * @title EpochKeeper
  * @dev This contract handles an epoch system where the epoch increments automatically every set period.
  * Epochs are based on a global start time, and the current epoch is determined by time elapsed.
  */
-contract EpochKeeper is Ownable {
+contract EpochKeeper is Ownable2Step {
 
     /// @notice The timestamp when the epoch system started.
     uint256 public immutable epochStartTime;

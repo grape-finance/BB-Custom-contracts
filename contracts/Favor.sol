@@ -3,14 +3,14 @@ pragma solidity 0.8.20;
 
 import "./interfaces/IPriceProvider.sol";
 import "./interfaces/BBToken.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 import {IFavorToken} from "./interfaces/IFavorToken.sol";
 
 /**
  * base favor contract  with common logic
  */
-contract Favor is IFavorToken, ERC20Burnable, Ownable {
+contract Favor is IFavorToken, ERC20Burnable, Ownable2Step {
 
     uint256 public constant MULTIPLIER = 10000;
     uint256 public constant MAX_TAX = 5000; // 50% MAX Sell Tax

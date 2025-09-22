@@ -127,6 +127,21 @@ describe("LPZapper.sol", () => {
             expect(await zapper.POOL()).to.be.equal(whatever);
 
         })
+
+
+        it('should be able to transfer ownership', async () => {
+            const [deployer, owner, newOwner] = await ethers.getSigners();
+            let {zapper} = await deployContracts();
+
+            await expect(zapper.transferOwnership(newOwner)).to.not.be.revert(ethers);
+            //  owner isn't transferred until accepted
+            expect(await zapper.owner()).to.be.equal(owner);
+
+            await expect(zapper.connect(newOwner).acceptOwnership()).to.not.be.revert(ethers);
+            //  but now it whould
+            expect(await zapper.owner()).to.be.equal(newOwner);
+
+        })
     })
 
     describe('access control', () => {
@@ -238,7 +253,7 @@ describe("LPZapper.sol", () => {
 
         // HAL-13 Add sanity check to favor registration, ovoid overwriting LP settings etc.
         it("shall check for publicates when adding favor", async () => {
-            const [deployer, owner, favor , lp, base] = await ethers.getSigners();
+            const [deployer, owner, favor, lp, base] = await ethers.getSigners();
             let {zapper, favorEth, favorWethPair, weth, baseToken} = await deployContracts();
 
             //  shall not add favor, is already added
@@ -424,7 +439,6 @@ describe("LPZapper.sol", () => {
             expect(await favorEth.pendingBonus(owner)).to.equal(76560n);
 
 
-
             //  shall refund everything
             expect(await ethers.provider.getBalance(zapper)).to.be.equal(0n);
             expect(await favorEth.balanceOf(zapper)).to.be.equal(0n);
@@ -464,7 +478,6 @@ describe("LPZapper.sol", () => {
             expect(await esteem.balanceOf(await favorEth.treasury())).to.equal(19140n);
             //  and pending esteem bonus for owner
             expect(await favorEth.pendingBonus(owner)).to.equal(76560n);
-
 
 
             //  shall refund evertything

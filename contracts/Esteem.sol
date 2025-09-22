@@ -2,11 +2,11 @@
 
 pragma solidity 0.8.20;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 
 
-contract Esteem is ERC20Burnable, Ownable {
+contract Esteem is ERC20Burnable, Ownable2Step {
 
     mapping(address => bool) public isMinter;
 

@@ -9,15 +9,30 @@ const config: HardhatUserConfig = {
         compilers: [
             {
                 version: "0.8.20",   // your main version
-
+                settings: {
+                    optimizer: {
+                        enabled: true,
+                        runs: 1000,
+                    },
+                },
             },
             {
                 version: "0.5.16",    // older contracts
-                settings: {},
+                settings: {
+                    optimizer: {
+                        enabled: true,
+                        runs: 1000,
+                    },
+                },
             },
             {
                 version: "0.6.6",   // for example, Uniswap V2
-                settings: {},
+                settings: {
+                    optimizer: {
+                        enabled: true,
+                        runs: 1000,
+                    },
+                },
             },
         ],
 

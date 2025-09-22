@@ -5,7 +5,7 @@ pragma solidity 0.8.20;
 import "./Epoch.sol";
 import "./ShareWrapper.sol";
 import "./interfaces/ITreasury.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/access/Ownable2Step.sol";
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -14,7 +14,7 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IFavorToken} from "./interfaces/IFavorToken.sol";
 import {IGrove} from "./interfaces/IGrove.sol";
 
-contract Staking is ShareWrapper, Ownable, ReentrancyGuard, Pausable, IGrove {
+contract Staking is ShareWrapper, Ownable2Step, ReentrancyGuard, Pausable, IGrove {
     using SafeERC20 for IERC20;
 
     uint256 public constant MAX_HISTORY = 50000;

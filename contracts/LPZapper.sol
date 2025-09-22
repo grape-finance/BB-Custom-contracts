@@ -5,7 +5,7 @@ import "./interfaces/IFavorToken.sol";
 import "@aave/core-v3/contracts/flashloan/interfaces/IFlashLoanSimpleReceiver.sol";
 import "@aave/core-v3/contracts/interfaces/IPool.sol";
 
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/access/Ownable2Step.sol";
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -19,7 +19,7 @@ import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 import "@uniswap/v2-periphery/contracts/interfaces/IWETH.sol";
 
 
-contract LPZapper is Ownable, ReentrancyGuard {
+contract LPZapper is Ownable2Step, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     IPool public POOL;
