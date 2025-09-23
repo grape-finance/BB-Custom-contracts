@@ -22,8 +22,8 @@ describe('ZokyoAttack', () => {
 
 
         const minter = await ethers.deployContract("MintRedeemer", [esteem, startTime + 100, owner]);
-        // TODO:  check that esteem rate is realistic!!!! 0.1 ,  18 digitts fixed decimal point
-        await minter.setEsteemRate(100_000_000_000_000_000n)
+        // esteem rate default start is $21 and hardcoded, setting here not needed but for reference 
+        await minter.setEsteemRate(21_000_000_000_000_000_000n)
 
 
         let weth = await createToken(owner, 'wethweth', "t0");
@@ -87,8 +87,8 @@ describe('ZokyoAttack', () => {
         let genesis = (await ethers.provider.getBlock('latest'))?.timestamp || 0;
         const epochKeeper = await ethers.deployContract("EpochKeeper", [genesis, 3600, owner]);
 
-        // TODO:  check that price cap is realistic!!!!!
-        const uniTwapOracle = await ethers.deployContract("UniTWAPOracle", [favorWethPair, 1000_000_000_000_000_000_000n, epochKeeper, owner]);
+        // TWAP price cap set to 3.5 as will be in prod
+        const uniTwapOracle = await ethers.deployContract("UniTWAPOracle", [favorWethPair, 3_500_000_000_000_000_000n, epochKeeper, owner]);
         await mockOracle.setTwapOracle(favorEth, uniTwapOracle);
 
         //  create grove
