@@ -54,10 +54,12 @@ const config: HardhatUserConfig = {
     },
     networks: {
         hardhatMainnet: {
+            loggingEnabled: true,
             type: "edr-simulated",
             chainType: "l1",
         },
         hardhatOp: {
+            loggingEnabled: true,
             type: "edr-simulated",
             chainType: "op",
         },

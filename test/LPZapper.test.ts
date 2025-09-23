@@ -586,6 +586,25 @@ describe("LPZapper.sol", () => {
 
         })
 
+
+        it('shall buy favor using simplified buy, and give out bonuses to treasury and receiver', async () => {
+            const [deployer, owner, treasury, receiver] = await ethers.getSigners();
+            let {zapper, favorEth, weth, esteem} = await deployContracts();
+
+            //  shall buy favor
+            await weth.transfer(receiver, 1000n);
+            await weth.connect(receiver).approve(zapper, 1000n);
+            await expect(zapper.connect(receiver).buy( weth, 1000, 0n, Date.now() + 100000)).to.not.be.revert(ethers);
+
+            // receiver shall ge favor and pending esteem bonus
+            expect(await favorEth.balanceOf(receiver)).to.equal(498n);
+            expect(await favorEth.pendingBonus(receiver)).to.equal(15330n);
+
+            //  treasury shall get esteem
+            expect(await esteem.balanceOf(treasury)).to.equal(3832n);
+
+        })
+
         it('shall buy favor and honor min out', async () => {
             const [deployer, owner, treasury, receiver] = await ethers.getSigners();
             let {zapper, favorEth, weth, esteem} = await deployContracts();
