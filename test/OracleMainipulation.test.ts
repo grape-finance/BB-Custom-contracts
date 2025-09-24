@@ -18,7 +18,7 @@ describe('OracleManipulator', () => {
 
         const esteem = await ethers.deployContract("Esteem", [owner]);
         await esteem.addMinter(owner);
-        await esteem.mint(owner, 1000n);
+        await esteem.mint(owner, 1_000_000_000_000_000_000_000_000n);
 
 
         const minter = await ethers.deployContract("MintRedeemer", [esteem, startTime + 100, owner]);
@@ -104,8 +104,8 @@ describe('OracleManipulator', () => {
         //  initialise staking and stack some favor
         await grove.initialize(favorEth, esteem, favorTreasury);
         // and ensure that something is stacked
-        await esteem.approve(grove, 1000n);
-        await grove.stake(1000n);
+        await esteem.approve(grove, 1_000_000_000_000_000_000_000n);
+        await grove.stake(1_000_000_000_000_000_000_000n);
 
         //  favor treasury is allowed to consult and update  oracle
         await uniTwapOracle.setApprovedUser(favorTreasury, true);
@@ -381,7 +381,6 @@ describe('OracleManipulator', () => {
         if (attackStart <= currentTsAttackPrep) {
             attackStart = currentTsAttackPrep + 30n;
         }
-
         await networkHelpers.time.increaseTo(attackStart);
         const attackSize = 10_000_000n;
         //      await zapper.connect(mallory).buy(weth, attackSize, 0n, Date.now());

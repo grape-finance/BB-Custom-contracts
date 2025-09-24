@@ -165,7 +165,7 @@ contract Staking is ShareWrapper, Ownable2Step, ReentrancyGuard, Pausable, IGrov
     function allocateSeigniorage(uint256 amount) external nonReentrant whenNotPaused {
         require(msg.sender == owner() || msg.sender == treasuryOperator, "Not authorized");
         require(amount > 0, "Grove: Cannot allocate 0");
-        require(totalSupply() > 0, "Grove: Cannot allocate when totalSupply is 0");
+        require(totalSupply() > 1e18, "Grove: Cannot allocate when totalSupply is below 1e18");
 
         // Create & add new snapshot
         uint256 prevRPS = getLatestSnapshot().rewardPerShare;
