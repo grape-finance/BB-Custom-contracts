@@ -115,7 +115,7 @@ contract LPZapper is Ownable2Step, ReentrancyGuard {
             0,
             0,
             address(this),
-            block.timestamp + 50
+            block.timestamp
         );
 
         IERC20(lpToken).forceApprove(address(POOL), lpAmount);

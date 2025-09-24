@@ -198,8 +198,11 @@ contract LPOracle is Epoch {
             uint256 avg0Raw;
             uint256 avg1Raw;
             unchecked {
-                avg0Raw = (newUsd0C - usd0CumulativeLast) / dtU;
-                avg1Raw = (newUsd1C - usd1CumulativeLast) / dtU;
+                //  Codespec recomnedtion:  Good one!
+                // develop algebraically this: (newUsd0C - usd0CumulativeLast) / dtU  , and it simplifies to:
+                avg0Raw = u0;
+                //  develop algebraically:  (newUsd1C - usd1CumulativeLast) / dtU;  and it simplifies to
+                avg1Raw = u1;
             }
             uint256 avg0Q112 = (avg0Raw << 112) / 1e18;
             uint256 avg1Q112 = (avg1Raw << 112) / 1e18;

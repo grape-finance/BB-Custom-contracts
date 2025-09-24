@@ -206,6 +206,7 @@ contract FavorTreasury is Epoch, ReentrancyGuard, Pausable {
         emit LpPairToExcludeRemoved(pair);
     }
 
+    // TODO:  investigate/discuss  if excluding  LP is necessary
     /// @notice Gas intensive if many addresses are added to the list, planned usage is for ~10 protocol wallets/contracts & 2 LPs at most
     function getFavorCirculatingSupply() public view returns (uint256) {
         uint256 totalSupply = IERC20(favor).totalSupply();

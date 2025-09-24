@@ -15,6 +15,7 @@ import "./interfaces/IMasterOracle.sol";
 import {IPriceProvider} from "./interfaces/IPriceProvider.sol";
 
 
+// TODO:    use automatic time based update  instead of explicit
 contract MintRedeemer is Ownable2Step, ReentrancyGuard, Pausable, IPriceProvider {
     using SafeERC20 for IERC20;
 
