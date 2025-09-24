@@ -198,10 +198,10 @@ contract LPOracle is Epoch {
             uint256 avg0Raw;
             uint256 avg1Raw;
             unchecked {
-                //  Codespec recomnedtion:  Good one!
-                // develop algebraically this: (newUsd0C - usd0CumulativeLast) / dtU  , and it simplifies to:
+            //  Codespec recomnedtion:  Good one!
+            // develop algebraically this: (newUsd0C - usd0CumulativeLast) / dtU  , and it simplifies to:
                 avg0Raw = u0;
-                //  develop algebraically:  (newUsd1C - usd1CumulativeLast) / dtU;  and it simplifies to
+            //  develop algebraically:  (newUsd1C - usd1CumulativeLast) / dtU;  and it simplifies to
                 avg1Raw = u1;
             }
             uint256 avg0Q112 = (avg0Raw << 112) / 1e18;
@@ -257,7 +257,7 @@ contract LPOracle is Epoch {
         } else if (_token == token1) {
             amountOut = uint256(price1Average.mul(_amountIn).decode144());
         } else if (_token == address(pair)) {
-            amountOut = lastLpPrice;
+            amountOut = Math.saturatingMul(lastLpPrice, _amountIn);
         } else {
             revert("Oracle: INVALID_TOKEN");
         }
