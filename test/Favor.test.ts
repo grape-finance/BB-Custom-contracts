@@ -251,7 +251,7 @@ describe("Favor.sol", () => {
 
             //  minter is just a non-whitelisted contract
             await expect(favor.connect(userA).transfer(minter, 1000n)).to.not.be.revert(ethers);
-            expect(await favor.balanceOf(userA)).to.equal(500n);
+            expect(await favor.balanceOf(minter)).to.equal(10n);
 
         })
 
