@@ -203,6 +203,7 @@ describe('ZokyoAttack', () => {
 
             console.log("weth balance after attack:", wethBalanceAfterAttack);
             console.log("weth earned:", wethBalanceAfterAttack - initalWethBalance);
+            expect(wethBalanceAfterAttack - initalWethBalance).to.be.lt(0, "weth earned is negative, so the attack is not profitable");
         })
     });
 })
