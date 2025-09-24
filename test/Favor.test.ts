@@ -241,7 +241,7 @@ describe("Favor.sol", () => {
 
         })
        */
-        it("transfer to non whitelisted contracts is taxed", async () => {
+        it("transfer to non whitelisted contracts is reverted", async () => {
             const [deployer, owner, userA] = await ethers.getSigners();
             let {favor, minter} = await deployContracts();
 
@@ -250,8 +250,8 @@ describe("Favor.sol", () => {
             expect(await favor.balanceOf(userA)).to.equal(1000n);
 
             //  minter is just a non-whitelisted contract
-            await expect(favor.connect(userA).transfer(minter, 1000n)).to.not.be.revert(ethers);
-            expect(await favor.balanceOf(minter)).to.equal(10n);
+            await expect(favor.connect(userA).transfer(minter, 1000n)).to.revert(ethers);
+            expect(await favor.balanceOf(minter)).to.equal(0n);
 
         })
 

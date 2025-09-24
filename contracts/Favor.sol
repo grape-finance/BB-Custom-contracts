@@ -10,12 +10,15 @@ import {IFavorToken} from "./interfaces/IFavorToken.sol";
 /**
  * base favor contract  with common logic
  */
+
+// TODO: Check contract transfer revert implementation and clean up tax logic
+
 contract Favor is IFavorToken, ERC20Burnable, Ownable2Step {
 
     uint256 public constant MULTIPLIER = 10000;
     uint256 public constant MAX_TAX = 5000; // 50% MAX Sell Tax
     uint256 public constant BONUS_TWAP_THRESHOLD = 3e18;
-    uint256 public constant CONTRACT_TAX = 9900; // Tax collected in Favor for sending to non whitelisted contracts
+    //uint256 public constant CONTRACT_TAX = 9900; // Tax collected in Favor for sending to non whitelisted contracts
     
     uint256 public sellTax = 5000;
     uint256 public bonusRate = 4400; // Buy bonus to buyer in esteem
@@ -109,18 +112,19 @@ contract Favor is IFavorToken, ERC20Burnable, Ownable2Step {
             return;
         }
 
-        uint256 taxAmount = 0;
-
+        //uint256 taxAmount = 0;
+        
         if (destinationIsContract) {
-            taxAmount = (_value * CONTRACT_TAX) / MULTIPLIER;
+            revert("Transfer not allowed");
+            //taxAmount = (_value * CONTRACT_TAX) / MULTIPLIER;
         }
 
-        // tax goes to treasury
+        /*
         if (taxAmount > 0) {
             super._update(_from, treasury, taxAmount);
             _value -= taxAmount;
         }
-
+        */
         super._update(_from, _to, _value);
     }
 
