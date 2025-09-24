@@ -264,7 +264,7 @@ contract LPOracle is Epoch {
 
     }
 
-    /// @notice Raw redeemable USD per LP in Q112.112
+    /// @notice Raw redeemable USD per LP in Q112.112, only used for reference not in contract pricing calculations
     function redeemableUsdPerLpQ112() public view returns (uint256) {
         (uint112 r0, uint112 r1,) = pair.getReserves();
         uint256 px0 = uint256(usd0Average._x);
@@ -273,7 +273,7 @@ contract LPOracle is Epoch {
         return totalUsdQ / pair.totalSupply();
     }
 
-    /// @notice Redeemable USD per LP scaled by 1e18
+    /// @notice Redeemable USD per LP scaled by 1e18, only used for reference not in contract pricing calculations
     function redeemableUsdPerLpScaled() public view returns (uint144) {
         uint256 q112 = redeemableUsdPerLpQ112();
         uint256 scaled = q112 * 1e18 >> 112;

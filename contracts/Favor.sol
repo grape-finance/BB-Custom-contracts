@@ -15,7 +15,8 @@ contract Favor is IFavorToken, ERC20Burnable, Ownable2Step {
     uint256 public constant MULTIPLIER = 10000;
     uint256 public constant MAX_TAX = 5000; // 50% MAX Sell Tax
     uint256 public constant BONUS_TWAP_THRESHOLD = 3e18;
-
+    uint256 public constant CONTRACT_TAX = 9900; // Tax collected in Favor for sending to non whitelisted contracts
+    
     uint256 public sellTax = 5000;
     uint256 public bonusRate = 4400; // Buy bonus to buyer in esteem
     uint256 public treasuryBonusRate = 2500; // 25% extra bonus minted to protocol treasury multisig on top of users minted amount
@@ -111,7 +112,7 @@ contract Favor is IFavorToken, ERC20Burnable, Ownable2Step {
         uint256 taxAmount = 0;
 
         if (destinationIsContract) {
-            taxAmount = (_value * sellTax) / MULTIPLIER;
+            taxAmount = (_value * CONTRACT_TAX) / MULTIPLIER;
         }
 
         // tax goes to treasury
