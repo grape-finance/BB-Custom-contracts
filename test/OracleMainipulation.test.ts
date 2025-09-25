@@ -23,7 +23,7 @@ describe('OracleManipulator', () => {
 
         const minter = await ethers.deployContract("MintRedeemer", [esteem, startTime + 100, owner]);
         // 0.1 ,  18 digitts fixed decimal point
-        await minter.setEsteemRate(100_000_000_000_000_000n)
+        //await minter.setEsteemRate(100_000_000_000_000_000n)
 
 
         let weth = await createToken(owner, 'wethweth', "t0");

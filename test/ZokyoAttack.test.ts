@@ -22,8 +22,6 @@ describe('ZokyoAttack', () => {
 
 
         const minter = await ethers.deployContract("MintRedeemer", [esteem, startTime + 100, owner]);
-        // esteem rate default start is $21 and hardcoded, setting here not needed but for reference 
-        await minter.setEsteemRate(21_000_000_000_000_000_000n)
 
 
         let weth = await createToken(owner, 'wethweth', "t0");
