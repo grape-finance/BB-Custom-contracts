@@ -125,6 +125,8 @@ contract LPZapper is Ownable2Step, ReentrancyGuard {
 
         IERC20(asset).forceApprove(address(POOL), amount + premium);
 
+        _refundDust(user);
+
         emit FlashLoanExecuted(user, lpToken, lpAmount);
 
         return true;
@@ -213,10 +215,10 @@ contract LPZapper is Ownable2Step, ReentrancyGuard {
      * sell favor with taxation.   tax is sent to treasury in  base token
      */
     function sell(address _favor, uint256 _amount, uint256 _amountOutMin, uint256 _deadline) public {
-        sellTo(msg.sender, _favor, _amount, _amountOutMin,_deadline);
+        sellTo(msg.sender, _favor, _amount, _amountOutMin, _deadline);
     }
 
-    function sellTo(address _receiver, address _favor, uint256 _amount,uint256 _amountOutMin, uint256 _deadline) public nonReentrant{
+    function sellTo(address _receiver, address _favor, uint256 _amount, uint256 _amountOutMin, uint256 _deadline) public nonReentrant {
 
         address base = favorToToken[_favor];
         require(base != address(0), "Zapper: unsupported token");
@@ -249,7 +251,7 @@ contract LPZapper is Ownable2Step, ReentrancyGuard {
         buyTo(msg.sender, _baseToken, _amount, _amountOutMin, _deadline);
     }
 
-    function buyTo(address _receiver, address _base, uint256 _amount, uint256 _amountOutMin, uint256 _deadline) public  nonReentrant{
+    function buyTo(address _receiver, address _base, uint256 _amount, uint256 _amountOutMin, uint256 _deadline) public nonReentrant {
 
         address favor = tokenToFavor[_base];
         require(favor != address(0), "Zapper: unsupported token");
@@ -423,13 +425,13 @@ contract LPZapper is Ownable2Step, ReentrancyGuard {
         require(_favor != address(0), "Invalid address");
         require(_lp != address(0), "Invalid address");
         require(_token != address(0), "Invalid address");
-        require(favorToLp[_favor] == address(0),"Favor already registered");
-        require(tokenToFavor[_token] == address(0),"Token already registered");
+        require(favorToLp[_favor] == address(0), "Favor already registered");
+        require(tokenToFavor[_token] == address(0), "Token already registered");
 
         // LP shall match,   HAL-13
         address t0 = IUniswapV2Pair(_lp).token0();
         address t1 = IUniswapV2Pair(_lp).token1();
-        require( t0 == _favor && t1 == _token || t0 == _token && t1 == _favor, "LP token mismatch");
+        require(t0 == _favor && t1 == _token || t0 == _token && t1 == _favor, "LP token mismatch");
 
         favorToToken[_favor] = _token;
         favorToLp[_favor] = _lp;
