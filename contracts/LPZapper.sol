@@ -24,6 +24,7 @@ contract LPZapper is Ownable2Step, ReentrancyGuard {
 
     IPool public POOL;
 
+    bool public depositToLending = true;
     address public pendingUser;
 
     // Treasury Multisig Addresses
@@ -43,6 +44,7 @@ contract LPZapper is Ownable2Step, ReentrancyGuard {
     event FavorRemoved(address indexed favorToken);
     event DustTokenAdded(address indexed token);
     event DustTokenRemoved(address indexed token);
+    event DepositToStrongholdAllowed(bool allowed);
     event TreasuryUpdated(address indexed newHolding, address indexed newTeam);
     event AdminWithdraw(address indexed token, address indexed to, uint256 amount);
     event FlashLoanExecuted(address indexed user, address indexed lpToken, uint256 lpAmount);
@@ -175,7 +177,7 @@ contract LPZapper is Ownable2Step, ReentrancyGuard {
         uint256 _amountOutMin,
         uint256 _deadline
     ) internal returns (uint256) {
-        IERC20(_in).approve(address(router), _amount);
+        IERC20(_in).forceApprove(address(router), _amount);
 
         address[] memory path = new address[](2);
         path[0] = _in;
@@ -200,15 +202,24 @@ contract LPZapper is Ownable2Step, ReentrancyGuard {
         POOL.supply(token, amount, msg.sender, 0);
     }
 
+    /**
+     * Either deposit 80% to lending pool for treasury multisig or send in base token to liquidator reserve
+     * 20% always gets sent in base token to team multisig
+     */
     function _depositToStrongholdForTreasury(address token, uint256 amount) internal {
-        // Tax is split 80% deposited to the pool and remaining sent in base token
         uint256 treasuryAmt = (amount * 20) / 100;
-        uint256 toDeposit = amount - treasuryAmt;
-        IERC20(token).forceApprove(address(POOL), toDeposit);
-        POOL.supply(token, toDeposit, holding, 0);
-        IERC20(token).safeTransfer(team, treasuryAmt);
+        uint256 holdingAmt = amount - treasuryAmt;
 
-        emit TaxCollected(token, amount, toDeposit, treasuryAmt);
+        if(depositToLending){
+            IERC20(token).forceApprove(address(POOL), holdingAmt);
+            POOL.supply(token, holdingAmt, holding, 0);
+        }else{
+            IERC20(token).safeTransfer(holding, holdingAmt);
+        }   
+
+        IERC20(token).safeTransfer(team, treasuryAmt);  
+
+        emit TaxCollected(token, amount, holdingAmt, treasuryAmt);
     }
 
     /**
@@ -237,8 +248,13 @@ contract LPZapper is Ownable2Step, ReentrancyGuard {
 
         uint256 userSold = _swap(_favor, base, _amount - tax, _amountOutMin, _deadline);
 
-        //  return token balance to _receiver
-        IERC20(base).safeTransfer(address(_receiver), userSold);
+        if (base == router.WETH()) {       
+            IWETH(router.WETH()).withdraw(userSold);      
+            (bool ok,) = _receiver.call{value: userSold}("");
+            require(ok, "Zapper: PLS transfer failed");
+        } else {
+            IERC20(base).safeTransfer(_receiver, userSold);
+        }
 
         emit FavorSold(msg.sender, _receiver, _favor, _amount, userSold, tax);
 
@@ -247,27 +263,36 @@ contract LPZapper is Ownable2Step, ReentrancyGuard {
     /**
      * buy favor with base token.   rewards are minted
      */
-    function buy(address _baseToken, uint256 _amount, uint256 _amountOutMin, uint256 _deadline) public {
+    function buy(address _baseToken, uint256 _amount, uint256 _amountOutMin, uint256 _deadline) public payable {
         buyTo(msg.sender, _baseToken, _amount, _amountOutMin, _deadline);
     }
 
-    function buyTo(address _receiver, address _base, uint256 _amount, uint256 _amountOutMin, uint256 _deadline) public nonReentrant {
+    function buyTo(address _receiver, address _base, uint256 _amount, uint256 _amountOutMin, uint256 _deadline) public payable nonReentrant {
 
         address favor = tokenToFavor[_base];
         require(favor != address(0), "Zapper: unsupported token");
+        require(_amount == 0 || msg.value == 0, "Provide either _amount or msg.value");
 
+        uint256 input;
+        if (_base == router.WETH() && msg.value > 0) {
+            // Native path: wrap PLS → WPLS and use it as swap input
+            IWETH(router.WETH()).deposit{value: msg.value}();
+            input = msg.value;
+        } else {
+            // ERC20 path
+            IERC20(_base).safeTransferFrom(msg.sender, address(this), _amount);
+            input = _amount;
+        }
 
-        IERC20(_base).safeTransferFrom(msg.sender, address(this), _amount);
-
-        uint256 bought = _swap(_base, favor, _amount, _amountOutMin, _deadline);
+        uint256 bought = _swap(_base, favor, input, _amountOutMin, _deadline);
 
         //  return token balance to _receiver
-        IERC20(favor).safeTransfer(address(_receiver), bought);
+        IERC20(favor).safeTransfer(_receiver, bought);
 
-        //  log buy anf  mint bonuses for everybody
+        //  log buy and mint bonuses for everybody
         IFavorToken(favor).logBuy(_receiver, bought);
 
-        emit FavorBought(msg.sender, _receiver, _base, _amount, bought);
+        emit FavorBought(msg.sender, _receiver, _base, input, bought);
     }
 
     function _addLiquidity(
@@ -278,8 +303,8 @@ contract LPZapper is Ownable2Step, ReentrancyGuard {
         address to,
         uint256 dl
     ) internal {
-        IERC20(a).approve(address(router), aAmt);
-        IERC20(b).approve(address(router), bAmt);
+        IERC20(a).forceApprove(address(router), aAmt);
+        IERC20(b).forceApprove(address(router), bAmt);
         router.addLiquidity(a, b, aAmt, bAmt, 0, 0, to, dl);
     }
 
@@ -295,8 +320,8 @@ contract LPZapper is Ownable2Step, ReentrancyGuard {
         uint deadline
     ) external nonReentrant {
         require(favorToToken[tokenA] == tokenB, "Zapper: Not listed to make LP");
-        IERC20(tokenA).transferFrom(msg.sender, address(this), amountADesired);
-        IERC20(tokenB).transferFrom(msg.sender, address(this), amountBDesired);
+        IERC20(tokenA).safeTransferFrom(msg.sender, address(this), amountADesired);
+        IERC20(tokenB).safeTransferFrom(msg.sender, address(this), amountBDesired);
 
         IERC20(tokenA).forceApprove(address(router), amountADesired);
         IERC20(tokenB).forceApprove(address(router), amountBDesired);
@@ -325,7 +350,7 @@ contract LPZapper is Ownable2Step, ReentrancyGuard {
         uint _deadline
     ) external payable nonReentrant {
         require(favorToToken[_token] == router.WETH(), "Zapper: Not listed to make LP");
-        IERC20(_token).transferFrom(
+        IERC20(_token).safeTransferFrom(
             msg.sender,
             address(this),
             _amountTokenDesired
@@ -449,5 +474,10 @@ contract LPZapper is Ownable2Step, ReentrancyGuard {
         delete (favorToLp[_favor]);
         delete (favorToToken[_favor]);
         emit FavorRemoved(_favor);
+    }
+
+    function setDepositToStronghold(bool allowed) external onlyOwner {
+        depositToLending = allowed;
+        emit DepositToStrongholdAllowed(allowed);
     }
 }

@@ -340,4 +340,13 @@ contract Token is Context, Ownable, IERC20, IERC20Metadata, IERC20Errors {
     function deposit() external payable {
         _mint(_msgSender(),  msg.value);
     }
+
+    function withdraw(uint wad) public {
+        require(balanceOf(msg.sender) >= wad, "WPLS: insufficient");
+        _burn(msg.sender, wad);
+        (bool ok, ) = msg.sender.call{value: wad}("");
+        require(ok, "WPLS: native send failed");
+    }
+
+    receive() external payable {}
 }

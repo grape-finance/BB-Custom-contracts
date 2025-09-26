@@ -155,6 +155,10 @@ describe('OracleManipulator', () => {
                 uniTwapOracle,
             } = await networkHelpers.loadFixture(deployContracts);
 
+            await owner.sendTransaction({
+                to: weth,
+                value: 100_000_000_000n,
+                });
             let favorPriceBefore = await favorTreasury.getFavorPrice();
             console.log("favorPriceBefore:", favorPriceBefore.toString());
 

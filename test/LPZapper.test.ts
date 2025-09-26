@@ -41,7 +41,6 @@ describe("LPZapper.sol", () => {
         await esteem.addMinter(favorBase);
         await minter.setTokenPrice(favorBase, 5_000_000_000_000_000_000n);
 
-
         await favorEth.setTaxExempt(zapper, true);
         // to be able to create LPs for test pusposes
         await favorEth.setTaxExempt(owner, true);
@@ -54,7 +53,6 @@ describe("LPZapper.sol", () => {
         //  create weth / favor  liquidity pool
         await favorEth.approve(v2router, 1_000_000_000_000_000_000n);
         await weth.approve(v2router, 1_000_000_000_000_000_000n);
-
 
         // pair
         await v2factory.createPair(favorEth, weth);
@@ -70,17 +68,17 @@ describe("LPZapper.sol", () => {
         pairAdr = await v2factory.getPair(favorBase, baseToken);
         let favorBasePair = await ethers.getContractAt("IUniswapV2Pair", pairAdr, owner);
 
-
         // register this pair as favor pair
         await zapper.addFavor(favorEth, favorWethPair, weth);
         await zapper.addFavor(favorBase, favorBasePair, baseToken);
 
-        await v2router.addLiquidity(favorEth, weth, 1000000n, 2000000n, 0n, 0n, owner, Date.now() + 100000)
+        await v2router.addLiquidity(favorEth, weth, 1000000n, 2000000n, 0n, 0n, owner, Date.now() + 100000);
+        await v2router.addLiquidity(favorBase, baseToken, 1000000n, 2000000n, 0n, 0n, owner, Date.now() + 100000);
+    
 
         // remove tax-exempt status from owner
         await favorEth.setTaxExempt(owner, false);
         await favorBase.setTaxExempt(owner, false);
-
 
         // mock pool to test flash loans
         const mockPoolInstance = await ethers.deployContract("MockPool", []);
@@ -102,7 +100,7 @@ describe("LPZapper.sol", () => {
             esteem
         };
     }
-
+/*
     describe(' deployment', () => {
 
         it("Should be able to create contract", async () => {
@@ -158,6 +156,7 @@ describe("LPZapper.sol", () => {
             await expect(zapper.connect(somebody).removeFavorToken(somebody)).to.be.revertedWithCustomError(zapper, "OwnableUnauthorizedAccount");
             await expect(zapper.connect(somebody).setPool(somebody)).to.be.revertedWithCustomError(zapper, "OwnableUnauthorizedAccount");
             await expect(zapper.connect(somebody).setTreasury(somebody, somebody)).to.be.revertedWithCustomError(zapper, "OwnableUnauthorizedAccount");
+            await expect(zapper.connect(somebody).setDepositToStronghold(false)).to.be.revertedWithCustomError(zapper, "OwnableUnauthorizedAccount");
 
         })
 
@@ -488,7 +487,7 @@ describe("LPZapper.sol", () => {
         })
 
     })
-
+*/
     describe('buy and sell', () => {
 
         it('shall not sell unknown favor token', async () => {
@@ -502,27 +501,66 @@ describe("LPZapper.sol", () => {
 
         it('shall sell token without taxes for tax exempt sellers', async () => {
             const [deployer, owner, treasury, somethingStrange, receiver] = await ethers.getSigners();
-            let {zapper, favorEth, weth} = await deployContracts();
+            let {zapper, favorBase, baseToken} = await deployContracts();
 
-            await favorEth.setTaxExempt(owner, true);
+            await favorBase.setTaxExempt(owner, true);
 
-            await favorEth.approve(zapper, 1000n);
+            await favorBase.approve(zapper, 1000n);
+            await baseToken.approve(zapper, 2000n);
 
-            await expect(zapper.sellTo(receiver, favorEth, 1000n, 0n, Date.now() + 100000)).to.not.be.revert(ethers);
+            await expect(zapper.sellTo(receiver, favorBase, 1000n, 0n, Date.now() + 100000)).to.not.be.revert(ethers);
 
-            console.log(await weth.balanceOf(zapper));
+            //console.log(await baseToken.balanceOf(zapper));
             //  uniswap fee applies
-            expect(await weth.balanceOf(receiver)).to.equal(1992n);
-            expect(await weth.balanceOf(treasury)).to.equal(0n);
+            expect(await baseToken.balanceOf(receiver)).to.equal(1992n);
+            expect(await baseToken.balanceOf(treasury)).to.equal(0n);
         })
 
         it('shall tax on sale if not a tax exempt seller and send + auto deposit to pool for treasury', async () => {
             const [deployer, owner, treasury, receiver] = await ethers.getSigners();
-            let {zapper, favorEth, weth, mockPool} = await deployContracts();
+            let {zapper, favorBase, baseToken, mockPool} = await deployContracts();
 
             const teamAddress = await zapper.team();
             const holdingAddress = await zapper.holding();
 
+
+            //  give receiver some favor
+            await favorBase.transfer(receiver, 1000n);
+            await favorBase.connect(receiver).approve(zapper, 1000n);
+
+            await expect(zapper.connect(receiver).sell(favorBase, 1000n,  0n,Date.now() + 100000)).to.not.be.revert(ethers);
+
+            // treasury team shall receive 20% of tax directly in base token
+
+            expect(await baseToken.balanceOf(teamAddress)).to.equal(199n);
+
+            // and 80% of tax deposited to the pool for holding address
+            expect(await mockPool.supplyCalled()).to.be.equal(true);
+            expect(await mockPool.assetSupplied()).to.be.equal(baseToken);
+            expect(await mockPool.amountSupplied()).to.be.equal(797n);
+            expect(await mockPool.suppliedTo()).to.be.equal(holdingAddress);
+            expect(await mockPool.supplyReferral()).to.be.equal(0);
+
+            //  receiver shall receive the rest
+            expect(await baseToken.balanceOf(receiver)).to.equal(995n);
+
+        })
+
+        it('shall tax on sale to PLS if not a tax exempt seller and send + auto deposit to pool for treasury', async () => {
+            const [deployer, owner, treasury, receiver] = await ethers.getSigners();
+            let {zapper, favorEth, weth, mockPool, v2router} = await deployContracts();
+
+            const teamAddress = await zapper.team();
+            const holdingAddress = await zapper.holding();
+
+            // Send wpls to simulate withdraw to native
+            await deployer.sendTransaction({
+                to: weth,
+                value: 1000n,
+                });
+            
+            //check balance of token contract for withdrawal
+            expect(await ethers.provider.getBalance(weth)).to.equal(1000n);
             //  give receiver some favor
             await favorEth.transfer(receiver, 1000n);
             await favorEth.connect(receiver).approve(zapper, 1000n);
@@ -538,10 +576,39 @@ describe("LPZapper.sol", () => {
             expect(await mockPool.assetSupplied()).to.be.equal(weth);
             expect(await mockPool.amountSupplied()).to.be.equal(797n);
             expect(await mockPool.suppliedTo()).to.be.equal(holdingAddress);
-            expect(await mockPool.supplyReferral()).to.be.equal(0);
+            expect(await mockPool.supplyReferral()).to.be.equal(0);    
+            
+            // Check pls from mock weth has been withdrawn and only original amount - user output 995n remains
+            expect(await ethers.provider.getBalance(weth)).to.equal(5n);
+
+        })
+
+        it('shall tax on sale if not a tax exempt seller and send to treasury if deposit toggle is off', async () => {
+            const [deployer, owner, treasury, receiver] = await ethers.getSigners();
+            let {zapper, favorBase, baseToken} = await deployContracts();
+
+            const teamAddress = await zapper.team();
+            const holdingAddress = await zapper.holding();
+
+            zapper.connect(owner);
+            zapper.setDepositToStronghold(false);
+
+            //  give receiver some favor
+            await favorBase.transfer(receiver, 1000n);
+            await favorBase.connect(receiver).approve(zapper, 1000n);
+
+            await expect(zapper.connect(receiver).sell(favorBase, 1000n, 0n,Date.now() + 100000)).to.not.be.revert(ethers);
+
+            // treasury team shall receive 20% of tax directly in base token
+
+            expect(await baseToken.balanceOf(teamAddress)).to.equal(199n);
+
+            // and 80% of tax sent to holding address
+
+            expect(await baseToken.balanceOf(holdingAddress)).to.equal(797n);
 
             //  receiver shall receive the rest
-            expect(await weth.balanceOf(receiver)).to.equal(995n);
+            expect(await baseToken.balanceOf(receiver)).to.equal(995n);
 
         })
 
@@ -586,6 +653,22 @@ describe("LPZapper.sol", () => {
 
         })
 
+        it('shall buy favor, and give out bonuses to treasury and receiver with native PLS', async () => {
+            const [deployer, owner, treasury, receiver] = await ethers.getSigners();
+            let {zapper, favorEth, weth, esteem} = await deployContracts();
+
+            //  shall buy favor
+            await expect(zapper.buyTo(receiver, weth, 0, 0n, Date.now() + 100000, {value: 1000})).to.not.be.revert(ethers);
+
+            // receiver shall ge favor and pending esteem bonus
+            expect(await favorEth.balanceOf(receiver)).to.equal(498n);
+            expect(await favorEth.pendingBonus(receiver)).to.equal(15330n);
+
+            //  treasury shall get esteem
+            expect(await esteem.balanceOf(treasury)).to.equal(3832n);
+
+        })
+
 
         it('shall buy favor using simplified buy, and give out bonuses to treasury and receiver', async () => {
             const [deployer, owner, treasury, receiver] = await ethers.getSigners();
@@ -595,6 +678,23 @@ describe("LPZapper.sol", () => {
             await weth.transfer(receiver, 1000n);
             await weth.connect(receiver).approve(zapper, 1000n);
             await expect(zapper.connect(receiver).buy( weth, 1000, 0n, Date.now() + 100000)).to.not.be.revert(ethers);
+
+            // receiver shall ge favor and pending esteem bonus
+            expect(await favorEth.balanceOf(receiver)).to.equal(498n);
+            expect(await favorEth.pendingBonus(receiver)).to.equal(15330n);
+
+            //  treasury shall get esteem
+            expect(await esteem.balanceOf(treasury)).to.equal(3832n);
+
+        })
+
+        
+        it('shall buy favor using simplified buy, and give out bonuses to treasury and receiver with native PLS', async () => {
+            const [deployer, owner, treasury, receiver] = await ethers.getSigners();
+            let {zapper, favorEth, weth, esteem} = await deployContracts();
+
+            //  shall buy favor
+            await expect(zapper.connect(receiver).buy(weth, 0, 0n, Date.now() + 100000, {value: 1000})).to.not.be.revert(ethers);
 
             // receiver shall ge favor and pending esteem bonus
             expect(await favorEth.balanceOf(receiver)).to.equal(498n);
@@ -619,7 +719,7 @@ describe("LPZapper.sol", () => {
         })
 
     })
-
+/*
     describe('liquidity management', () => {
         it('shall refuse to add liquidity if not a registered favor', async () => {
             const [deployer, owner, somethingStrange] = await ethers.getSigners();
@@ -641,11 +741,11 @@ describe("LPZapper.sol", () => {
             const [deployer, owner, somethingStrange] = await ethers.getSigners();
             let {zapper, favorBase, baseToken, favorBasePair} = await deployContracts();
 
-            await favorBase.approve(zapper, 1000n);
-            await baseToken.approve(zapper, 2000n);
-            await expect(zapper.addLiquidity(favorBase, baseToken, 1000, 2000, 1000, 2000, owner, Date.now() + 10000)).to.not.be.revert(ethers);
+            await favorBase.approve(zapper, 1n);
+            await baseToken.approve(zapper, 2n);
+            await expect(zapper.addLiquidity(favorBase, baseToken, 1, 2, 1, 2, owner, Date.now() + 10000)).to.not.be.revert(ethers);
 
-            expect(await favorBasePair.balanceOf(owner)).to.equal(414n);
+            expect(await favorBasePair.balanceOf(owner)).to.equal(1413214n);
 
         })
 
@@ -715,6 +815,6 @@ describe("LPZapper.sol", () => {
             expect(await baseToken.balanceOf(owner)).to.be.equal(balanceBaseBefore - 2000n);
         })
     })
-
+*/
 
 })

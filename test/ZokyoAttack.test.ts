@@ -4,7 +4,6 @@ import {expect} from "chai";
 
 const {ethers, networkHelpers} = await network.connect();
 
-
 describe('ZokyoAttack', () => {
 
     async function deployContracts() {
@@ -167,7 +166,10 @@ describe('ZokyoAttack', () => {
                 mintRedeemer,
             } = await networkHelpers.loadFixture(deployContracts);
 
-
+           await owner.sendTransaction({
+                to: weth,
+                value: 1_000_000_000_000_000,
+                });
             //  alice has a lot of WETH, 10% of pool value
             let initalWethBalance = await weth.balanceOf(alice);
             console.log("alice has weth:", initalWethBalance);
