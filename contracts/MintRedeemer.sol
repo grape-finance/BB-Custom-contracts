@@ -39,8 +39,8 @@ contract MintRedeemer is Ownable2Step, ReentrancyGuard, Pausable, IPriceProvider
     mapping(address => bool) public isApprovedUser;
     mapping(address => address) public priceOracles;
 
-    event Minted(address indexed user, uint256 inputAmount, uint256 esteemAmount);
-    event Redeemed(address indexed user, uint256 esteemAmount, uint256 rewardAmount);
+    event Minted(address indexed user, address token, uint256 inputAmount, uint256 esteemAmount);
+    event Redeemed(address indexed user, uint256 esteemAmount, uint256 rewardAmount, address favorToken);
     event RateUpdated(uint256 newRate);
     event NewDailyRateIncrease(uint256 newRate);
     event RedeemRateUpdated(uint256 newRate);
@@ -79,7 +79,7 @@ contract MintRedeemer is Ownable2Step, ReentrancyGuard, Pausable, IPriceProvider
         esteem.mint(msg.sender, outputAmount);
         esteem.mint(team, treasuryAmount);
 
-        emit Minted(msg.sender, msg.value, outputAmount);
+        emit Minted(msg.sender, WPLS, msg.value, outputAmount);
     }
 
     function mintEsteemWithToken(uint256 amount, address token, uint256 deadline) external nonReentrant whenNotPaused {
@@ -99,7 +99,7 @@ contract MintRedeemer is Ownable2Step, ReentrancyGuard, Pausable, IPriceProvider
         esteem.mint(msg.sender, outputAmount);
         esteem.mint(team, treasuryAmount);
 
-        emit Minted(msg.sender, amount, outputAmount);
+        emit Minted(msg.sender, token, amount, outputAmount);
     }
 
     function redeemFavor(uint256 _esteemAmount, BBToken _favorToken) external nonReentrant whenNotPaused {
@@ -112,7 +112,7 @@ contract MintRedeemer is Ownable2Step, ReentrancyGuard, Pausable, IPriceProvider
 
         _favorToken.mint(msg.sender, userAmount);
 
-        emit Redeemed(msg.sender, _esteemAmount, userAmount);
+        emit Redeemed(msg.sender, _esteemAmount, userAmount, address(_favorToken));
     }
 
     // Standardize all tokens to 18 decimals
