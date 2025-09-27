@@ -192,8 +192,12 @@ contract LPOracle is Epoch {
             }
             require(dtU > 0, "Oracle: ZERO_TIME");
 
-            uint256 newUsd0C = usd0CumulativeLast + u0 * dtU;
-            uint256 newUsd1C = usd1CumulativeLast + u1 * dtU;
+            uint256 newUsd0C;
+            uint256 newUsd1C;
+            unchecked {
+                 newUsd0C = usd0CumulativeLast + u0 * dtU;
+                 newUsd1C = usd1CumulativeLast + u1 * dtU;
+             }
 
             uint256 avg0Raw;
             uint256 avg1Raw;
