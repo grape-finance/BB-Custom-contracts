@@ -22,9 +22,11 @@ import "@uniswap/v2-periphery/contracts/interfaces/IWETH.sol";
 contract LPZapper is Ownable2Step, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
+    address public immutable WPLS = 0xA1077a294dDE1B09bB078844df40758a5D0f9a27;
+
     IPool public POOL;
 
-    bool public depositToLending = true;
+    bool public depositToLending = false;
     address public pendingUser;
 
     // Treasury Multisig Addresses
@@ -165,8 +167,8 @@ contract LPZapper is Ownable2Step, ReentrancyGuard {
 
     function zapPLS(uint256 _deadline) public payable nonReentrant {
         //  wrap
-        IWETH(router.WETH()).deposit{value: msg.value}();
-        _zapToken(router.WETH(), uint112(msg.value), _deadline);
+        IWETH(WPLS).deposit{value: msg.value}();
+        _zapToken(WPLS, uint112(msg.value), _deadline);
     }
 
     //  wrap swapping -  to make it tax exempt
@@ -248,8 +250,8 @@ contract LPZapper is Ownable2Step, ReentrancyGuard {
 
         uint256 userSold = _swap(_favor, base, _amount - tax, _amountOutMin, _deadline);
 
-        if (base == router.WETH()) {       
-            IWETH(router.WETH()).withdraw(userSold);      
+        if (base == WPLS) {       
+            IWETH(WPLS).withdraw(userSold);      
             (bool ok,) = _receiver.call{value: userSold}("");
             require(ok, "Zapper: PLS transfer failed");
         } else {
@@ -274,9 +276,9 @@ contract LPZapper is Ownable2Step, ReentrancyGuard {
         require(_amount == 0 || msg.value == 0, "Provide either _amount or msg.value");
 
         uint256 input;
-        if (_base == router.WETH() && msg.value > 0) {
+        if (_base == WPLS && msg.value > 0) {
             // Native path: wrap PLS → WPLS and use it as swap input
-            IWETH(router.WETH()).deposit{value: msg.value}();
+            IWETH(WPLS).deposit{value: msg.value}();
             input = msg.value;
         } else {
             // ERC20 path
@@ -349,7 +351,7 @@ contract LPZapper is Ownable2Step, ReentrancyGuard {
         address _to,
         uint _deadline
     ) external payable nonReentrant {
-        require(favorToToken[_token] == router.WETH(), "Zapper: Not listed to make LP");
+        require(favorToToken[_token] == WPLS, "Zapper: Not listed to make LP");
         IERC20(_token).safeTransferFrom(
             msg.sender,
             address(this),
@@ -479,5 +481,37 @@ contract LPZapper is Ownable2Step, ReentrancyGuard {
     function setDepositToStronghold(bool allowed) external onlyOwner {
         depositToLending = allowed;
         emit DepositToStrongholdAllowed(allowed);
+    }
+
+    // Helpers for UI, plug and play from before 
+    function uiAmountsOut(
+        uint256 amountIn,
+        address[] calldata path
+    ) external view returns (uint256[] memory amounts) {
+        require(amountIn > 0 && path.length >= 2, "Invalid inputs"); 
+        try router.getAmountsOut(amountIn, path) returns (uint[] memory amts) {
+            return (amts);
+        } catch {
+            revert("Output not found");
+        }
+    }
+
+    function getOptimalAddLiquidity(
+        address tokenA,
+        address tokenB,
+        uint    amountADesired
+    ) public view returns (uint amountA, uint amountB) {
+        address pair = IUniswapV2Factory(router.factory()).getPair(tokenA, tokenB);
+        require(pair != address(0), "Pair does not exist");
+
+        (uint112 res0, uint112 res1, ) = IUniswapV2Pair(pair).getReserves();
+        (uint reserveA, uint reserveB) =
+        tokenA == IUniswapV2Pair(pair).token0()
+            ? (res0, res1)
+            : (res1, res0);
+
+        uint amountBOptimal = router.quote(amountADesired, reserveA, reserveB);
+
+        return (amountADesired, amountBOptimal);
     }
 }
