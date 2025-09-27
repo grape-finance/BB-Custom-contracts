@@ -167,13 +167,17 @@ contract LPOracle is Epoch {
                 }
             }
 
-            // patch cumulative: old√K * dt1 + new√K * dt2
-            uint256 kC = kCumulativeLast + lastSqrtK * dt1 + sqrtKNow * dt2;
+            uint256 kC;
+            uint256 kAvgRaw;
+            unchecked {
+                // patch cumulative: old√K * dt1 + new√K * dt2
+                kC = kCumulativeLast + lastSqrtK * dt1 + sqrtKNow * dt2;
+                kAvgRaw = (kC - kCumulativeLast) / dtFull;
+
+            }
 
             // compute TWAP over the full window
-            kAverage = FixedPoint.uq112x112(
-                uint224((kC - kCumulativeLast) / dtFull)
-            );
+            kAverage = FixedPoint.uq112x112(uint224(kAvgRaw));
 
             kCumulativeLast = kC;
             kTimestampLast = nowTs;
