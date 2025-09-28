@@ -20,15 +20,15 @@ contract MintRedeemer is Ownable2Step, ReentrancyGuard, Pausable, IPriceProvider
 
     uint256 public constant MULTIPLIER = 10000;
 
-    BBToken public esteem; 
+    BBToken public immutable esteem; 
     IPool public POOL;
 
-    bool public depositToLending = true;
-    address public immutable WPLS = 0xA1077a294dDE1B09bB078844df40758a5D0f9a27; 
+    bool public depositToLending = false;
+    address public constant WPLS = 0xA1077a294dDE1B09bB078844df40758a5D0f9a27; 
     address public team = 0x1EA35487AE62322F61f4C0F639a598d9eEB2F340;
     address public holding = 0x6831f815963FfCe95521271b94164eb4C82e7621;
 
-    uint256 public startTime;
+    uint256 public immutable startTime;
     uint256 public initialEsteemRate = 21 * 1e18;       // $21 per Esteem start price
     uint256 public redeemRate = 7000;      // 70% in favor for Esteem redeemptions
     uint256 public treasuryBonusRate = 2500; // 25% extra bonus minted to protocol treasury multisig on top of users minted amount 

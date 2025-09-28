@@ -19,7 +19,7 @@ contract FavorTreasury is Epoch, ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;
 
     uint256 public constant BASIS_DIVISOR = 100000; // 100%
-
+    uint256 public constant MAX_EXCLUDED = 50;
     bool public initialized = false;
 
     uint256 public startTime;
@@ -148,6 +148,7 @@ contract FavorTreasury is Epoch, ReentrancyGuard, Pausable {
     function addExcludedAddress(address _address) external onlyOwner {
         require(_address != address(0), "Cannot exclude zero address");
         require(!excludedFromTotalSupply[_address], "Address already excluded");
+        require(excludedAddresses.length < MAX_EXCLUDED, "Cannot add any more excluded addresses");
 
         excludedFromTotalSupply[_address] = true;
         excludedAddresses.push(_address);

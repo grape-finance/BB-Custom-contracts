@@ -60,6 +60,7 @@ contract Favor is IFavorToken, ERC20Burnable, Ownable2Step {
 
     function mint(address _recipient, uint256 _amount) public {
         require(isMinter[msg.sender], "Not authorized to mint");
+        require(_recipient != address(0), "Cannot be address(0)");
         _mint(_recipient, _amount);
     }
 
@@ -146,11 +147,13 @@ contract Favor is IFavorToken, ERC20Burnable, Ownable2Step {
     }
 
     function addMinter(address _account) external onlyOwner {
+        require(_account != address(0), "Cannot be address(0)");
         isMinter[_account] = true;
         emit MinterAdded(_account);
     }
 
     function removeMinter(address _account) external onlyOwner {
+        require(_account != address(0), "Cannot be address(0)");
         isMinter[_account] = false;
         emit MinterRemoved(_account);
     }

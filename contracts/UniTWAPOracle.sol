@@ -16,9 +16,9 @@ contract UniTWAPOracle is Epoch, IOracle {
     /* ========== STATE VARIABLES ========== */
 
     // uniswap
-    address public token0;
-    address public token1;
-    IUniswapV2Pair public pair;
+    address public immutable token0;
+    address public immutable token1;
+    IUniswapV2Pair public immutable pair;
 
     // oracle
     uint32 public blockTimestampLast;

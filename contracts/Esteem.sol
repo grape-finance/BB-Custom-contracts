@@ -26,11 +26,13 @@ contract Esteem is ERC20Burnable, Ownable2Step {
     }
 
     function addMinter(address account) external onlyOwner {
+        require(account != address(0), "Cannot be address(0)");
         isMinter[account] = true;
         emit MinterAdded(account);
     }
 
     function removeMinter(address account) external onlyOwner {
+        require(account != address(0), "Cannot be address(0)");
         isMinter[account] = false;
         emit MinterRemoved(account);
     }
