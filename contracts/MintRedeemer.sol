@@ -13,9 +13,11 @@ import "@uniswap/v2-periphery/contracts/interfaces/IWETH.sol";
 import "./interfaces/BBToken.sol";
 import "./interfaces/IMasterOracle.sol";
 import {IPriceProvider} from "./interfaces/IPriceProvider.sol";
+import {KillswitchPausable} from "./KillswitchPausable.sol";
+import {Killswitch} from "./Killswitch.sol";
 
 
-contract MintRedeemer is Ownable2Step, ReentrancyGuard, Pausable, IPriceProvider {
+contract MintRedeemer is Ownable2Step, ReentrancyGuard, KillswitchPausable, IPriceProvider {
     using SafeERC20 for IERC20;
 
     uint256 public constant MULTIPLIER = 10000;
@@ -56,7 +58,7 @@ contract MintRedeemer is Ownable2Step, ReentrancyGuard, Pausable, IPriceProvider
     event AllowedMintTokenSet(address indexed token, bool allowed);
     event ActiveFavorTokenSet(address indexed token, bool allowed);
 
-    constructor(address _esteem, uint256 _startTime, address _owner) Ownable(_owner){
+    constructor(address _esteem, uint256 _startTime,Killswitch _killswitch, address _owner) Ownable(_owner) KillswitchPausable(_killswitch){
         require(_esteem != address(0), "Invalid Esteem address");
         require(_startTime >= block.timestamp, "Cannot start in past");
 
@@ -278,16 +280,6 @@ contract MintRedeemer is Ownable2Step, ReentrancyGuard, Pausable, IPriceProvider
         (bool success, ) = _to.call{value: _amount}("");
         require(success, "Transfer failed");
         emit AdminWithdraw(address(0), _to, _amount);
-    }
-
-    function pause() external onlyOwner {
-        _pause();
-        emit ContractPaused(msg.sender);
-    }
-
-    function unpause() external onlyOwner {
-        _unpause();
-        emit ContractUnpaused(msg.sender);
     }
 
     receive() external payable {}

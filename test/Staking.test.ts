@@ -10,6 +10,10 @@ describe('Staking.sol', () => {
 
         const [owner, treasury] = await ethers.getSigners();
 
+        const killswitch = await ethers.deployContract("Killswitch", [1, owner]);
+
+        await killswitch.setScram(owner, true);
+
         let genesis = (await ethers.provider.getBlock('latest'))?.timestamp || 0;
         const epochKeeper = await ethers.deployContract("EpochKeeper", [genesis, 3600, owner]);
 
@@ -18,7 +22,7 @@ describe('Staking.sol', () => {
         await networkHelpers.time.increaseTo(nextEpochPoint + 1n);
 
 
-        const staking = await ethers.deployContract("Staking", [epochKeeper, owner]);
+        const staking = await ethers.deployContract("Staking", [epochKeeper, killswitch, owner]);
 
         const esteem = await ethers.deployContract("Esteem", [owner]);
         await esteem.addMinter(owner);
@@ -28,7 +32,7 @@ describe('Staking.sol', () => {
 
         await favor.setTaxExempt(staking, true);
 
-        return {staking, favor, esteem, epochKeeper};
+        return {staking, favor, esteem, epochKeeper, killswitch};
     }
 
     async function deployInitialised() {
@@ -63,8 +67,6 @@ describe('Staking.sol', () => {
             // all those all shall fail
             await expect(notOwned.initialize(owner, owner, owner)).to.be.revertedWithCustomError(staking, "OwnableUnauthorizedAccount");
             await expect(notOwned.setTreasuryOperator(owner)).to.be.revertedWithCustomError(staking, "OwnableUnauthorizedAccount");
-            await expect(notOwned.pause()).to.be.revertedWithCustomError(staking, "OwnableUnauthorizedAccount");
-            await expect(notOwned.unpause()).to.be.revertedWithCustomError(staking, "OwnableUnauthorizedAccount");
             await expect(notOwned.governanceRecoverUnsupported(owner, 123, owner)).to.be.revertedWithCustomError(staking, "OwnableUnauthorizedAccount");
             await expect(notOwned.allocateSeigniorage(123n)).to.be.revertedWith("Not authorized");
 
@@ -73,10 +75,11 @@ describe('Staking.sol', () => {
         it('shall not allow to call those methods when paused', async () => {
 
             const [owner, notOwner, treasuryOperator] = await ethers.getSigners();
-            let {staking} = await networkHelpers.loadFixture(deployContracts);
+            let {staking, killswitch} = await networkHelpers.loadFixture(deployContracts);
 
             //  staking shall be paused
-            await expect(staking.pause()).to.emit(staking, "Paused");
+
+            await expect(killswitch.engage()).to.not.be.revert(ethers);
             expect(await staking.paused()).to.equal(true);
 
             //  shall not be able to invoke those methods

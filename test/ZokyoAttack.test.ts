@@ -4,6 +4,8 @@ import {expect} from "chai";
 
 const {ethers, networkHelpers} = await network.connect();
 
+//  TODO:  checkis we need 2 separate minter!!!!!!
+
 describe('ZokyoAttack', () => {
 
     async function deployContracts() {
@@ -12,6 +14,7 @@ describe('ZokyoAttack', () => {
         //  as we do not have fetsh orcle here, use mock
         let mockOracle = await ethers.deployContract("MockMasterOracle");
 
+        const killswitch = await ethers.deployContract("Killswitch", [1, owner]);
 
         let startTime = Math.floor(Date.now() / 1000);
 
@@ -20,7 +23,7 @@ describe('ZokyoAttack', () => {
         await esteem.mint(owner, 1000n);
 
 
-        const minter = await ethers.deployContract("MintRedeemer", [esteem, startTime + 100, owner]);
+        const minter = await ethers.deployContract("MintRedeemer", [esteem, startTime + 100, killswitch, owner]);
 
 
         let weth = await createToken(owner, 'wethweth', "t0");
@@ -89,12 +92,12 @@ describe('ZokyoAttack', () => {
         await mockOracle.setTwapOracle(favorEth, uniTwapOracle);
 
         //  create grove
-        let grove = await ethers.deployContract("Staking", [epochKeeper, owner]);
+        let grove = await ethers.deployContract("Staking", [epochKeeper, killswitch, owner]);
         // groove shall be tax exempt
         await favorEth.setTaxExempt(grove, true);
 
         //  create and inialise favor treasury,
-        const favorTreasury = await ethers.deployContract("FavorTreasury", [epochKeeper, owner]);
+        const favorTreasury = await ethers.deployContract("FavorTreasury", [epochKeeper, killswitch, owner]);
         await favorEth.setTaxExempt(favorTreasury, true);
 
         await favorTreasury.initialize(favorEth, uniTwapOracle, grove);
@@ -118,7 +121,7 @@ describe('ZokyoAttack', () => {
 
         // create and configure mint redeemer
         let timestampNow = (await ethers.provider.getBlock('latest'))?.timestamp || 0;
-        const mintRedeemer = await ethers.deployContract("MintRedeemer", [esteem, timestampNow + 10, owner]);
+        const mintRedeemer = await ethers.deployContract("MintRedeemer", [esteem, timestampNow + 10, killswitch, owner]);
         await mintRedeemer.setActiveFavorToken(favorEth, true);
         await mintRedeemer.setPriceOracle(favorEth, mockOracle);
 
@@ -166,10 +169,10 @@ describe('ZokyoAttack', () => {
                 mintRedeemer,
             } = await networkHelpers.loadFixture(deployContracts);
 
-           await owner.sendTransaction({
+            await owner.sendTransaction({
                 to: weth,
                 value: 1_000_000_000_000_000,
-                });
+            });
             //  alice has a lot of WETH, 10% of pool value
             let initalWethBalance = await weth.balanceOf(alice);
             console.log("alice has weth:", initalWethBalance);

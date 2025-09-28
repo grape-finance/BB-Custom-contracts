@@ -14,8 +14,11 @@ import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Pair.sol";
 
+import {KillswitchPausable} from "./KillswitchPausable.sol";
+import {Killswitch} from "./Killswitch.sol";
 
-contract FavorTreasury is Epoch, ReentrancyGuard, Pausable {
+
+contract FavorTreasury is Epoch, ReentrancyGuard, KillswitchPausable {
     using SafeERC20 for IERC20;
 
     uint256 public constant BASIS_DIVISOR = 100000; // 100%
@@ -51,8 +54,6 @@ contract FavorTreasury is Epoch, ReentrancyGuard, Pausable {
     event MaxSupplyExpansionPercentUpdated(uint256 newMaxExpansionPercent);
     event MinSupplyExpansionPercentUpdated(uint256 newMinExpansionPercent);
     event DaoFundUpdated(address indexed daoFund, uint256 daoFundSharedPercent);
-    event ContractPaused(address indexed admin);
-    event ContractUnpaused(address indexed admin);
     event ExcludedAddressAdded(address indexed excludedAddress);
     event ExcludedAddressRemoved(address indexed excludedAddress);
     event LpPairToExcludeAdded(address indexed pair);
@@ -60,8 +61,9 @@ contract FavorTreasury is Epoch, ReentrancyGuard, Pausable {
     event RecoveredUnsupportedToken(address indexed token, address indexed to, uint256 amount);
 
 
-    constructor(EpochKeeper _keeper, address _owner)
+    constructor(EpochKeeper _keeper, Killswitch _killswitch, address _owner)
     Epoch(_keeper, _owner)
+    KillswitchPausable(_killswitch)
     {}
 
 
@@ -246,17 +248,6 @@ contract FavorTreasury is Epoch, ReentrancyGuard, Pausable {
         }
 
         return totalSupply - balanceExcluded - favorFromLpHeldByExcluded;
-    }
-
-
-    function pause() external onlyOwner {
-        _pause();
-        emit ContractPaused(msg.sender);
-    }
-
-    function unpause() external onlyOwner {
-        _unpause();
-        emit ContractUnpaused(msg.sender);
     }
 
     function setExtraFunds(

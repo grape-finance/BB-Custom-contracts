@@ -13,8 +13,10 @@ import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IFavorToken} from "./interfaces/IFavorToken.sol";
 import {IGrove} from "./interfaces/IGrove.sol";
+import {KillswitchPausable} from "./KillswitchPausable.sol";
+import {Killswitch} from "./Killswitch.sol";
 
-contract Staking is ShareWrapper, Ownable2Step, ReentrancyGuard, Pausable, IGrove {
+contract Staking is ShareWrapper, Ownable2Step, ReentrancyGuard, KillswitchPausable, IGrove {
     using SafeERC20 for IERC20;
 
     uint256 public constant MAX_HISTORY = 50000;
@@ -75,7 +77,7 @@ contract Staking is ShareWrapper, Ownable2Step, ReentrancyGuard, Pausable, IGrov
         _;
     }
 
-    constructor(EpochKeeper _epochKeeper, address _owner) Ownable(_owner)
+    constructor(EpochKeeper _epochKeeper, Killswitch _killswitch, address _owner) Ownable(_owner) KillswitchPausable(_killswitch)
     {
         epochKeeper = _epochKeeper;
     }
@@ -194,16 +196,6 @@ contract Staking is ShareWrapper, Ownable2Step, ReentrancyGuard, Pausable, IGrov
         require(address(_token) != address(esteem), "Cannot remove ESTEEM tokens");
         _token.safeTransfer(_to, _amount);
         emit RecoveredUnsupportedToken(address(_token), _to, _amount);
-    }
-
-    function pause() external onlyOwner {
-        _pause();
-        emit ContractPaused(msg.sender);
-    }
-
-    function unpause() external onlyOwner {
-        _unpause();
-        emit ContractUnpaused(msg.sender);
     }
 
     //  whether caller stake is locked

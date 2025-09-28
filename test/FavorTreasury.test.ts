@@ -12,11 +12,13 @@ describe('FavorTreasury.sol', () => {
 
         const [deployer, owner, treasury, esteem] = await ethers.getSigners();
 
+        const killswitch = await ethers.deployContract("Killswitch", [1, owner]);
+
 
         let genesis = (await ethers.provider.getBlock('latest'))?.timestamp || 0;
         const epochKeeper = await ethers.deployContract("EpochKeeper", [genesis, 3600, owner]);
 
-        const favorTreasuryInstance = await ethers.deployContract("FavorTreasury", [epochKeeper, owner]);
+        const favorTreasuryInstance = await ethers.deployContract("FavorTreasury", [epochKeeper, killswitch, owner]);
         let favorTreasury = favorTreasuryInstance.connect(owner);
 
         let weth = await createToken(owner, 'wethweth', "t0");
@@ -73,8 +75,6 @@ describe('FavorTreasury.sol', () => {
             await expect(notOwned.removeExcludedAddress(owner)).to.be.revertedWithCustomError(favorTreasury, "OwnableUnauthorizedAccount");
             await expect(notOwned.addLpPairToExclude(owner)).to.be.revertedWithCustomError(favorTreasury, "OwnableUnauthorizedAccount");
             await expect(notOwned.removeLpPairToExclude(owner)).to.be.revertedWithCustomError(favorTreasury, "OwnableUnauthorizedAccount");
-            await expect(notOwned.pause()).to.be.revertedWithCustomError(favorTreasury, "OwnableUnauthorizedAccount");
-            await expect(notOwned.unpause()).to.be.revertedWithCustomError(favorTreasury, "OwnableUnauthorizedAccount");
             await expect(notOwned.setExtraFunds(owner, 123)).to.be.revertedWithCustomError(favorTreasury, "OwnableUnauthorizedAccount");
             await expect(notOwned.governanceRecoverUnsupported(owner, 123, owner)).to.be.revertedWithCustomError(favorTreasury, "OwnableUnauthorizedAccount");
 

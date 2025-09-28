@@ -10,6 +10,8 @@ describe('OracleManipulator', () => {
     async function deployContracts() {
         const [owner, treasury, alice, bob] = await ethers.getSigners();
 
+        const killswitch = await ethers.deployContract("Killswitch", [1, owner]);
+
         //  as we do not have fetsh orcle here, use mock
         let mockOracle = await ethers.deployContract("MockMasterOracle");
 
@@ -21,7 +23,7 @@ describe('OracleManipulator', () => {
         await esteem.mint(owner, 1_000_000_000_000_000_000_000_000n);
 
 
-        const minter = await ethers.deployContract("MintRedeemer", [esteem, startTime + 100, owner]);
+        const minter = await ethers.deployContract("MintRedeemer", [esteem, startTime + 100, killswitch, owner]);
         // 0.1 ,  18 digitts fixed decimal point
         //await minter.setEsteemRate(100_000_000_000_000_000n)
 
@@ -90,12 +92,12 @@ describe('OracleManipulator', () => {
 
 
         //  create grove
-        let grove = await ethers.deployContract("Staking", [epochKeeper, owner]);
+        let grove = await ethers.deployContract("Staking", [epochKeeper, killswitch, owner]);
         // groove shall be tax exempt
         await favorEth.setTaxExempt(grove, true);
 
         //  create and inialise favor treasury,
-        const favorTreasury = await ethers.deployContract("FavorTreasury", [epochKeeper, owner]);
+        const favorTreasury = await ethers.deployContract("FavorTreasury", [epochKeeper, killswitch, owner]);
         await favorEth.setTaxExempt(favorTreasury, true);
 
         await favorTreasury.initialize(favorEth, uniTwapOracle, grove);
@@ -158,7 +160,7 @@ describe('OracleManipulator', () => {
             await owner.sendTransaction({
                 to: weth,
                 value: 100_000_000_000n,
-                });
+            });
             let favorPriceBefore = await favorTreasury.getFavorPrice();
             console.log("favorPriceBefore:", favorPriceBefore.toString());
 
