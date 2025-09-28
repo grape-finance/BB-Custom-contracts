@@ -69,7 +69,8 @@ contract Favor is IFavorToken, ERC20Burnable, Ownable2Step {
     }
 
     function calculateFavorBonuses(uint256 _amount) public view returns (uint256 userBonus_, uint256 treasuryBonus_) {
-
+        require(address(priceProvider) != address(0), "Priceprovider not set");
+        
         uint256 twap = priceProvider.getLatestTokenTWAP(address(this));
 
         // No bonus if TWAP is at or above 3.00

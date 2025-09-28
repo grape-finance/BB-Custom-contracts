@@ -74,7 +74,7 @@ contract LPOracle is Epoch {
         token1 = _pair.token1();
         masterOracle = _masterOracle;
         lpPriceCap = _priceCap;
-
+        require(pair.totalSupply() > 0, 'Zero LP supply');
         // seed Uniswap price cumulatives + timestamp
         (uint256 p0C, uint256 p1C, uint32 ts) = UniswapV2OracleLibrary
             .currentCumulativePrices(address(pair));
@@ -296,6 +296,7 @@ contract LPOracle is Epoch {
 
     /// @notice Set Master oracle contract for USD price feeds of individual tokens in LP
     function setMasterOracle(address _oracle) external onlyOwner {
+        require(_oracle != address(0), "Cannot set to address(0)");
         masterOracle = IMasterOracle(_oracle);
         emit OracleUpdated(_oracle);
     }

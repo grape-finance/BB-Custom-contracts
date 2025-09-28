@@ -67,7 +67,7 @@ contract LPZapper is Ownable2Step, ReentrancyGuard {
      * create liquidity by requesting flash loan, swapping it into pair  and put LP
      * as collateral
      */
-    function requestFlashLoan(uint256 _amount, address _favorToken) external {
+    function requestFlashLoan(uint256 _amount, address _favorToken) external nonReentrant {
         address token = favorToToken[_favorToken];
         address lpToken = favorToLp[_favorToken];
 
@@ -95,7 +95,7 @@ contract LPZapper is Ownable2Step, ReentrancyGuard {
         uint256 premium,
         address initiator,
         bytes calldata params
-    ) external returns (bool) {
+    ) external nonReentrant returns (bool) {
         require(msg.sender == address(POOL), "not registered pool");
         require(initiator == address(this), "bad initiator");
 
