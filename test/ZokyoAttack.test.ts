@@ -35,7 +35,7 @@ describe('ZokyoAttack', () => {
         let v2router = await createUSV2Router(owner, v2factory, weth);
 
 
-        const zapper = await ethers.deployContract("LPZapper", [owner, v2router]);
+        const zapper = await ethers.deployContract("LPZapper", [owner, v2router, weth]);
 
         // mock pool to test flash loans
         const mockPool = await ethers.deployContract("MockPool", []);

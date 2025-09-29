@@ -36,7 +36,7 @@ describe('OracleManipulator', () => {
         let v2router = await createUSV2Router(owner, v2factory, weth);
 
 
-        const zapperInstance = await ethers.deployContract("LPZapper", [owner, v2router]);
+        const zapperInstance = await ethers.deployContract("LPZapper", [owner, v2router, weth]);
         let zapper = zapperInstance.connect(owner);
 
         // mock pool to test flash loans

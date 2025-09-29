@@ -24,8 +24,7 @@ describe("LPZapper.sol", () => {
         let v2factory = await createUSV2Factory(owner);
         let v2router = await createUSV2Router(owner, v2factory, weth);
 
-
-        const zapperInstance = await ethers.deployContract("LPZapper", [owner, v2router]);
+        const zapperInstance = await ethers.deployContract("LPZapper", [owner, v2router, weth]);
 
         let zapper = zapperInstance.connect(owner);
 
@@ -100,7 +99,7 @@ describe("LPZapper.sol", () => {
             esteem
         };
     }
-/*
+
     describe(' deployment', () => {
 
         it("Should be able to create contract", async () => {
@@ -487,7 +486,7 @@ describe("LPZapper.sol", () => {
         })
 
     })
-*/
+
     describe('buy and sell', () => {
 
         it('shall not sell unknown favor token', async () => {
@@ -548,8 +547,7 @@ describe("LPZapper.sol", () => {
 
         it('shall tax on sale to PLS if not a tax exempt seller and send + auto deposit to pool for treasury', async () => {
             const [deployer, owner, treasury, receiver] = await ethers.getSigners();
-            let {zapper, favorEth, weth, mockPool, v2router} = await deployContracts();
-
+            let { zapper, favorEth, weth, mockPool, v2router } = await deployContracts();                                        
             const teamAddress = await zapper.team();
             const holdingAddress = await zapper.holding();
 
@@ -719,7 +717,7 @@ describe("LPZapper.sol", () => {
         })
 
     })
-/*
+
     describe('liquidity management', () => {
         it('shall refuse to add liquidity if not a registered favor', async () => {
             const [deployer, owner, somethingStrange] = await ethers.getSigners();
@@ -815,6 +813,6 @@ describe("LPZapper.sol", () => {
             expect(await baseToken.balanceOf(owner)).to.be.equal(balanceBaseBefore - 2000n);
         })
     })
-*/
+
 
 })

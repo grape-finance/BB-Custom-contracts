@@ -14,7 +14,6 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Factory.sol";
 import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Pair.sol";
-
 import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 import "@uniswap/v2-periphery/contracts/interfaces/IWETH.sol";
 
@@ -22,18 +21,17 @@ import "@uniswap/v2-periphery/contracts/interfaces/IWETH.sol";
 contract LPZapper is Ownable2Step, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
-    address public constant WPLS = 0xA1077a294dDE1B09bB078844df40758a5D0f9a27;
+    address public immutable WPLS;
+    IUniswapV2Router02 public immutable router;
 
     IPool public POOL;
 
-    bool public depositToLending = false;
+    bool public depositToLending = true;
     address public pendingUser;
 
     // Treasury Multisig Addresses
     address public team = 0x1EA35487AE62322F61f4C0F639a598d9eEB2F340;
     address public holding = 0x6831f815963FfCe95521271b94164eb4C82e7621;
-
-    IUniswapV2Router02 public immutable router;
 
     address[] public dustTokens;
     mapping(address => bool) public isDustToken;
@@ -59,8 +57,9 @@ contract LPZapper is Ownable2Step, ReentrancyGuard {
     receive() external payable {}
 
 
-    constructor(address _owner, address _router) Ownable(_owner) {
+    constructor(address _owner, address _router, address _wpls) Ownable(_owner) {
         router = IUniswapV2Router02(_router);
+        WPLS = _wpls;
     }
 
     /**
