@@ -57,10 +57,6 @@ abstract contract Epoch is Ownable2Step {
         return keeper.epochDuration();
     }
 
-    function getStartTime() public view returns (uint256) {
-        return keeper.epochStartTime();
-    }
-
     function nextEpochPoint() public view returns (uint256) {
         (,,uint256 to) = keeper.currentEpochBoundary();
         return to;
