@@ -39,11 +39,6 @@ abstract contract Epoch is Ownable2Step {
         _;
     }
 
-    //  TODO: not really useful
-    modifier checkStartTime {
-        require(block.timestamp >= keeper.epochStartTime(), 'Epoch: not started yet');
-        _;
-    }
 
     // check whether new epoch is started,  if not -  just silently refuse doing anything
     modifier checkEpoch {
