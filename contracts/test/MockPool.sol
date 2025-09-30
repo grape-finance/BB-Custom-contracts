@@ -11,9 +11,13 @@ contract MockPool {
     uint256 public interestRateModes;
     bytes public params;
     uint16 public referralCode;
+    bool  callTrough = false;
     constructor(){
     }
 
+    function setCallTrough(bool _set) external {
+        callTrough = _set;
+    }
 
     function flashLoanSimple(
         address _receiverAddress,
@@ -28,6 +32,10 @@ contract MockPool {
         amount = _amount;
         params = _params;
         referralCode = _referralCode;
+
+        if (callTrough) {
+            IFlashLoanSimpleReceiver(msg.sender).executeOperation(_asset, _amount, 0, msg.sender, _params);
+        }
     }
 
     // simulate flash loan execution coming from a defined  initiator  address

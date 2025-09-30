@@ -3,7 +3,7 @@ import {network} from "hardhat";
 import {ZeroAddress} from "ethers";
 import {createToken, createUSV2Factory, createUSV2Router} from "./utils/contractUtils.js";
 
-const {ethers} = await network.connect();
+const {ethers, networkHelpers} = await network.connect();
 
 
 describe("LPZapper.sol", () => {
@@ -73,7 +73,7 @@ describe("LPZapper.sol", () => {
 
         await v2router.addLiquidity(favorEth, weth, 1000000n, 2000000n, 0n, 0n, owner, Date.now() + 100000);
         await v2router.addLiquidity(favorBase, baseToken, 1000000n, 2000000n, 0n, 0n, owner, Date.now() + 100000);
-    
+
 
         // remove tax-exempt status from owner
         await favorEth.setTaxExempt(owner, false);
@@ -104,7 +104,15 @@ describe("LPZapper.sol", () => {
 
         it("Should be able to create contract", async () => {
             const [deployer, owner] = await ethers.getSigners();
-            let {zapper, v2router, favorBase, favorEth, weth, baseToken} = await deployContracts();
+            let {
+                zapper,
+                v2router,
+                favorBase,
+                favorEth,
+                weth,
+                baseToken
+            } = await networkHelpers.loadFixture(deployContracts);
+            ;
 
             await expect(await zapper.router()).to.be.equal(v2router);
 
@@ -118,7 +126,8 @@ describe("LPZapper.sol", () => {
 
         it("Should be able to set values", async () => {
             const [deployer, owner, whatever] = await ethers.getSigners();
-            let {zapper} = await deployContracts();
+            let {zapper} = await networkHelpers.loadFixture(deployContracts);
+            ;
 
             await expect(zapper.setPool(whatever)).to.not.be.revert(ethers);
             expect(await zapper.POOL()).to.be.equal(whatever);
@@ -128,7 +137,8 @@ describe("LPZapper.sol", () => {
 
         it('should be able to transfer ownership', async () => {
             const [deployer, owner, newOwner] = await ethers.getSigners();
-            let {zapper} = await deployContracts();
+            let {zapper} = await networkHelpers.loadFixture(deployContracts);
+            ;
 
             await expect(zapper.transferOwnership(newOwner)).to.not.be.revert(ethers);
             //  owner isn't transferred until accepted
@@ -145,7 +155,8 @@ describe("LPZapper.sol", () => {
 
         it("only owner methods", async () => {
             const [deployer, owner, somebody] = await ethers.getSigners();
-            let {zapper} = await deployContracts();
+            let {zapper} = await networkHelpers.loadFixture(deployContracts);
+            ;
             //Revert function because user is not the owner
             await expect(zapper.connect(somebody).addDustToken(somebody)).to.be.revertedWithCustomError(zapper, "OwnableUnauthorizedAccount");
             await expect(zapper.connect(somebody).removeDustToken(somebody)).to.be.revertedWithCustomError(zapper, "OwnableUnauthorizedAccount");
@@ -162,7 +173,8 @@ describe("LPZapper.sol", () => {
         //  msg sender shall be a registered pool only
         it("shall no allow invocation from a wrong pool", async () => {
             const [deployer, owner, somebody] = await ethers.getSigners();
-            let {zapper, favorEth} = await deployContracts();
+            let {zapper, favorEth} = await networkHelpers.loadFixture(deployContracts);
+            ;
 
             await expect(zapper.executeOperation(favorEth, 0n, 0n, somebody, "0x")).to.be.revertedWith("not registered pool");
         })
@@ -171,7 +183,8 @@ describe("LPZapper.sol", () => {
         //  we trust aave pol that it does the right thing here.
         it("shall no allow invocation from a wrong pool caller", async () => {
             const [deployer, owner, somebody, pool] = await ethers.getSigners();
-            let {zapper, favorEth} = await deployContracts();
+            let {zapper, favorEth} = await networkHelpers.loadFixture(deployContracts);
+            ;
 
             await zapper.setPool(pool);
 
@@ -183,7 +196,8 @@ describe("LPZapper.sol", () => {
 
         it('manage dust tokens', async () => {
             const [deployer, owner, somebody] = await ethers.getSigners();
-            let {zapper} = await deployContracts();
+            let {zapper} = await networkHelpers.loadFixture(deployContracts);
+            ;
             //Add dust token
             await expect(zapper.addDustToken(somebody)).to.not.be.revert(ethers);
             expect(await zapper.isDustToken(somebody)).to.be.equal(true);
@@ -195,7 +209,8 @@ describe("LPZapper.sol", () => {
 
         it("manage favor tokens", async () => {
             const [deployer, owner, favor, lp, base] = await ethers.getSigners();
-            let {zapper, favorEth, favorWethPair, weth} = await deployContracts();
+            let {zapper, favorEth, favorWethPair, weth} = await networkHelpers.loadFixture(deployContracts);
+            ;
 
 
             // shall have set up mappings
@@ -216,7 +231,8 @@ describe("LPZapper.sol", () => {
 
         it("shall withdraw tokens as admin", async () => {
             const [deployer, owner, receiver] = await ethers.getSigners();
-            let {zapper, favorEth} = await deployContracts();
+            let {zapper, favorEth} = await networkHelpers.loadFixture(deployContracts);
+            ;
 
             await favorEth.transfer(zapper, 1000n);
 
@@ -230,7 +246,8 @@ describe("LPZapper.sol", () => {
 
         it("shall withdraw PLS as admin", async () => {
             const [deployer, owner, receiver] = await ethers.getSigners();
-            let {zapper, favorEth} = await deployContracts();
+            let {zapper, favorEth} = await networkHelpers.loadFixture(deployContracts);
+            ;
 
             await owner.sendTransaction({
                 to: zapper,
@@ -252,7 +269,8 @@ describe("LPZapper.sol", () => {
         // HAL-13 Add sanity check to favor registration, ovoid overwriting LP settings etc.
         it("shall check for publicates when adding favor", async () => {
             const [deployer, owner, favor, lp, base] = await ethers.getSigners();
-            let {zapper, favorEth, favorWethPair, weth, baseToken} = await deployContracts();
+            let {zapper, favorEth, favorWethPair, weth, baseToken} = await networkHelpers.loadFixture(deployContracts);
+            ;
 
             //  shall not add favor, is already added
             await expect(zapper.addFavor(favorEth, lp, base)).to.be.revertedWith("Favor already registered");
@@ -271,16 +289,29 @@ describe("LPZapper.sol", () => {
         it('shall not allow flash loan for unknoww tokens', async () => {
             const [deployer, owner, somebody] = await ethers.getSigners();
 
-            let {zapper, favorEth, weth} = await deployContracts();
+            let {zapper, favorEth, weth} = await networkHelpers.loadFixture(deployContracts);
+
 
             await expect(zapper.requestFlashLoan(12345n, somebody)).to.be.revertedWith('Zapper: unsupported token');
+
+        })
+
+        it('shall shall call through without reentrance problems', async () => {
+            const [deployer, owner] = await ethers.getSigners();
+            let {zapper, favorEth, weth, mockPool, favorWethPair} = await networkHelpers.loadFixture(deployContracts);
+
+            await favorEth.approve(zapper, 1_000_000_000_000_000n);
+
+            await mockPool.setCallTrough(true);
+            await expect(zapper.requestFlashLoan(12345n, favorEth)).to.not.be.revertedWithCustomError(zapper, "ReentrancyGuardReentrantCall");
 
         })
 
         it('shall request flash loan properly', async () => {
 
             const [deployer, owner] = await ethers.getSigners();
-            let {zapper, favorEth, weth, mockPool, favorWethPair} = await deployContracts();
+            let {zapper, favorEth, weth, mockPool, favorWethPair} = await networkHelpers.loadFixture(deployContracts);
+
 
             //  there shall be enough alowance of favor
             await favorEth.approve(zapper, 1_000_000_000_000_000n);
@@ -313,7 +344,8 @@ describe("LPZapper.sol", () => {
         it('shall refuse operation if invoked fron not registered pool', async () => {
 
             const [deployer, owner] = await ethers.getSigners();
-            let {zapper, weth} = await deployContracts();
+            let {zapper, weth} = await networkHelpers.loadFixture(deployContracts);
+            ;
 
             await expect(zapper.executeOperation(weth, 123n, 456, owner, "0x")).to.be.revertedWith("not registered pool");
         })
@@ -321,7 +353,8 @@ describe("LPZapper.sol", () => {
         it('shall refuse operation if invoked fron wrong initiator', async () => {
             const [deployer, owner] = await ethers.getSigners();
 
-            let {zapper, favorEth, weth, mockPool, favorWethPair} = await deployContracts();
+            let {zapper, favorEth, weth, mockPool, favorWethPair} = await networkHelpers.loadFixture(deployContracts);
+            ;
 
             await expect(mockPool.mockLoanFromWrongInitiator(zapper, owner)).to.be.revertedWith("bad initiator");
         })
@@ -330,7 +363,8 @@ describe("LPZapper.sol", () => {
         it('shall refuse operation  if user does not match', async () => {
 
             const [deployer, owner] = await ethers.getSigners();
-            let {zapper, weth, favorEth, mockPool} = await deployContracts();
+            let {zapper, weth, favorEth, mockPool} = await networkHelpers.loadFixture(deployContracts);
+            ;
 
 
             // simulate first part of onvocation
@@ -346,7 +380,8 @@ describe("LPZapper.sol", () => {
         it('shall perform borrowing operation', async () => {
 
             const [deployer, owner] = await ethers.getSigners();
-            let {zapper, weth, favorEth, mockPool, favorWethPair} = await deployContracts();
+            let {zapper, weth, favorEth, mockPool, favorWethPair} = await networkHelpers.loadFixture(deployContracts);
+            ;
 
 
             // simulate first part of onvocation
@@ -403,7 +438,15 @@ describe("LPZapper.sol", () => {
 
         it('zap  tokens  into LP', async () => {
             const [deployer, owner] = await ethers.getSigners();
-            let {zapper, favorEth, weth, favorWethPair, esteem, mockPool} = await deployContracts();
+            let {
+                zapper,
+                favorEth,
+                weth,
+                favorWethPair,
+                esteem,
+                mockPool
+            } = await networkHelpers.loadFixture(deployContracts);
+            ;
 
             //  add some extra tokens to the zapper to check  that dust is refunded
             await favorEth.transfer(zapper, 1000n);
@@ -446,7 +489,15 @@ describe("LPZapper.sol", () => {
 
         it('zap  PLS  into LP', async () => {
             const [deployer, owner] = await ethers.getSigners();
-            let {zapper, favorEth, weth, favorWethPair, esteem, mockPool} = await deployContracts();
+            let {
+                zapper,
+                favorEth,
+                weth,
+                favorWethPair,
+                esteem,
+                mockPool
+            } = await networkHelpers.loadFixture(deployContracts);
+            ;
 
             //  add some extra tokens to the zapper to check  that dust is refunded
             await favorEth.transfer(zapper, 1000n);
@@ -491,16 +542,18 @@ describe("LPZapper.sol", () => {
 
         it('shall not sell unknown favor token', async () => {
             const [deployer, owner, somethingStrange] = await ethers.getSigners();
-            let {zapper, favorEth} = await deployContracts();
+            let {zapper, favorEth} = await networkHelpers.loadFixture(deployContracts);
+            ;
 
-            await expect(zapper.sell(somethingStrange, 123n, 0n,  Date.now() + 100000)).to.be.revertedWith('Zapper: unsupported token');
+            await expect(zapper.sell(somethingStrange, 123n, 0n, Date.now() + 100000)).to.be.revertedWith('Zapper: unsupported token');
 
         })
 
 
         it('shall sell token without taxes for tax exempt sellers', async () => {
             const [deployer, owner, treasury, somethingStrange, receiver] = await ethers.getSigners();
-            let {zapper, favorBase, baseToken} = await deployContracts();
+            let {zapper, favorBase, baseToken} = await networkHelpers.loadFixture(deployContracts);
+            ;
 
             await favorBase.setTaxExempt(owner, true);
 
@@ -517,7 +570,8 @@ describe("LPZapper.sol", () => {
 
         it('shall tax on sale if not a tax exempt seller and send + auto deposit to pool for treasury', async () => {
             const [deployer, owner, treasury, receiver] = await ethers.getSigners();
-            let {zapper, favorBase, baseToken, mockPool} = await deployContracts();
+            let {zapper, favorBase, baseToken, mockPool} = await networkHelpers.loadFixture(deployContracts);
+            ;
 
             const teamAddress = await zapper.team();
             const holdingAddress = await zapper.holding();
@@ -527,7 +581,7 @@ describe("LPZapper.sol", () => {
             await favorBase.transfer(receiver, 1000n);
             await favorBase.connect(receiver).approve(zapper, 1000n);
 
-            await expect(zapper.connect(receiver).sell(favorBase, 1000n,  0n,Date.now() + 100000)).to.not.be.revert(ethers);
+            await expect(zapper.connect(receiver).sell(favorBase, 1000n, 0n, Date.now() + 100000)).to.not.be.revert(ethers);
 
             // treasury team shall receive 20% of tax directly in base token
 
@@ -547,7 +601,8 @@ describe("LPZapper.sol", () => {
 
         it('shall tax on sale to PLS if not a tax exempt seller and send + auto deposit to pool for treasury', async () => {
             const [deployer, owner, treasury, receiver] = await ethers.getSigners();
-            let { zapper, favorEth, weth, mockPool, v2router } = await deployContracts();                                        
+            let {zapper, favorEth, weth, mockPool, v2router} = await networkHelpers.loadFixture(deployContracts);
+            ;
             const teamAddress = await zapper.team();
             const holdingAddress = await zapper.holding();
 
@@ -555,15 +610,15 @@ describe("LPZapper.sol", () => {
             await deployer.sendTransaction({
                 to: weth,
                 value: 1000n,
-                });
-            
+            });
+
             //check balance of token contract for withdrawal
             expect(await ethers.provider.getBalance(weth)).to.equal(1000n);
             //  give receiver some favor
             await favorEth.transfer(receiver, 1000n);
             await favorEth.connect(receiver).approve(zapper, 1000n);
 
-            await expect(zapper.connect(receiver).sell(favorEth, 1000n,  0n,Date.now() + 100000)).to.not.be.revert(ethers);
+            await expect(zapper.connect(receiver).sell(favorEth, 1000n, 0n, Date.now() + 100000)).to.not.be.revert(ethers);
 
             // treasury team shall receive 20% of tax directly in base token
 
@@ -574,8 +629,8 @@ describe("LPZapper.sol", () => {
             expect(await mockPool.assetSupplied()).to.be.equal(weth);
             expect(await mockPool.amountSupplied()).to.be.equal(797n);
             expect(await mockPool.suppliedTo()).to.be.equal(holdingAddress);
-            expect(await mockPool.supplyReferral()).to.be.equal(0);    
-            
+            expect(await mockPool.supplyReferral()).to.be.equal(0);
+
             // Check pls from mock weth has been withdrawn and only original amount - user output 995n remains
             expect(await ethers.provider.getBalance(weth)).to.equal(5n);
 
@@ -583,7 +638,8 @@ describe("LPZapper.sol", () => {
 
         it('shall tax on sale if not a tax exempt seller and send to treasury if deposit toggle is off', async () => {
             const [deployer, owner, treasury, receiver] = await ethers.getSigners();
-            let {zapper, favorBase, baseToken} = await deployContracts();
+            let {zapper, favorBase, baseToken} = await networkHelpers.loadFixture(deployContracts);
+            ;
 
             const teamAddress = await zapper.team();
             const holdingAddress = await zapper.holding();
@@ -595,7 +651,7 @@ describe("LPZapper.sol", () => {
             await favorBase.transfer(receiver, 1000n);
             await favorBase.connect(receiver).approve(zapper, 1000n);
 
-            await expect(zapper.connect(receiver).sell(favorBase, 1000n, 0n,Date.now() + 100000)).to.not.be.revert(ethers);
+            await expect(zapper.connect(receiver).sell(favorBase, 1000n, 0n, Date.now() + 100000)).to.not.be.revert(ethers);
 
             // treasury team shall receive 20% of tax directly in base token
 
@@ -613,7 +669,8 @@ describe("LPZapper.sol", () => {
 
         it('min out amount shall be honored', async () => {
             const [deployer, owner, treasury, receiver] = await ethers.getSigners();
-            let {zapper, favorEth, weth, mockPool} = await deployContracts();
+            let {zapper, favorEth, weth, mockPool} = await networkHelpers.loadFixture(deployContracts);
+            ;
 
             const teamAddress = await zapper.team();
             const holdingAddress = await zapper.holding();
@@ -622,21 +679,23 @@ describe("LPZapper.sol", () => {
             await favorEth.transfer(receiver, 1000n);
             await favorEth.connect(receiver).approve(zapper, 1000n);
 
-            await expect(zapper.connect(receiver).sell(favorEth, 1000n,  996n,Date.now() + 100000)).to.revertedWith('UniswapV2Router: INSUFFICIENT_OUTPUT_AMOUNT');
+            await expect(zapper.connect(receiver).sell(favorEth, 1000n, 996n, Date.now() + 100000)).to.revertedWith('UniswapV2Router: INSUFFICIENT_OUTPUT_AMOUNT');
 
         })
 
 
         it('shall not buy favor if not a registerred base token', async () => {
             const [deployer, owner, receiver] = await ethers.getSigners();
-            let {zapper, favorEth, weth} = await deployContracts();
+            let {zapper, favorEth, weth} = await networkHelpers.loadFixture(deployContracts);
+            ;
 
             await expect(zapper.buy(receiver, 123n, 0n, Date.now() + 100000)).to.be.revertedWith('Zapper: unsupported token');
         })
 
         it('shall buy favor, and give out bonuses to treasury and receiver', async () => {
             const [deployer, owner, treasury, receiver] = await ethers.getSigners();
-            let {zapper, favorEth, weth, esteem} = await deployContracts();
+            let {zapper, favorEth, weth, esteem} = await networkHelpers.loadFixture(deployContracts);
+            ;
 
             //  shall buy favor
             await weth.approve(zapper, 1000n);
@@ -653,7 +712,8 @@ describe("LPZapper.sol", () => {
 
         it('shall buy favor, and give out bonuses to treasury and receiver with native PLS', async () => {
             const [deployer, owner, treasury, receiver] = await ethers.getSigners();
-            let {zapper, favorEth, weth, esteem} = await deployContracts();
+            let {zapper, favorEth, weth, esteem} = await networkHelpers.loadFixture(deployContracts);
+            ;
 
             //  shall buy favor
             await expect(zapper.buyTo(receiver, weth, 0, 0n, Date.now() + 100000, {value: 1000})).to.not.be.revert(ethers);
@@ -670,12 +730,13 @@ describe("LPZapper.sol", () => {
 
         it('shall buy favor using simplified buy, and give out bonuses to treasury and receiver', async () => {
             const [deployer, owner, treasury, receiver] = await ethers.getSigners();
-            let {zapper, favorEth, weth, esteem} = await deployContracts();
+            let {zapper, favorEth, weth, esteem} = await networkHelpers.loadFixture(deployContracts);
+            ;
 
             //  shall buy favor
             await weth.transfer(receiver, 1000n);
             await weth.connect(receiver).approve(zapper, 1000n);
-            await expect(zapper.connect(receiver).buy( weth, 1000, 0n, Date.now() + 100000)).to.not.be.revert(ethers);
+            await expect(zapper.connect(receiver).buy(weth, 1000, 0n, Date.now() + 100000)).to.not.be.revert(ethers);
 
             // receiver shall ge favor and pending esteem bonus
             expect(await favorEth.balanceOf(receiver)).to.equal(498n);
@@ -686,10 +747,11 @@ describe("LPZapper.sol", () => {
 
         })
 
-        
+
         it('shall buy favor using simplified buy, and give out bonuses to treasury and receiver with native PLS', async () => {
             const [deployer, owner, treasury, receiver] = await ethers.getSigners();
-            let {zapper, favorEth, weth, esteem} = await deployContracts();
+            let {zapper, favorEth, weth, esteem} = await networkHelpers.loadFixture(deployContracts);
+            ;
 
             //  shall buy favor
             await expect(zapper.connect(receiver).buy(weth, 0, 0n, Date.now() + 100000, {value: 1000})).to.not.be.revert(ethers);
@@ -705,7 +767,8 @@ describe("LPZapper.sol", () => {
 
         it('shall buy favor and honor min out', async () => {
             const [deployer, owner, treasury, receiver] = await ethers.getSigners();
-            let {zapper, favorEth, weth, esteem} = await deployContracts();
+            let {zapper, favorEth, weth, esteem} = await networkHelpers.loadFixture(deployContracts);
+            ;
 
             //  shall not buy if not enough favor out
             await weth.approve(zapper, 1000n);
@@ -721,7 +784,8 @@ describe("LPZapper.sol", () => {
     describe('liquidity management', () => {
         it('shall refuse to add liquidity if not a registered favor', async () => {
             const [deployer, owner, somethingStrange] = await ethers.getSigners();
-            let {zapper, favorEth, weth} = await deployContracts();
+            let {zapper, favorEth, weth} = await networkHelpers.loadFixture(deployContracts);
+            ;
 
 
             await expect(zapper.addLiquidity(somethingStrange, weth, 1, 1, 1, 1, owner, 1)).to.be.revertedWith('Zapper: Not listed to make LP');
@@ -730,14 +794,16 @@ describe("LPZapper.sol", () => {
 
         it('shall refuse to add ETH liquidity if not a a proper favor', async () => {
             const [deployer, owner, somethingStrange] = await ethers.getSigners();
-            let {zapper, favorBase, baseToken} = await deployContracts();
+            let {zapper, favorBase, baseToken} = await networkHelpers.loadFixture(deployContracts);
+            ;
             await expect(zapper.addLiquidityETH(favorBase, 1, 1, 1, owner, 1)).to.be.revertedWith('Zapper: Not listed to make LP');
         })
 
 
         it('shall add liquidity to registered favor', async () => {
             const [deployer, owner, somethingStrange] = await ethers.getSigners();
-            let {zapper, favorBase, baseToken, favorBasePair} = await deployContracts();
+            let {zapper, favorBase, baseToken, favorBasePair} = await networkHelpers.loadFixture(deployContracts);
+            ;
 
             await favorBase.approve(zapper, 1n);
             await baseToken.approve(zapper, 2n);
@@ -750,7 +816,8 @@ describe("LPZapper.sol", () => {
 
         it('shall add  eth to registered favor LP', async () => {
             const [deployer, owner, somethingStrange] = await ethers.getSigners();
-            let {zapper, favorEth, favorWethPair} = await deployContracts();
+            let {zapper, favorEth, favorWethPair} = await networkHelpers.loadFixture(deployContracts);
+            ;
 
             await favorEth.approve(zapper, 1000n);
 
@@ -765,7 +832,11 @@ describe("LPZapper.sol", () => {
         // liquidity addition
         it('shall refund leftovers after liquidity addition via ETH', async () => {
             const [deployer, owner] = await ethers.getSigners();
-            let {zapper, favorEth, weth, favorWethPair, esteem, mockPool} = await deployContracts();
+            let {
+                zapper,
+                favorEth,
+            } = await networkHelpers.loadFixture(deployContracts);
+
 
 
             let balanceBefore = await ethers.provider.getBalance(owner);
@@ -780,9 +851,8 @@ describe("LPZapper.sol", () => {
             expect(await ethers.provider.getBalance(zapper)).to.be.equal(0n);
             expect(await favorEth.balanceOf(zapper)).to.be.equal(0n);
 
-            //  we do not have exact gas estimation, but we put 1000000 into so it is bigger than used gas.
-            // this way we can see thatrefund happened to caller
-            expect(balanceBefore - await ethers.provider.getBalance(owner)).to.lessThan(10000000n);
+            //  check that zapper does not have any leftowers in ETGH
+            expect( await ethers.provider.getBalance(zapper)).to.equal(0n);
         })
 
 
@@ -790,7 +860,8 @@ describe("LPZapper.sol", () => {
         // liquidity addition
         it('shall refund leftovers after liquidity addition', async () => {
             const [deployer, owner] = await ethers.getSigners();
-            let {zapper, favorBase, baseToken} = await deployContracts();
+            let {zapper, favorBase, baseToken} = await networkHelpers.loadFixture(deployContracts);
+            ;
 
 
             let balanceFavorBefore = await favorBase.balanceOf(owner);

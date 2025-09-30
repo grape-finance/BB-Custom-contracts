@@ -94,7 +94,7 @@ contract LPZapper is Ownable2Step, ReentrancyGuard {
         uint256 premium,
         address initiator,
         bytes calldata params
-    ) external nonReentrant returns (bool) {
+    ) external returns (bool) {
         require(msg.sender == address(POOL), "not registered pool");
         require(initiator == address(this), "bad initiator");
 
