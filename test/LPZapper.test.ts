@@ -112,7 +112,6 @@ describe("LPZapper.sol", () => {
                 weth,
                 baseToken
             } = await networkHelpers.loadFixture(deployContracts);
-            ;
 
             await expect(await zapper.router()).to.be.equal(v2router);
 
@@ -189,6 +188,21 @@ describe("LPZapper.sol", () => {
             await zapper.setPool(pool);
 
             await expect(zapper.connect(pool).executeOperation(favorEth, 0n, 0n, somebody, "0x")).to.be.revertedWith("bad initiator");
+        })
+    })
+
+    describe('settings', () => {
+        it('shall set  treasury properly', async () => {
+            const [deployer, owner, holder, team] = await ethers.getSigners();
+            let {zapper} = await networkHelpers.loadFixture(deployContracts);
+
+            await expect(zapper.setTreasury(ZeroAddress, team)).to.be.revertedWith("Invalid Holding address");
+            await expect(zapper.setTreasury(holder, ZeroAddress)).to.be.revertedWith("Invalid Team address");
+            await expect(zapper.setTreasury(holder, team)).to.emit(zapper, "TreasuryUpdated").withArgs(holder,team );
+
+            expect(await  zapper.holding()).to.be.equal(holder);
+            expect(await  zapper.team()).to.be.equal(team);
+
         })
     })
 
