@@ -11,14 +11,17 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/Context.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-
+import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Factory.sol";
 import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Pair.sol";
 import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 import "@uniswap/v2-periphery/contracts/interfaces/IWETH.sol";
 
+import {KillswitchPausable} from "./KillswitchPausable.sol";
+import {Killswitch} from "./Killswitch.sol";
 
-contract LPZapper is Ownable2Step, ReentrancyGuard {
+
+contract LPZapper is Ownable2Step, ReentrancyGuard, KillswitchPausable {
     using SafeERC20 for IERC20;
 
     address public immutable WPLS;
@@ -57,7 +60,7 @@ contract LPZapper is Ownable2Step, ReentrancyGuard {
     receive() external payable {}
 
 
-    constructor(address _owner, address _router, address _wpls) Ownable(_owner) {
+    constructor(address _owner, address _router, address _wpls, Killswitch _killswitch) Ownable(_owner) KillswitchPausable(_killswitch) {
         router = IUniswapV2Router02(_router);
         WPLS = _wpls;
     }
@@ -66,7 +69,7 @@ contract LPZapper is Ownable2Step, ReentrancyGuard {
      * create liquidity by requesting flash loan, swapping it into pair  and put LP
      * as collateral
      */
-    function requestFlashLoan(uint256 _amount, address _favorToken) external nonReentrant {
+    function requestFlashLoan(uint256 _amount, address _favorToken) external nonReentrant whenNotPaused {
         address token = favorToToken[_favorToken];
         address lpToken = favorToLp[_favorToken];
 
@@ -136,7 +139,7 @@ contract LPZapper is Ownable2Step, ReentrancyGuard {
     }
 
     //  zap  token into LP with favor
-    function zapToken(address _token, uint _amount, uint256 _deadline) public nonReentrant {
+    function zapToken(address _token, uint _amount, uint256 _deadline) public nonReentrant whenNotPaused {
         IERC20(_token).safeTransferFrom(msg.sender, address(this), _amount);
         _zapToken(_token, _amount, _deadline);
     }
@@ -164,7 +167,7 @@ contract LPZapper is Ownable2Step, ReentrancyGuard {
 
     }
 
-    function zapPLS(uint256 _deadline) public payable nonReentrant {
+    function zapPLS(uint256 _deadline) public payable nonReentrant whenNotPaused {
         //  wrap
         IWETH(WPLS).deposit{value: msg.value}();
         _zapToken(WPLS, uint112(msg.value), _deadline);
@@ -230,7 +233,7 @@ contract LPZapper is Ownable2Step, ReentrancyGuard {
         sellTo(msg.sender, _favor, _amount, _amountOutMin, _deadline);
     }
 
-    function sellTo(address _receiver, address _favor, uint256 _amount, uint256 _amountOutMin, uint256 _deadline) public nonReentrant {
+    function sellTo(address _receiver, address _favor, uint256 _amount, uint256 _amountOutMin, uint256 _deadline) public nonReentrant whenNotPaused {
 
         address base = favorToToken[_favor];
         require(base != address(0), "Zapper: unsupported token");
@@ -268,7 +271,7 @@ contract LPZapper is Ownable2Step, ReentrancyGuard {
         buyTo(msg.sender, _baseToken, _amount, _amountOutMin, _deadline);
     }
 
-    function buyTo(address _receiver, address _base, uint256 _amount, uint256 _amountOutMin, uint256 _deadline) public payable nonReentrant {
+    function buyTo(address _receiver, address _base, uint256 _amount, uint256 _amountOutMin, uint256 _deadline) public payable nonReentrant whenNotPaused {
 
         address favor = tokenToFavor[_base];
         require(favor != address(0), "Zapper: unsupported token");
@@ -320,7 +323,7 @@ contract LPZapper is Ownable2Step, ReentrancyGuard {
         uint amountBMin,
         address to,
         uint deadline
-    ) external nonReentrant {
+    ) external nonReentrant whenNotPaused {
         require(favorToToken[tokenA] == tokenB, "Zapper: Not listed to make LP");
         IERC20(tokenA).safeTransferFrom(msg.sender, address(this), amountADesired);
         IERC20(tokenB).safeTransferFrom(msg.sender, address(this), amountBDesired);
@@ -350,7 +353,7 @@ contract LPZapper is Ownable2Step, ReentrancyGuard {
         uint _amountETHMin,
         address _to,
         uint _deadline
-    ) external payable nonReentrant {
+    ) external payable nonReentrant whenNotPaused {
         require(favorToToken[_token] == WPLS, "Zapper: Not listed to make LP");
         IERC20(_token).safeTransferFrom(
             msg.sender,

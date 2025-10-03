@@ -11,6 +11,9 @@ describe("LPZapper.sol", () => {
     async function deployContracts() {
         const [deployer, owner, treasury] = await ethers.getSigners();
 
+        const killswitch = await ethers.deployContract("Killswitch", [1, deployer]);
+        await killswitch.setScram(deployer, true);
+
         const esteemInstance = await ethers.deployContract("Esteem", [owner]);
         let esteem = esteemInstance.connect(owner);
 
@@ -24,7 +27,7 @@ describe("LPZapper.sol", () => {
         let v2factory = await createUSV2Factory(owner);
         let v2router = await createUSV2Router(owner, v2factory, weth);
 
-        const zapperInstance = await ethers.deployContract("LPZapper", [owner, v2router, weth]);
+        const zapperInstance = await ethers.deployContract("LPZapper", [owner, v2router, weth, killswitch]);
 
         let zapper = zapperInstance.connect(owner);
 
@@ -96,7 +99,8 @@ describe("LPZapper.sol", () => {
             baseToken,
             favorBase,
             favorBasePair,
-            esteem
+            esteem,
+            killswitch
         };
     }
 
@@ -188,6 +192,27 @@ describe("LPZapper.sol", () => {
             await zapper.setPool(pool);
 
             await expect(zapper.connect(pool).executeOperation(favorEth, 0n, 0n, somebody, "0x")).to.be.revertedWith("bad initiator");
+        })
+
+        it('shall not allow to call those methods when paused', async () => {
+
+            const [deployer, owner, somebody, pool, receiver] = await ethers.getSigners();
+            let {zapper, killswitch, favorBase, weth, baseToken, favorEth} = await networkHelpers.loadFixture(deployContracts);
+
+            //  staking shall be paused
+
+            await expect(killswitch.engage()).to.not.be.revert(ethers);
+            expect(await zapper.paused()).to.equal(true);
+
+            //  shall not be able to invoke those methods
+            await expect(zapper.requestFlashLoan(12n, favorBase)).to.be.revertedWithCustomError(zapper, "EnforcedPause");
+            await expect(zapper.zapToken(baseToken, 10000n, Date.now() + 10000)).to.be.revertedWithCustomError(zapper, "EnforcedPause");
+            await expect(zapper.zapPLS(Date.now() + 10000, {value: 1000})).to.be.revertedWithCustomError(zapper, "EnforcedPause");
+            await expect(zapper.sellTo(receiver, favorBase, 1000n, 0n, Date.now() + 100000)).to.be.revertedWithCustomError(zapper, "EnforcedPause");
+            await expect(zapper.buyTo(receiver, weth, 1000, 0n, Date.now() + 100000)).to.be.revertedWithCustomError(zapper, "EnforcedPause");
+            await expect(zapper.addLiquidity(favorBase, baseToken, 1, 2, 1, 2, owner, Date.now() + 10000)).to.be.revertedWithCustomError(zapper, "EnforcedPause");
+            await expect(zapper.addLiquidityETH(favorEth, 1000, 1000, 2000, owner, Date.now() + 10000, {value: 2000})).to.be.revertedWithCustomError(zapper, "EnforcedPause");
+            
         })
     })
 
