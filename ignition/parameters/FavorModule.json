@@ -1,0 +1,10 @@
+{
+  "FavorModule": {
+    "owner": "0x5e9E3457433b4B767e458ABecaf4128eeb3DCc97",
+    "treasury": "0x1EA35487AE62322F61f4C0F639a598d9eEB2F340",
+    "esteemAddress": "0x9FDCe721c528e6dbc4f494F3E80B9b28a3059aB5",
+    "name": "PLSX Favor",
+    "symbol": "PLSXF",
+    "initialSupply": "100000000000000000000000000000"
+  }
+}
