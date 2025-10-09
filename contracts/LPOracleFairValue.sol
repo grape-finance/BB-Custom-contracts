@@ -3,12 +3,13 @@ pragma solidity 0.8.20;
 
 import "./interfaces/IMasterOracle.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
+import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {IUniswapV2Pair} from "@uniswap/v2-core/contracts/interfaces/IUniswapV2Pair.sol";
 
-contract LPOracleFairValue {
-    IMasterOracle public immutable oracle;
+contract LPOracleFairValue is Ownable2Step {
+    IMasterOracle public oracle;
 
-    constructor(address _oracle) {
+    constructor(address _oracle, address _owner) Ownable(_owner){
         oracle = IMasterOracle(_oracle);
     }
 
@@ -17,7 +18,7 @@ contract LPOracleFairValue {
         return Math.mulDiv(usdWad, 1 << 112, 1e18);   
     }
 
-    /// @dev Fair value LP calculation using geometric mean of forumla
+    /// @dev Fair value LP calculation using geometric mean of reserves forumla
     function lpPriceUSD_Q112(address pair) public view returns (uint256) {
         (uint112 r0, uint112 r1, ) = IUniswapV2Pair(pair).getReserves();
         if (r0 == 0 || r1 == 0) return 0;
@@ -32,7 +33,7 @@ contract LPOracleFairValue {
         // USD prices in Q112
         uint256 px0 = getUSDPx_Q112(token0);
         uint256 px1 = getUSDPx_Q112(token1);
-        require(px0 != 0 && px1 != 0, "Invalid price");
+        if (px0 == 0 || px1 == 0) return 0;
 
         uint256 s0 = Math.sqrt(px0);
         uint256 s1 = Math.sqrt(px1);
@@ -42,7 +43,8 @@ contract LPOracleFairValue {
         return res; 
     }
 
-    function lpPriceUSD_WAD(address pair) external view returns (uint256) {
+    /// @dev Return price in WAD 18 decimals USD value
+    function lpPriceUSD(address pair) external view returns (uint256) {
         uint256 q112 = lpPriceUSD_Q112(pair);
         return Math.mulDiv(q112, 1e18, 1 << 112); 
     }
@@ -58,7 +60,7 @@ function redeemableUsdPerLpQ112(address pair) public view returns (uint256) {
 
     uint256 px0 = getUSDPx_Q112(token0);
     uint256 px1 = getUSDPx_Q112(token1);
-    require(px0 != 0 && px1 != 0, "LPOracle: ZERO_TOKEN_PRICE");
+    if (px0 == 0 || px1 == 0) return 0;
 
     uint256 value0Q112 = Math.mulDiv(uint256(r0), px0, 1e18);
     uint256 value1Q112 = Math.mulDiv(uint256(r1), px1, 1e18);
@@ -73,6 +75,11 @@ function redeemableUsdPerLpScaled(address pair) public view returns (uint144) {
     uint256 q112 = redeemableUsdPerLpQ112(pair);
     uint256 scaled = Math.mulDiv(q112, 1e18, 1 << 112);
     return uint144(scaled);
+}
+
+function setMasterOracle(address _oracle) external onlyOwner {
+    require(address(_oracle) != address(0), "Invalid oracle");
+    oracle = IMasterOracle(_oracle);
 }
 
 }
