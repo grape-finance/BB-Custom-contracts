@@ -152,7 +152,7 @@ describe("LPOracleFairValue", function () {
       ).to.be.revertedWith("LP: ZERO_SUPPLY");
     });
 
-    it("Should revert when token0 price is 0", async function () {
+    it("Should return 0 when token0 price is 0", async function () {
       const { lpOracle, oracle, token1, pair } = await networkHelpers.loadFixture(deployContracts);
 
       await pair.setReserves(ethers.parseEther("100"), ethers.parseEther("100"));
@@ -160,12 +160,12 @@ describe("LPOracleFairValue", function () {
 
       await oracle.setLastPrice(await token1.getAddress(), ethers.parseEther("10"));
 
-      await expect(
-        lpOracle.lpPriceUSD_Q112(await pair.getAddress())
-      ).to.be.revertedWith("Invalid price");
+      const lpPrice = await lpOracle.lpPriceUSD_Q112(await pair.getAddress());
+
+        expect(lpPrice).to.equal(0);
     });
 
-    it("Should revert when token1 price is 0", async function () {
+    it("Should return 0 when token1 price is 0", async function () {
       const { lpOracle, oracle, token0, pair } = await networkHelpers.loadFixture(deployContracts);
 
       await pair.setReserves(ethers.parseEther("100"), ethers.parseEther("100"));
@@ -173,9 +173,9 @@ describe("LPOracleFairValue", function () {
 
       await oracle.setLastPrice(await token0.getAddress(), ethers.parseEther("10"));
 
-      await expect(
-        lpOracle.lpPriceUSD_Q112(await pair.getAddress())
-      ).to.be.revertedWith("Invalid price");
+      const lpPrice = await lpOracle.lpPriceUSD_Q112(await pair.getAddress());
+
+      expect(lpPrice).to.equal(0);
     });
 
     it("Should handle large reserve values", async function () {
@@ -198,7 +198,7 @@ describe("LPOracleFairValue", function () {
     });
   });
 
-  describe("lpPriceUSD_WAD", function () {
+  describe("lpPriceUSD", function () {
     it("Should correctly convert Q112 to WAD", async function () {
       const { lpOracle, oracle, token0, token1, pair } = await networkHelpers.loadFixture(deployContracts);
 
@@ -208,7 +208,7 @@ describe("LPOracleFairValue", function () {
       await oracle.setLastPrice(await token0.getAddress(), ethers.parseEther("10"));
       await oracle.setLastPrice(await token1.getAddress(), ethers.parseEther("10"));
 
-      const lpPriceWad = await lpOracle.lpPriceUSD_WAD(await pair.getAddress());
+      const lpPriceWad = await lpOracle.lpPriceUSD(await pair.getAddress());
 
       // Expected: ~$20 in WAD
       const expected = ethers.parseEther("20");
@@ -264,15 +264,15 @@ describe("LPOracleFairValue", function () {
       expect(redeemable).to.equal(0);
     });
 
-    it("Should revert when token prices are 0", async function () {
+    it("Should return 0 when token prices are 0", async function () {
       const { lpOracle, pair } = await networkHelpers.loadFixture(deployContracts);
 
       await pair.setReserves(ethers.parseEther("100"), ethers.parseEther("100"));
       await pair.setTotalSupply(ethers.parseEther("100"));
 
-      await expect(
-        lpOracle.redeemableUsdPerLpQ112(await pair.getAddress())
-      ).to.be.revertedWith("LPOracle: ZERO_TOKEN_PRICE");
+      const lpPrice = await lpOracle.redeemableUsdPerLpQ112(await pair.getAddress());
+
+      expect(lpPrice).to.equal(0);
     });
   });
 
@@ -319,7 +319,7 @@ describe("LPOracleFairValue", function () {
       await oracle.setLastPrice(await token0.getAddress(), ethers.parseEther("10"));
       await oracle.setLastPrice(await token1.getAddress(), ethers.parseEther("10"));
 
-      const fairPrice = await lpOracle.lpPriceUSD_WAD(await pair.getAddress());
+      const fairPrice = await lpOracle.lpPriceUSD(await pair.getAddress());
       const redeemable = await lpOracle.redeemableUsdPerLpScaled(await pair.getAddress());
 
       // They should be very close (geometric mean = arithmetic mean when values are equal)
@@ -336,7 +336,7 @@ describe("LPOracleFairValue", function () {
       await oracle.setLastPrice(await token0.getAddress(), ethers.parseEther("1"));
       await oracle.setLastPrice(await token1.getAddress(), ethers.parseEther("100"));
 
-      const fairPrice = await lpOracle.lpPriceUSD_WAD(await pair.getAddress());
+      const fairPrice = await lpOracle.lpPriceUSD(await pair.getAddress());
       const redeemable = await lpOracle.redeemableUsdPerLpScaled(await pair.getAddress());
 
       // Geometric mean <= arithmetic mean (with equality only when values are equal)
