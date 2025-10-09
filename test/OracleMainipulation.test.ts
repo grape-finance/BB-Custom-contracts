@@ -12,6 +12,7 @@ describe('OracleManipulator', () => {
 
         const killswitch = await ethers.deployContract("Killswitch", [1, owner]);
 
+
         //  as we do not have fetsh orcle here, use mock
         let mockOracle = await ethers.deployContract("MockMasterOracle");
 
@@ -36,7 +37,7 @@ describe('OracleManipulator', () => {
         let v2router = await createUSV2Router(owner, v2factory, weth);
 
 
-        const zapperInstance = await ethers.deployContract("LPZapper", [owner, v2router, weth]);
+        const zapperInstance = await ethers.deployContract("LPZapper", [owner, v2router, weth, killswitch]);
         let zapper = zapperInstance.connect(owner);
 
         // mock pool to test flash loans
