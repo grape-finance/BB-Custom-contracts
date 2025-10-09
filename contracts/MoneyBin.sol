@@ -19,9 +19,13 @@ contract MoneyBin is Ownable2Step {
 
     // executor is a low value technical address, which will be  used by external triggerr to perform duties
     mapping(address => bool) public isExecutor;
-
     // destination to be supplied
     address public receiver;
+
+    // mapping from asset to favor
+    mapping(address => address) public asset2Favor;
+
+    event Withdrawn(address token, uint256 amount, address receiver);
 
     constructor(address _owner, IUniswapV2Router02 _router, IUniswapV2Factory _factory)  Ownable(_owner) {
         router = _router;
@@ -59,5 +63,10 @@ contract MoneyBin is Ownable2Step {
         _;
     }
 
+    // withdraw  assets
+    function withdraw(address _token, uint256 _amount, address _receiver) public onlyOwner {
+        IERC20(_token).transfer(_receiver, _amount);
+        emit Withdrawn(_token, _amount, _receiver);
+    }
 
 }

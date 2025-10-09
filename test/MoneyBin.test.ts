@@ -54,6 +54,7 @@ describe('MoneyBin.sol', () => {
             await expect(moneyBin.connect(somebody).setFactory(whatever)).to.be.revertedWithCustomError(moneyBin, "OwnableUnauthorizedAccount");
             await expect(moneyBin.connect(somebody).setExecutor(whatever, false)).to.be.revertedWithCustomError(moneyBin, "OwnableUnauthorizedAccount");
             await expect(moneyBin.connect(somebody).setReceiver(whatever)).to.be.revertedWithCustomError(moneyBin, "OwnableUnauthorizedAccount");
+            await expect(moneyBin.connect(somebody).withdraw(whatever, 1000, whatever)).to.be.revertedWithCustomError(moneyBin, "OwnableUnauthorizedAccount");
 
         })
 
@@ -122,6 +123,18 @@ describe('MoneyBin.sol', () => {
 
             }
         )
+
+        it("shall allow withdrawal of tokens", async () => {
+            const [owner, executor, receiver] = await ethers.getSigners();
+            const {moneyBin, weth} = await networkHelpers.loadFixture(deployContracts);
+
+
+            await expect(moneyBin.withdraw(weth, 1000n, receiver)).to.emit(moneyBin, "Withdrawn").withArgs(weth, 1_000n, receiver);
+
+            expect(await weth.balanceOf(receiver)).to.equal(1000n);
+        })
+
+
         it('shall mint favoro and swap for asset', async () => {
             const [owner, somebody] = await ethers.getSigners();
             let {moneyBin} = await networkHelpers.loadFixture(deployContracts);
