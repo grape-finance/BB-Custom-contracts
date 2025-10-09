@@ -3,6 +3,7 @@ pragma solidity 0.8.20;
 
 
 import "@openzeppelin/contracts/access/Ownable2Step.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Factory.sol";
 import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Pair.sol";
 import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
@@ -27,6 +28,13 @@ contract MoneyBin is Ownable2Step {
         factory = _factory;
     }
 
+    // supply configured receiver with desired amount of the asset
+    // we assume caller know what he does
+    function supply(IERC20 _asset, uint256 _amount) public onlyExecutor {
+        IERC20(_asset).transfer(receiver, _amount);
+    }
+
+
     function setRouter(IUniswapV2Router02 _router) public onlyOwner {
         router = _router;
     }
@@ -47,7 +55,7 @@ contract MoneyBin is Ownable2Step {
      * @dev Throws if called by any account other than the owner.
      */
     modifier onlyExecutor() {
-        require(isExecutor[_msgSender()], "MenoeyBin: not executor");
+        require(isExecutor[_msgSender()], "MoneyBin: not executor");
         _;
     }
 

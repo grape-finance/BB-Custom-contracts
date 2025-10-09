@@ -10,7 +10,8 @@ const {ethers, networkHelpers} = await network.connect();
 describe('MoneyBin.sol', () => {
 
     async function deployContracts() {
-        const [owner] = await ethers.getSigners();
+        const [owner, executor, receiver] = await ethers.getSigners();
+
 
 
         let weth = await createToken(owner, 'wethweth', "t0");
@@ -21,6 +22,11 @@ describe('MoneyBin.sol', () => {
 
 
         const moneyBin = await ethers.deployContract("MoneyBin", [owner, v2router, v2factory]);
+
+        await moneyBin.setExecutor(executor, true);
+        await moneyBin.setReceiver(receiver);
+
+        await weth.transfer(moneyBin, 1_000_000_000_000_000_000n);
 
         return {moneyBin, weth, baseToken, v2factory, v2router};
 
@@ -50,6 +56,13 @@ describe('MoneyBin.sol', () => {
             await expect(moneyBin.connect(somebody).setReceiver(whatever)).to.be.revertedWithCustomError(moneyBin, "OwnableUnauthorizedAccount");
 
         })
+
+        it('only executor methods', async () => {
+            const [owner, executor, somebody] = await ethers.getSigners();
+            let {moneyBin} = await networkHelpers.loadFixture(deployContracts);
+
+            await expect(moneyBin.supply(somebody, 123n)).to.be.revertedWith("MoneyBin: not executor");
+        })
     })
 
 
@@ -73,7 +86,6 @@ describe('MoneyBin.sol', () => {
         })
 
 
-
         it('shall set receiver', async () => {
             const [owner, somebody, whatever] = await ethers.getSigners();
             let {moneyBin} = await networkHelpers.loadFixture(deployContracts);
@@ -85,7 +97,7 @@ describe('MoneyBin.sol', () => {
 
 
         it('shall set executor', async () => {
-            const [owner, somebody, whatever] = await ethers.getSigners();
+            const [owner,  executor, receiver, whatever] = await ethers.getSigners();
             let {moneyBin} = await networkHelpers.loadFixture(deployContracts);
 
             expect(await moneyBin.isExecutor(whatever)).to.equal(false);
@@ -100,6 +112,16 @@ describe('MoneyBin.sol', () => {
 
 
     describe('operations', () => {
+
+        it('shall supply configured address on request', async () => {
+                const [owner, executor, receiver] = await ethers.getSigners();
+                let {moneyBin, weth} = await networkHelpers.loadFixture(deployContracts);
+
+                await expect(moneyBin.connect(executor).supply(weth, 123n)).to.not.be.revert(ethers);
+                expect(await  weth.balanceOf(receiver)).to.equal(123n);
+
+            }
+        )
         it('shall mint favoro and swap for asset', async () => {
             const [owner, somebody] = await ethers.getSigners();
             let {moneyBin} = await networkHelpers.loadFixture(deployContracts);
