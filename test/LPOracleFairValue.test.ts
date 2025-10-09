@@ -15,7 +15,7 @@ describe("LPOracleFairValue", function () {
     const oracle = await MockOracle.deploy();
 
     const LPOracle = await ethers.getContractFactory("LPOracleFairValue");
-    const lpOracle = await LPOracle.deploy(oracle);
+    const lpOracle = await LPOracle.deploy(oracle, owner);
 
     const token0 = await createToken(owner, "Favor", "Favor");
     const token1 = await createToken(owner, "PLSX", "PLSX");
