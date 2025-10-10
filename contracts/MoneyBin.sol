@@ -11,7 +11,9 @@ import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 
 /**
  * big ass money bin like Scrooges McDuck
- * it provides supply of
+ * it provides supply of assets to the liquidator
+ *
+ * It needs to be registered as minter  and tax exempt to the favors
  */
 contract MoneyBin is Ownable2Step {
 
