@@ -10,8 +10,7 @@ const {ethers, networkHelpers} = await network.connect();
 describe('MoneyBin.sol', () => {
 
     async function deployContracts() {
-        const [owner, executor, receiver] = await ethers.getSigners();
-
+        const [owner, executor, receiver, treasury, esteem] = await ethers.getSigners();
 
 
         let weth = await createToken(owner, 'wethweth', "t0");
@@ -28,7 +27,30 @@ describe('MoneyBin.sol', () => {
 
         await weth.transfer(moneyBin, 1_000_000_000_000_000_000n);
 
-        return {moneyBin, weth, baseToken, v2factory, v2router};
+        //  favor, money bin shall be able to mint favors  and be tax exempt
+        const feth = await ethers.deployContract("Favor", [owner, "FavorPLS", "fPLS", 123_000_000_000_000_000_000_000_000n, treasury, esteem]);
+        await feth.addMinter(moneyBin);
+        await feth.setTaxExempt(moneyBin, true);
+
+
+        await moneyBin.registerFavor(weth, feth);
+
+        //  create weth / favor  liquidity pool
+        await feth.approve(v2router, 1_000_000_000_000_000_000n);
+        await weth.approve(v2router, 1_000_000_000_000_000_000n);
+
+        // pair
+        await v2factory.createPair(feth, weth);
+        let pairAdr = await v2factory.getPair(feth, weth);
+
+        let favorWethPair = await ethers.getContractAt("IUniswapV2Pair", pairAdr, owner);
+
+        await feth.setTaxExempt(owner, true);
+        await v2router.addLiquidity(feth, weth, 1000000n, 2000000n, 0n, 0n, owner, Date.now() + 100000);
+        await feth.setTaxExempt(owner, false);
+
+
+        return {moneyBin, weth, baseToken, v2factory, v2router, feth, favorWethPair};
 
     }
 
@@ -55,6 +77,8 @@ describe('MoneyBin.sol', () => {
             await expect(moneyBin.connect(somebody).setExecutor(whatever, false)).to.be.revertedWithCustomError(moneyBin, "OwnableUnauthorizedAccount");
             await expect(moneyBin.connect(somebody).setReceiver(whatever)).to.be.revertedWithCustomError(moneyBin, "OwnableUnauthorizedAccount");
             await expect(moneyBin.connect(somebody).withdraw(whatever, 1000, whatever)).to.be.revertedWithCustomError(moneyBin, "OwnableUnauthorizedAccount");
+            await expect(moneyBin.connect(somebody).registerFavor(whatever, whatever)).to.be.revertedWithCustomError(moneyBin, "OwnableUnauthorizedAccount");
+            await expect(moneyBin.connect(somebody).setThreshold(123n)).to.be.revertedWithCustomError(moneyBin, "OwnableUnauthorizedAccount");
 
         })
 
@@ -98,7 +122,7 @@ describe('MoneyBin.sol', () => {
 
 
         it('shall set executor', async () => {
-            const [owner,  executor, receiver, whatever] = await ethers.getSigners();
+            const [owner, executor, receiver, whatever] = await ethers.getSigners();
             let {moneyBin} = await networkHelpers.loadFixture(deployContracts);
 
             expect(await moneyBin.isExecutor(whatever)).to.equal(false);
@@ -109,6 +133,26 @@ describe('MoneyBin.sol', () => {
 
         })
 
+        it('shall register favor', async () => {
+            const [owner, favor, asset] = await ethers.getSigners();
+            let {moneyBin} = await networkHelpers.loadFixture(deployContracts);
+
+            await expect(moneyBin.registerFavor(asset, favor)).to.not.be.revert(ethers);
+            expect(await moneyBin.asset2Favor(asset)).to.equal(favor);
+
+        })
+
+        it('shall set threshold', async () => {
+            const [owner, executor, receiver, whatever] = await ethers.getSigners();
+            let {moneyBin} = await networkHelpers.loadFixture(deployContracts);
+
+            await expect(moneyBin.setThreshold(0)).to.be.revertedWith("MoneyBin: muste be above 0");
+            await expect(moneyBin.setThreshold(10000)).to.be.revertedWith("MoneyBin: muste be below 10000");
+
+            await expect(moneyBin.setThreshold(239)).to.not.be.revert(ethers);
+            expect(await moneyBin.mintThreshold()).to.equal(239n);
+
+        })
     })
 
 
@@ -119,7 +163,7 @@ describe('MoneyBin.sol', () => {
                 let {moneyBin, weth} = await networkHelpers.loadFixture(deployContracts);
 
                 await expect(moneyBin.connect(executor).supply(weth, 123n)).to.not.be.revert(ethers);
-                expect(await  weth.balanceOf(receiver)).to.equal(123n);
+                expect(await weth.balanceOf(receiver)).to.equal(123n);
 
             }
         )
@@ -135,10 +179,28 @@ describe('MoneyBin.sol', () => {
         })
 
 
-        it('shall mint favoro and swap for asset', async () => {
+        it('shall not mint if there s no favor registered', async () => {
             const [owner, somebody] = await ethers.getSigners();
             let {moneyBin} = await networkHelpers.loadFixture(deployContracts);
-            fail('implement me');
+
+            //  shall mint favor and exchage to asset
+            await  expect(moneyBin.mintAsset(somebody, 1000n)).to.be.revertedWith("MoneyBin: favor not registered");
+        })
+
+        it('shall mint enough favors and swap for asset', async () => {
+
+            const [owner, somebody] = await ethers.getSigners();
+            let {moneyBin, favorWethPair, weth, feth} = await networkHelpers.loadFixture(deployContracts);
+
+            //  shall mint favor and exchage to asset
+            expect(await moneyBin.mintAsset(weth, 1000n)).to.not.be.revert(ethers);
+            //  1000 of asset shall be on our balance
+            expect(await weth.balanceOf(moneyBin)).to.equal(1_000_000_000_000_000_000n + 1000n);
+
+            //  pair shall have 1000 weth less
+            expect(await weth.balanceOf(favorWethPair)).to.equal(1999000n);
+            // and more favor
+            expect(await feth.balanceOf(favorWethPair)).to.equal(1000502n);
         })
     })
 
