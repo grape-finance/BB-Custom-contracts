@@ -93,7 +93,15 @@ contract MoneyBin is Ownable2Step {
 
     // supply configured receiver with desired amount of the asset
     // we assume caller know what he does
-    function supply(IERC20 _asset, uint256 _amount) public onlyExecutor {
+    function supply(IERC20 _asset, uint256 _amount) external {
+        require(_msgSender() == receiver, "MoneyBin: not receiver");
+
+        // if there is not enough balance, try to mint it via favor
+        uint256 balance =  IERC20(_asset).balanceOf(address(this));
+        if(balance <_amount) {
+            mintAsset(_asset, _amount - balance);
+        }
+
         IERC20(_asset).transfer(receiver, _amount);
     }
 
