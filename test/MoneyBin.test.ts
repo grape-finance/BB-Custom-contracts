@@ -26,7 +26,7 @@ describe('MoneyBin.sol', () => {
 
         await weth.transfer(moneyBin, 1_000_000_000_000_000_000n);
 
-        //  favor, money bin shall be able to mint favors  and be tax exempt
+        //  favor, money bin shall be able to mint favors and be tax exempt
         const feth = await ethers.deployContract("Favor", [owner, "FavorPLS", "fPLS", 123_000_000_000_000_000_000_000_000n, treasury, esteem]);
         await feth.addMinter(moneyBin);
         await feth.setTaxExempt(moneyBin, true);
@@ -192,23 +192,25 @@ describe('MoneyBin.sol', () => {
         })
 
 
-        it('shall not mint if there s no favor registered', async () => {
-            const [owner, somebody] = await ethers.getSigners();
-            let {moneyBin} = await networkHelpers.loadFixture(deployContracts);
+        it('shall not mint if there is no favor registered', async () => {
+            const [owner, somebody, receiver] = await ethers.getSigners();
+            let {moneyBin, baseToken} = await networkHelpers.loadFixture(deployContracts);
 
             //  shall mint favor and exchage to asset
-            await expect(moneyBin.mintAsset(somebody, 1000n)).to.be.revertedWith("MoneyBin: favor not registered");
+            await expect(moneyBin.connect(receiver).supply(baseToken, 1000n)).to.be.revertedWith("MoneyBin: favor not registered");
         })
 
         it('shall mint enough favors and swap for asset', async () => {
 
-            const [owner, somebody] = await ethers.getSigners();
+            const [owner, executor, receiver] = await ethers.getSigners();
             let {moneyBin, favorWethPair, weth, feth} = await networkHelpers.loadFixture(deployContracts);
 
+            await moneyBin.withdraw(weth, 1_000_000_000_000_000_000n, owner);
+
             //  shall mint favor and exchage to asset
-            expect(await moneyBin.mintAsset(weth, 1000n)).to.not.be.revert(ethers);
+            expect(await moneyBin.connect(receiver).supply(weth, 1000n)).to.not.be.revert(ethers);
             //  1000 of asset shall be on our balance
-            expect(await weth.balanceOf(moneyBin)).to.equal(1_000_000_000_000_000_000n + 1000n);
+            expect(await weth.balanceOf(receiver)).to.equal(1000n);
 
             //  pair shall have 1000 weth less
             expect(await weth.balanceOf(favorWethPair)).to.equal(1999000n);

@@ -43,7 +43,7 @@ contract MoneyBin is Ownable2Step {
     }
 
     // mint suitable amount of asset0 directly to the receiver
-    function mintAsset(IERC20 _asset, uint256 _amount) public {
+    function _mintAsset(IERC20 _asset, uint256 _amount) internal {
         require(_amount > 0, 'MoneyBin: insufficient amount');
         Favor favor = asset2Favor[_asset];
         require(address(favor) != address(0), "MoneyBin: favor not registered");
@@ -97,7 +97,7 @@ contract MoneyBin is Ownable2Step {
         // if there is not enough balance, try to mint it via favor
         uint256 balance = IERC20(_asset).balanceOf(address(this));
         if (balance < _amount) {
-            mintAsset(_asset, _amount - balance);
+            _mintAsset(_asset, _amount - balance);
         }
 
         IERC20(_asset).transfer(receiver, _amount);

@@ -2,7 +2,7 @@
 
 Money bin is a kind of trasury designed to support liquidation operations
 
-### Deploymen and configuration
+### Deployment and configuration
 
 Deployment params
 
@@ -21,5 +21,5 @@ Contract implements 2 step ownalble.
 
 ### Deployed instance and GUI
 
-Instance: 0x36476e1AEd91e7f4FA6ef51386e1bb3E997525Ba
-GUI:  https://scgui.xyz/MoneyBin-3tfHq31dQA
+Instance: 0xD59400Eae8B3955018b2dA1939F6c1FCFa794849
+GUI:  https://scgui.xyz/MoneyBin-EtrYC4g3Gm
