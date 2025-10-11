@@ -22,7 +22,6 @@ describe('MoneyBin.sol', () => {
 
         const moneyBin = await ethers.deployContract("MoneyBin", [owner, v2router, v2factory]);
 
-        await moneyBin.setExecutor(executor, true);
         await moneyBin.setReceiver(receiver);
 
         await weth.transfer(moneyBin, 1_000_000_000_000_000_000n);
@@ -74,7 +73,6 @@ describe('MoneyBin.sol', () => {
 
             await expect(moneyBin.connect(somebody).setRouter(whatever)).to.be.revertedWithCustomError(moneyBin, "OwnableUnauthorizedAccount");
             await expect(moneyBin.connect(somebody).setFactory(whatever)).to.be.revertedWithCustomError(moneyBin, "OwnableUnauthorizedAccount");
-            await expect(moneyBin.connect(somebody).setExecutor(whatever, false)).to.be.revertedWithCustomError(moneyBin, "OwnableUnauthorizedAccount");
             await expect(moneyBin.connect(somebody).setReceiver(whatever)).to.be.revertedWithCustomError(moneyBin, "OwnableUnauthorizedAccount");
             await expect(moneyBin.connect(somebody).withdraw(whatever, 1000, whatever)).to.be.revertedWithCustomError(moneyBin, "OwnableUnauthorizedAccount");
             await expect(moneyBin.connect(somebody).registerFavor(whatever, whatever)).to.be.revertedWithCustomError(moneyBin, "OwnableUnauthorizedAccount");
@@ -103,8 +101,8 @@ describe('MoneyBin.sol', () => {
             const [owner, somebody, whatever] = await ethers.getSigners();
             let {moneyBin} = await networkHelpers.loadFixture(deployContracts);
 
-            await expect(moneyBin.setRouter(whatever)).to.not.be.revert(ethers);
-            expect(await moneyBin.router()).to.equal(whatever);
+            await expect(moneyBin.setFactory(whatever)).to.not.be.revert(ethers);
+            expect(await moneyBin.factory()).to.equal(whatever);
 
         })
 
@@ -118,18 +116,15 @@ describe('MoneyBin.sol', () => {
 
         })
 
-
-        it('shall set executor', async () => {
-            const [owner, executor, receiver, whatever] = await ethers.getSigners();
+        it('shall set val997', async () => {
+            const [owner, somebody, whatever] = await ethers.getSigners();
             let {moneyBin} = await networkHelpers.loadFixture(deployContracts);
 
-            expect(await moneyBin.isExecutor(whatever)).to.equal(false);
-            await expect(moneyBin.setExecutor(whatever, true)).to.not.be.revert(ethers);
-            expect(await moneyBin.isExecutor(whatever)).to.equal(true);
-            await expect(moneyBin.setExecutor(whatever, false)).to.not.be.revert(ethers);
-            expect(await moneyBin.isExecutor(whatever)).to.equal(false);
+            await expect(moneyBin.setVal997(123)).to.not.be.revert(ethers);
+            expect(await moneyBin.VAL997()).to.equal(123);
 
         })
+
 
         it('shall register favor', async () => {
             const [owner, favor, asset] = await ethers.getSigners();

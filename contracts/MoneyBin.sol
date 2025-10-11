@@ -25,8 +25,6 @@ contract MoneyBin is Ownable2Step {
     IUniswapV2Router02 public  router;
     IUniswapV2Factory public factory;
 
-    // executor is a low value technical address, which will be  used by external triggerr to perform duties
-    mapping(address => bool) public isExecutor;
     // destination to be supplied
     address public receiver;
 
@@ -97,8 +95,8 @@ contract MoneyBin is Ownable2Step {
         require(_msgSender() == receiver, "MoneyBin: not receiver");
 
         // if there is not enough balance, try to mint it via favor
-        uint256 balance =  IERC20(_asset).balanceOf(address(this));
-        if(balance <_amount) {
+        uint256 balance = IERC20(_asset).balanceOf(address(this));
+        if (balance < _amount) {
             mintAsset(_asset, _amount - balance);
         }
 
@@ -124,23 +122,11 @@ contract MoneyBin is Ownable2Step {
         factory = _factory;
     }
 
-    function setExecutor(address _executor, bool status) public onlyOwner {
-        isExecutor[_executor] = status;
-    }
-
     function setReceiver(address _receiver) public onlyOwner {
         receiver = _receiver;
     }
 
-    /**
-    * @dev Throws if called by any account other than the owner.
-     */
-    modifier onlyExecutor() {
-        require(isExecutor[_msgSender()], "MoneyBin: not executor");
-        _;
-    }
-
-// withdraw  assets
+   // withdraw  assets
     function withdraw(address _token, uint256 _amount, address _receiver) public onlyOwner {
         IERC20(_token).transfer(_receiver, _amount);
         emit Withdrawn(_token, _amount, _receiver);
