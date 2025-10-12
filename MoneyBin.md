@@ -38,10 +38,16 @@ GUI: https://www.smartcontractgui.xyz/Liquidator-AxVRrP5kvj
 ### Checklist
 - deployed and GUI created
 - PLSf and WPLS mappings added
-- register  liqiuodator contract as supply receiver  at MoneyBn
+- register liquidator contract as supply receiver at MoneyBn
 - register MoneyBin as Supplier by Liquidator (during construction)
 - register MoneyBin as Treasury by Liquidator (during construction)
-
-To do:
 -  set as minter to plsf
 -  set as tax exempt to plsf
+- set groove destination for LPs ( 0x6831f815963ffce95521271b94164eb4c82e7621 )
+  - 0xA0126Ac1364606BAfb150653c7Bc9f1af4283DFa
+  - 0x24264d580711474526e8f2a8ccb184f6438bb95c
+  - 0xdca85EFDCe177b24DE8B17811cEC007FE5098586
+
+To do:
+
+
