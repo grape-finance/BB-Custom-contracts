@@ -30,7 +30,7 @@ contract MintRedeemer is Ownable2Step, ReentrancyGuard, KillswitchPausable, IPri
     address public team = 0x1EA35487AE62322F61f4C0F639a598d9eEB2F340;
     address public holding = 0x6831f815963FfCe95521271b94164eb4C82e7621;
 
-    uint256 public immutable startTime;
+    uint256 public startTime;
     uint256 public initialEsteemRate = 21 * 1e18;       // $21 per Esteem start price
     uint256 public redeemRate = 7000;      // 70% in favor for Esteem redeemptions
     uint256 public treasuryBonusRate = 2500; // 25% extra bonus minted to protocol treasury multisig on top of users minted amount 
@@ -38,12 +38,12 @@ contract MintRedeemer is Ownable2Step, ReentrancyGuard, KillswitchPausable, IPri
 
     mapping(address => bool) public allowedMintTokens; // Tokens that can be used to mint Esteem
     mapping(address => bool) public favorTokens;
-    mapping(address => bool) public isApprovedUser;
     mapping(address => address) public priceOracles;
 
     event Minted(address indexed user, address token, uint256 inputAmount, uint256 esteemAmount);
     event Redeemed(address indexed user, uint256 esteemAmount, uint256 rewardAmount, address favorToken);
     event RateUpdated(uint256 newRate);
+    event NewStartTime(uint256 newTime);
     event NewDailyRateIncrease(uint256 newRate);
     event RedeemRateUpdated(uint256 newRate);
     event TreasuryBonusUpdated(uint256 newBonus);
@@ -54,7 +54,6 @@ contract MintRedeemer is Ownable2Step, ReentrancyGuard, KillswitchPausable, IPri
     event ContractPaused(address indexed admin);
     event ContractUnpaused(address indexed admin);
     event OracleUpdated(address indexed token, address indexed oracle);
-    event ApprovedUserSet(address indexed user, bool allowed);
     event AllowedMintTokenSet(address indexed token, bool allowed);
     event ActiveFavorTokenSet(address indexed token, bool allowed);
 
@@ -202,12 +201,6 @@ contract MintRedeemer is Ownable2Step, ReentrancyGuard, KillswitchPausable, IPri
         return (daysElapsed * dailyRateIncrease) + initialEsteemRate;
     }
 
-    function setApprovedUser(address user, bool allowed) external onlyOwner {
-        require(user != address(0), "Zero address not allowed");
-        isApprovedUser[user] = allowed;
-        emit ApprovedUserSet(user, allowed);
-    }
-
     function setDailyRateIncrease(uint256 _newRate) external onlyOwner {
         dailyRateIncrease = _newRate;
         emit NewDailyRateIncrease(_newRate);
@@ -217,6 +210,11 @@ contract MintRedeemer is Ownable2Step, ReentrancyGuard, KillswitchPausable, IPri
         require(_rate > 0, "Esteem Rate must be > 0");
         initialEsteemRate = _rate;
         emit RateUpdated(_rate);
+    }
+
+    function setStartTime(uint256 _time) external onlyOwner {
+        startTime = _time;
+        emit NewStartTime(_time);
     }
 
     function setPool(address _pool) external onlyOwner {
