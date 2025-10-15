@@ -273,13 +273,4 @@ contract MintRedeemer is Ownable2Step, ReentrancyGuard, KillswitchPausable, IPri
         emit AdminWithdraw(address(_token), _to, _amount);
     }
 
-    function adminWithdrawPLS(address _to, uint256 _amount) external onlyOwner {
-        require(_to != address(0), "Invalid address");
-        (bool success, ) = _to.call{value: _amount}("");
-        require(success, "Transfer failed");
-        emit AdminWithdraw(address(0), _to, _amount);
-    }
-
-    receive() external payable {}
-
 }
