@@ -209,7 +209,6 @@ contract FavorTreasury is Epoch, ReentrancyGuard, KillswitchPausable {
         emit LpPairToExcludeRemoved(pair);
     }
 
-    // TODO:  investigate/discuss  if excluding  LP is necessary
     /// @notice Gas intensive if many addresses are added to the list, planned usage is for ~10 protocol wallets/contracts & 2 LPs at most
     function getFavorCirculatingSupply() public view returns (uint256) {
         uint256 totalSupply = IERC20(favor).totalSupply();
@@ -228,7 +227,6 @@ contract FavorTreasury is Epoch, ReentrancyGuard, KillswitchPausable {
         // Loop through LP pairs excluded and calculate Favor reserves in each
         for (uint256 j = 0; j < pairsLen; j++) {
             address pair = lpPairsToExclude[j];
-            if (!isLpPairToExclude[pair]) continue;
 
             IUniswapV2Pair p = IUniswapV2Pair(pair);
 
