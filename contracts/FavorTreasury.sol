@@ -227,6 +227,7 @@ contract FavorTreasury is Epoch, ReentrancyGuard, KillswitchPausable {
         // Loop through LP pairs excluded and calculate Favor reserves in each
         for (uint256 j = 0; j < pairsLen; j++) {
             address pair = lpPairsToExclude[j];
+            if (excludedFromTotalSupply[pair]) continue;
 
             IUniswapV2Pair p = IUniswapV2Pair(pair);
 
