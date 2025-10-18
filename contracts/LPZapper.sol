@@ -131,8 +131,6 @@ contract LPZapper is Ownable2Step, ReentrancyGuard, KillswitchPausable {
 
         IERC20(asset).forceApprove(address(POOL), amount + premium);
 
-        _refundDust(user);
-
         emit FlashLoanExecuted(user, lpToken, lpAmount);
 
         return true;
