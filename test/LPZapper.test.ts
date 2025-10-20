@@ -821,23 +821,6 @@ describe("LPZapper.sol", () => {
     })
 
     describe('liquidity management', () => {
-        it('shall refuse to add liquidity if not a registered favor', async () => {
-            const [deployer, owner, somethingStrange] = await ethers.getSigners();
-            let {zapper, favorEth, weth} = await networkHelpers.loadFixture(deployContracts);
-            ;
-
-
-            await expect(zapper.addLiquidity(somethingStrange, weth, 1, 1, 1, 1, owner, 1)).to.be.revertedWith('Zapper: Not listed to make LP');
-        })
-
-
-        it('shall refuse to add ETH liquidity if not a a proper favor', async () => {
-            const [deployer, owner, somethingStrange] = await ethers.getSigners();
-            let {zapper, favorBase, baseToken} = await networkHelpers.loadFixture(deployContracts);
-            ;
-            await expect(zapper.addLiquidityETH(favorBase, 1, 1, 1, owner, 1)).to.be.revertedWith('Zapper: Not listed to make LP');
-        })
-
 
         it('shall add liquidity to registered favor', async () => {
             const [deployer, owner, somethingStrange] = await ethers.getSigners();

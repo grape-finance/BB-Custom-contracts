@@ -322,7 +322,6 @@ contract LPZapper is Ownable2Step, ReentrancyGuard, KillswitchPausable {
         address to,
         uint deadline
     ) external nonReentrant whenNotPaused {
-        require(favorToToken[tokenA] == tokenB, "Zapper: Not listed to make LP");
         IERC20(tokenA).safeTransferFrom(msg.sender, address(this), amountADesired);
         IERC20(tokenB).safeTransferFrom(msg.sender, address(this), amountBDesired);
 
@@ -352,7 +351,6 @@ contract LPZapper is Ownable2Step, ReentrancyGuard, KillswitchPausable {
         address _to,
         uint _deadline
     ) external payable nonReentrant whenNotPaused {
-        require(favorToToken[_token] == WPLS, "Zapper: Not listed to make LP");
         IERC20(_token).safeTransferFrom(
             msg.sender,
             address(this),
