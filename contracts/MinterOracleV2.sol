@@ -77,7 +77,8 @@ contract MinterOracleV2 is UsingFetch, Ownable2Step, IMasterOracle {
     function setTwapInBaseToken(
         address token,
         address oracle,
-        address baseToken
+        address baseToken,
+        uint48 maxAgeSec
     ) external onlyOwner {
         require(oracle != address(0), "oracle=0");
         require(baseToken != address(0), "base=0");
@@ -85,9 +86,10 @@ contract MinterOracleV2 is UsingFetch, Ownable2Step, IMasterOracle {
         c.kind = PricingKind.TWAP_IN_BASE;
         c.twapOracle = oracle;
         c.baseToken = baseToken;
+        c.maxAge = maxAgeSec;
         emit TokenConfigured(token, PricingKind.TWAP_IN_BASE);
         emit TokenTwapOracleUpdated(token, oracle);
-        emit TokenMaxAgeUpdated(token, 0);
+        emit TokenMaxAgeUpdated(token, maxAgeSec);
     }
 
     function setDexGuard(
@@ -146,7 +148,7 @@ contract MinterOracleV2 is UsingFetch, Ownable2Step, IMasterOracle {
         if (c.kind == PricingKind.TELLOR_SPOT) {
             price = _tellorSpotUSD(c.tellorBase, c.maxAge);
         } else if (c.kind == PricingKind.TWAP_IN_BASE) {
-            uint256 twapInBase = _consultTwap(c.twapOracle, token);
+            uint256 twapInBase = _consultTwap(c.twapOracle, token, c.maxAge);
             uint256 baseUSD = _priceUSD(c.baseToken, depth + 1);
             price = (twapInBase * baseUSD) / ONE;
         } else{
@@ -175,8 +177,10 @@ contract MinterOracleV2 is UsingFetch, Ownable2Step, IMasterOracle {
         for (uint i = 0; i < s.length; i++) m[i] = s[i];
     }
 
-    function _consultTwap(address oracle, address token) internal view returns (uint256) {
+    function _consultTwap(address oracle, address token, uint48 maxAge) internal view returns (uint256) {
         try IOracle(oracle).consult(token, ONE) returns (uint256 out) {
+            uint256 last = uint256(IOracle(oracle).blockTimestampLast());
+            if (block.timestamp - last > uint256(maxAge)) revert StalePrice(token);
             return out;
         } catch {
             revert("TWAP consult failed");
