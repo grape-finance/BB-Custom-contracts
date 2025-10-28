@@ -3,6 +3,7 @@
 
 pragma solidity 0.8.20;
 
+import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {EpochKeeper} from "./EpochKeeper.sol";
 
@@ -10,9 +11,10 @@ import {EpochKeeper} from "./EpochKeeper.sol";
 // state based on epoch
 // simple use classes can just use epoch keeper to have a notion of current epoch
 abstract contract Epoch is Ownable2Step {
+    using EnumerableSet for EnumerableSet.AddressSet;
 
-    // Approved users mapping
-    mapping(address => bool) public isApprovedUser;
+    // Approved users set
+    EnumerableSet.AddressSet private approvedUsers;
 
     EpochKeeper public  keeper;
     uint256 public currentEpoch;
@@ -35,7 +37,7 @@ abstract contract Epoch is Ownable2Step {
     /* ========== MODIFIERS ========== */
 
     modifier onlyApproved() {
-        require(isApprovedUser[msg.sender] || msg.sender == owner(), "Epoch: caller not approved");
+        require(isApprovedUser(msg.sender) || msg.sender == owner(), "Epoch: caller not approved");
         _;
     }
 
@@ -62,11 +64,28 @@ abstract contract Epoch is Ownable2Step {
         return to;
     }
 
+    function isApprovedUser(address user) public view returns (bool) {
+        return approvedUsers.contains(user);
+    }
+
+    function getApprovedUsers() external view returns (address[] memory) {
+        return approvedUsers.values();
+    }
+
 
     function setApprovedUser(address user, bool allowed) external onlyOwner {
         require(user != address(0), "Zero address not allowed");
-        isApprovedUser[user] = allowed;
-        emit ApprovedUserSet(user, allowed);
+
+        bool changed;
+        if (allowed) {
+            changed = approvedUsers.add(user);
+        } else {
+            changed = approvedUsers.remove(user);
+        }
+
+        if (changed) {
+            emit ApprovedUserSet(user, allowed);
+        }
     }
 
 
