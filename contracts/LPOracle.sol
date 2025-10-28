@@ -1,5 +1,6 @@
 
 // SPDX-License-Identifier: MIT
+/// @notice This contract is now redundant and replaced with LPOracleFairValue.sol for LP price calculations
 
 pragma solidity 0.8.20;
 
@@ -12,7 +13,7 @@ import {UniswapV2OracleLibrary} from "@uniswap/v2-periphery/contracts/libraries/
 import '@uniswap/lib/contracts/libraries/FixedPoint.sol';
 import {IOracle} from "./interfaces/IOracle.sol";
 
-/// @dev Legacy Uni V2 TWAP oracle for LP tokens with reserves TWAP
+
 
 contract LPOracle is Epoch {
     using Math for uint256;

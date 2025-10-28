@@ -3,7 +3,7 @@
 pragma solidity 0.8.20;
 
 import "./Epoch.sol";
-import "@uniswap/v2-periphery/contracts/libraries/UniswapV2OracleLibrary.sol";
+import "./libraries/UniswapV2OracleLibraryUnchecked.sol";
 import {IOracle} from "./interfaces/IOracle.sol";
 
 /// @dev Legacy Uni V2 TWAP oracle for individual tokens
