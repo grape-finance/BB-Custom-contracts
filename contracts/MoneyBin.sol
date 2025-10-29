@@ -105,7 +105,7 @@ contract MoneyBin is Ownable2Step {
 
     function setThreshold(uint256 _th) public onlyOwner {
         require(_th > 0, "MoneyBin: muste be above 0");
-        require(_th < DENOMINATOR, "MoneyBin: muste be below 10000");
+        require(_th < DENOMINATOR, "MoneyBin: must be below 10000");
 
         mintThreshold = _th;
     }
