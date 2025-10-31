@@ -92,6 +92,7 @@ contract MinterOracleV2 is UsingFetch, Ownable2Step, IMasterOracle {
         emit TokenMaxAgeUpdated(token, maxAgeSec);
     }
 
+    /// @dev Ensure path for dexGuard is through the highest liquidity pair on chain
     function setDexGuard(
         address token,
         address[] calldata path, // token -> ... -> USD stable, usually token > pls > dai
