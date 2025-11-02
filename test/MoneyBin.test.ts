@@ -139,8 +139,8 @@ describe('MoneyBin.sol', () => {
             const [owner, executor, receiver, whatever] = await ethers.getSigners();
             let {moneyBin} = await networkHelpers.loadFixture(deployContracts);
 
-            await expect(moneyBin.setThreshold(0)).to.be.revertedWith("MoneyBin: muste be above 0");
-            await expect(moneyBin.setThreshold(10000)).to.be.revertedWith("MoneyBin: muste be below 10000");
+            await expect(moneyBin.setThreshold(0)).to.be.revertedWith("MoneyBin: must be above 0");
+            await expect(moneyBin.setThreshold(10000)).to.be.revertedWith("MoneyBin: must be below 10000");
 
             await expect(moneyBin.setThreshold(239)).to.not.be.revert(ethers);
             expect(await moneyBin.mintThreshold()).to.equal(239n);
